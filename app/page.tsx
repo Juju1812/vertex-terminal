@@ -1,6 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+/**
+ * RENDER ISOLATION ARCHITECTURE
+ * ─────────────────────────────
+ * Problem: countdown ticks every second → re-renders the whole page.
+ *
+ * Solution:
+ *   1. CountdownBar owns ALL timer state internally (no state in parent).
+ *   2. MarketsPanel, AIPanel, Sidebar are defined OUTSIDE the root component
+ *      and wrapped in React.memo — they only re-render when their props change.
+ *   3. Callbacks (go, toggleWatch, refreshMarkets) are stable useCallbacks.
+ *   4. Prop objects are assembled with useMemo so memo boundaries hold.
+ *   5. TabIcon is a plain function (no state, no hooks) — fine to inline.
+ */
+
+import {
+  useState, useEffect, useCallback, useRef,
+  memo, useMemo, type SetStateAction, type Dispatch,
+} from "react";
 import dynamic from "next/dynamic";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -8,12 +25,12 @@ import {
 } from "recharts";
 import {
   Search, TrendingUp, TrendingDown, Brain, Star, StarOff,
-  Zap, RefreshCw, AlertTriangle, Trophy, BookOpen, X,
-  LayoutDashboard, ChevronRight, Activity,
+  Zap, AlertTriangle, Trophy, BookOpen, X,
+  LayoutDashboard, ChevronRight,
 } from "lucide-react";
-import { CountdownBar, useAutoRefresh } from "@/components/CountdownBar";
+import { CountdownBar } from "@/components/CountdownBar";
 
-/* ── Lazy panels ──────────────────────────────────────────────── */
+/* ── Lazy panels — not affected by parent state ─────────────── */
 const Top15    = dynamic(() => import("@/components/Top15"),    { ssr: false, loading: () => <PanelSkeleton/> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"), { ssr: false, loading: () => <PanelSkeleton/> });
 
@@ -27,12 +44,15 @@ function PanelSkeleton() {
   );
 }
 
-/* ── Types ─────────────────────────────────────────────────────── */
-interface Quote { ticker:string; name:string; price:number; change:number; changePct:number; high:number; low:number; open:number; volume:number; }
-interface Bar   { date:string; close:number; }
+/* ── Types ─────────────────────────────────────────────────── */
+interface Quote {
+  ticker:string; name:string; price:number; change:number;
+  changePct:number; high:number; low:number; open:number; volume:number;
+}
+interface Bar { date:string; close:number; }
 type Tab = "markets" | "ai" | "top15" | "portfolio";
 
-/* ── Data ──────────────────────────────────────────────────────── */
+/* ── Static data ─────────────────────────────────────────────── */
 const API_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE    = "https://api.polygon.io";
 const TICKERS = ["AAPL","MSFT","NVDA","GOOGL","META","TSLA","AMZN","AMD"];
@@ -54,17 +74,17 @@ const AI_LONG = [
   { ticker:"AMD",  name:"AMD",                 conf:78, target:195, up:20.1, thesis:"MI300X gaining enterprise GPU traction. Data center +80% YoY. TSMC capacity locked through 2025.", tags:["MI400","Design Wins","CPU Share"] },
 ];
 const AI_SHORT = [
-  { ticker:"TSLA", name:"Tesla Inc.",      conf:76, target:195, down:-21.6, thesis:"EV demand soft. Brutal price war in China. Cybertruck ramp costlier than expected. Brand erosion risk.", tags:["China","Margins","Competition"] },
-  { ticker:"AMZN", name:"Amazon.com",      conf:61, target:180, down:-10.5, thesis:"AWS growth decelerating vs peers. Retail margins thin. Advertising CPM pressure accelerating.", tags:["AWS Slowdown","Ad CPMs","FTC"] },
+  { ticker:"TSLA", name:"Tesla Inc.",   conf:76, target:195, down:-21.6, thesis:"EV demand soft. Brutal price war in China. Cybertruck ramp costlier than expected. Brand erosion risk.", tags:["China","Margins","Competition"] },
+  { ticker:"AMZN", name:"Amazon.com",   conf:61, target:180, down:-10.5, thesis:"AWS growth decelerating vs peers. Retail margins thin. Advertising CPM pressure accelerating.", tags:["AWS Slowdown","Ad CPMs","FTC"] },
 ];
 
 const INDICES = [
-  { n:"S&P 500",  v:"5,842.47", d:"+0.74%", up:true  },
-  { n:"NASDAQ",   v:"18,843",   d:"+1.12%", up:true  },
-  { n:"DJIA",     v:"43,189",   d:"+0.42%", up:true  },
-  { n:"VIX",      v:"14.32",    d:"−2.18%", up:false },
-  { n:"10Y",      v:"4.28%",    d:"+0.03%", up:true  },
-  { n:"BTC",      v:"94,120",   d:"+2.31%", up:true  },
+  { n:"S&P 500", v:"5,842.47", d:"+0.74%", up:true  },
+  { n:"NASDAQ",  v:"18,843",   d:"+1.12%", up:true  },
+  { n:"DJIA",    v:"43,189",   d:"+0.42%", up:true  },
+  { n:"VIX",     v:"14.32",    d:"−2.18%", up:false },
+  { n:"10Y",     v:"4.28%",    d:"+0.03%", up:true  },
+  { n:"BTC",     v:"94,120",   d:"+2.31%", up:true  },
 ];
 
 const TABS: { id:Tab; label:string; short:string }[] = [
@@ -74,7 +94,7 @@ const TABS: { id:Tab; label:string; short:string }[] = [
   { id:"ai",        label:"AI Signals", short:"AI"        },
 ];
 
-/* ── Helpers ───────────────────────────────────────────────────── */
+/* ── API helpers ─────────────────────────────────────────────── */
 function seedBars(base: number, days = 90): Bar[] {
   const out: Bar[] = [];
   let p = base * 0.81, seed = Math.round(base * 137);
@@ -119,41 +139,38 @@ async function searchTickers(q: string): Promise<string[]> {
   return d.results.map(r => r.ticker);
 }
 
-/* ── Format utils ──────────────────────────────────────────────── */
+/* ── Format utils ────────────────────────────────────────────── */
 const f$ = (n:number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2}).format(n);
 const fp = (n:number) => `${n>=0?"+":""}${n.toFixed(2)}%`;
 const fv = (n:number) => n>=1e9?`${(n/1e9).toFixed(2)}B`:n>=1e6?`${(n/1e6).toFixed(2)}M`:n>=1e3?`${(n/1e3).toFixed(1)}K`:String(n);
 
-/* ── Design tokens (JS) ─────────────────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────────────── */
 const V = {
-  void:  "#050810",
-  d0:    "#050810", d1: "#080D18", d2: "#0C1220", d3: "#101828", d4:"#151F30", d5:"#1A2638", dh:"#1E2D40",
-  w1:  "rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)", w4:"rgba(130,180,255,0.26)",
+  void:"#050810", d0:"#050810", d1:"#080D18", d2:"#0C1220", d3:"#101828", d4:"#151F30", dh:"#1E2D40",
+  w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)", w4:"rgba(130,180,255,0.26)",
   ink0:"#F2F6FF", ink1:"#C8D5E8", ink2:"#7A9CBF", ink3:"#3D5A7A", ink4:"#1F3550",
-  gain:"#00C896",  gainDim:"rgba(0,200,150,0.08)",  gainWire:"rgba(0,200,150,0.20)",  gainGlow:"rgba(0,200,150,0.12)",
-  loss:"#E8445A",  lossDim:"rgba(232,68,90,0.08)",  lossWire:"rgba(232,68,90,0.20)",  lossGlow:"rgba(232,68,90,0.10)",
-  arc: "#4F8EF7",  arcDim: "rgba(79,142,247,0.10)", arcWire: "rgba(79,142,247,0.22)",
-  gold:"#E8A030",  goldDim:"rgba(232,160,48,0.10)",
-  ame: "#9B72F5",  ameDim: "rgba(155,114,245,0.10)", ameWire:"rgba(155,114,245,0.22)",
+  gain:"#00C896", gainDim:"rgba(0,200,150,0.08)", gainWire:"rgba(0,200,150,0.20)", gainGlow:"rgba(0,200,150,0.12)",
+  loss:"#E8445A", lossDim:"rgba(232,68,90,0.08)", lossWire:"rgba(232,68,90,0.20)", lossGlow:"rgba(232,68,90,0.10)",
+  arc:"#4F8EF7",  arcDim:"rgba(79,142,247,0.10)", arcWire:"rgba(79,142,247,0.22)",
+  gold:"#E8A030", goldDim:"rgba(232,160,48,0.10)",
+  ame:"#9B72F5",  ameDim:"rgba(155,114,245,0.10)", ameWire:"rgba(155,114,245,0.22)",
 };
 
-const mono: React.CSSProperties = { fontFamily: "'Geist Mono', 'Courier New', monospace" };
-const body: React.CSSProperties = { fontFamily: "'Bricolage Grotesque', system-ui, sans-serif" };
+const mono: React.CSSProperties = { fontFamily:"'Geist Mono','Courier New',monospace" };
 
-/* ── Shared card style ──────────────────────────────────────────── */
 const glassCard = (extra?: React.CSSProperties): React.CSSProperties => ({
-  background: "linear-gradient(145deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.012) 100%)",
-  backdropFilter: "blur(24px) saturate(1.5)",
-  WebkitBackdropFilter: "blur(24px) saturate(1.5)",
-  border: `1px solid ${V.w2}`,
-  borderRadius: 16,
-  boxShadow: `0 4px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)`,
-  position: "relative" as const,
-  overflow: "hidden",
+  background:"linear-gradient(145deg,rgba(255,255,255,0.030) 0%,rgba(255,255,255,0.012) 100%)",
+  backdropFilter:"blur(24px) saturate(1.5)",
+  WebkitBackdropFilter:"blur(24px) saturate(1.5)",
+  border:`1px solid ${V.w2}`,
+  borderRadius:16,
+  boxShadow:`0 4px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)`,
+  position:"relative" as const,
+  overflow:"hidden",
   ...extra,
 });
 
-/* ── Custom chart tooltip ─────────────────────────────────────── */
+/* ── Shared sub-components ───────────────────────────────────── */
 function ChartTip({ active, payload, label }: { active?:boolean; payload?:{value:number}[]; label?:string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -164,84 +181,51 @@ function ChartTip({ active, payload, label }: { active?:boolean; payload?:{value
   );
 }
 
-/* ── Micro confidence bar ──────────────────────────────────────── */
 function ConfBar({ pct, color }: { pct:number; color:string }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:10 }}>
       <div style={{ flex:1, height:2, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden" }}>
-        <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:99, transition:"width 1s cubic-bezier(0.16,1,0.3,1)" }} />
+        <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:99, transition:"width 1s cubic-bezier(0.16,1,0.3,1)" }}/>
       </div>
       <span style={{ ...mono, fontSize:10, color, minWidth:30, textAlign:"right" }}>{pct}%</span>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-   ════════════════════════════════════════════════════════════ */
-export default function VertexTerminal() {
-  const [ticker,    setTicker]    = useState("AAPL");
-  const [quote,     setQuote]     = useState<Quote>(MOCK["AAPL"]);
-  const [bars,      setBars]      = useState<Bar[]>(seedBars(228.52));
-  const [watchlist, setWatchlist] = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
-  const [search,    setSearch]    = useState("");
-  const [results,   setResults]   = useState<string[]>([]);
-  const [loading,   setLoading]   = useState(false);
-  const [tab,       setTab]       = useState<Tab>("markets");
-  const [searching, setSearching] = useState(false);
-  const [showSearch,setShowSearch]= useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
+function TabIcon({ id, size=20, active }: { id:Tab; size?:number; active:boolean }) {
+  const sw = active ? 2 : 1.5;
+  if (id==="markets")   return <LayoutDashboard size={size} strokeWidth={sw}/>;
+  if (id==="top15")     return <Trophy          size={size} strokeWidth={sw}/>;
+  if (id==="portfolio") return <BookOpen        size={size} strokeWidth={sw}/>;
+  if (id==="ai")        return <Brain           size={size} strokeWidth={sw}/>;
+  return null;
+}
 
-  const load = useCallback(async (t: string) => {
-    setLoading(true);
-    const [q, b] = await Promise.all([loadQuote(t), loadBars(t)]);
-    setQuote(q); setBars(b); setLoading(false);
-  }, []);
-  useEffect(() => { load(ticker); }, [ticker, load]);
+/* ══════════════════════════════════════════════════════════════
+   MARKETS PANEL
+   Defined outside root — memo ensures it only re-renders when
+   quote/bars/ticker actually change, NOT on every timer tick.
+   ══════════════════════════════════════════════════════════════ */
+interface MarketsPanelProps {
+  ticker: string; quote: Quote; bars: Bar[]; loading: boolean;
+  up: boolean; lineColor: string; watched: boolean; watchlist: string[];
+  go: (t:string)=>void; toggleWatch: (t:string)=>void;
+  refreshMarkets: ()=>Promise<void>;
+}
 
-  // Auto-refresh: re-fetches the current quote + bars every 15 min
-  const refreshMarkets = useCallback(async () => {
-    const [q, b] = await Promise.all([loadQuote(ticker), loadBars(ticker)]);
-    setQuote(q); setBars(b);
-  }, [ticker]);
-  const countdown = useAutoRefresh(refreshMarkets);
-
-  useEffect(() => {
-    if (!search.trim()) { setResults([]); return; }
-    const id = setTimeout(async () => {
-      setSearching(true);
-      setResults((await searchTickers(search)).slice(0, 7));
-      setSearching(false);
-    }, 300);
-    return () => clearTimeout(id);
-  }, [search]);
-
-  useEffect(() => {
-    const h = (e:MouseEvent) => { if (searchRef.current && !searchRef.current.contains(e.target as Node)) { setResults([]); setShowSearch(false); } };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const go = (t: string) => { setTicker(t); setSearch(""); setResults([]); setShowSearch(false); setTab("markets"); };
-  const toggleWatch = (t: string) => setWatchlist(w => w.includes(t) ? w.filter(x=>x!==t) : [...w,t]);
-
-  const up        = quote.changePct >= 0;
-  const lineColor = up ? V.gain : V.loss;
-  const watched   = watchlist.includes(ticker);
-  const fullWide  = tab === "top15" || tab === "portfolio";
-
-  /* ── Markets panel ─────────────────────────────────────── */
-  const MarketsPanel = () => (
+const MarketsPanel = memo(function MarketsPanel({
+  ticker, quote, bars, loading, up, lineColor, watched, watchlist,
+  go, toggleWatch, refreshMarkets,
+}: MarketsPanelProps) {
+  return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }} className="vx-rise">
 
-      {/* ── Hero quote card ── */}
+      {/* Hero quote card */}
       <div style={{ ...glassCard(), padding:0, overflow:"hidden" }}>
-        {/* Ambient glow matching direction */}
-        <div style={{ position:"absolute", top:-60, right:-60, width:240, height:240, borderRadius:"50%", background:up?V.gainGlow:V.lossGlow, filter:"blur(60px)", pointerEvents:"none", zIndex:0 }} />
+        <div style={{ position:"absolute", top:-60, right:-60, width:240, height:240, borderRadius:"50%", background:up?V.gainGlow:V.lossGlow, filter:"blur(60px)", pointerEvents:"none", zIndex:0 }}/>
 
         <div style={{ position:"relative", zIndex:1, padding:"24px 24px 0" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
-            {/* Left: ticker name */}
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4, flexWrap:"wrap" }}>
                 <h1 style={{ ...mono, fontSize:"clamp(28px,6vw,44px)", fontWeight:500, letterSpacing:"-0.04em", lineHeight:1, color:V.ink0 }}>{ticker}</h1>
@@ -250,37 +234,34 @@ export default function VertexTerminal() {
                   {fp(quote.changePct)}
                 </span>
                 <button onClick={() => toggleWatch(ticker)}
-                  style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex", alignItems:"center", minWidth:32, minHeight:32, justifyContent:"center", borderRadius:8, transition:"background 0.15s" }}>
-                  {watched
-                    ? <Star size={17} color={V.gold} fill={V.gold}/>
-                    : <StarOff size={17} color={V.ink3}/>}
+                  style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex", alignItems:"center", minWidth:32, minHeight:32, justifyContent:"center", borderRadius:8 }}>
+                  {watched ? <Star size={17} color={V.gold} fill={V.gold}/> : <StarOff size={17} color={V.ink3}/>}
                 </button>
               </div>
               <p style={{ color:V.ink2, fontSize:13, fontWeight:400 }}>{quote.name}</p>
             </div>
-            {/* Right: price */}
             <div style={{ textAlign:"right" }}>
               {loading
                 ? <div className="skel" style={{ width:180, height:48, borderRadius:8 }}/>
                 : <>
-                    <div style={{ ...mono, fontSize:"clamp(30px,5vw,46px)", fontWeight:500, letterSpacing:"-0.04em", lineHeight:1, color:V.ink0, animation:"vx-rise 0.3s ease-out both" }}>{f$(quote.price)}</div>
+                    <div style={{ ...mono, fontSize:"clamp(30px,5vw,46px)", fontWeight:500, letterSpacing:"-0.04em", lineHeight:1, color:V.ink0 }}>{f$(quote.price)}</div>
                     <div style={{ ...mono, fontSize:12, color:up?V.gain:V.loss, marginTop:5 }}>{quote.change>=0?"+":""}{f$(quote.change)} today</div>
                   </>}
             </div>
           </div>
 
-          {/* Stat chips — horizontal scroll on mobile */}
+          {/* Stat chips */}
           <div className="scroll-x" style={{ marginTop:20, marginLeft:-24, marginRight:-24, paddingLeft:24, paddingRight:24 }}>
             <div style={{ display:"flex", gap:8, minWidth:"max-content", paddingBottom:20 }}>
               {[
-                { l:"Open",   v:f$(quote.open) },
-                { l:"High",   v:f$(quote.high) },
-                { l:"Low",    v:f$(quote.low)  },
-                { l:"Volume", v:fv(quote.volume) },
-                { l:"Prev",   v:f$(quote.price - quote.change) },
+                {l:"Open",   v:f$(quote.open)},
+                {l:"High",   v:f$(quote.high)},
+                {l:"Low",    v:f$(quote.low)},
+                {l:"Volume", v:fv(quote.volume)},
+                {l:"Prev",   v:f$(quote.price-quote.change)},
               ].map(s => (
-                <div key={s.l} style={{ background:"rgba(255,255,255,0.035)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"9px 14px", flexShrink:0, backdropFilter:"blur(8px)" }}>
-                  <p className="label" style={{ marginBottom:3 }}>{s.l}</p>
+                <div key={s.l} style={{ background:"rgba(255,255,255,0.035)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"9px 14px", flexShrink:0 }}>
+                  <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:3 }}>{s.l}</p>
                   <p style={{ ...mono, fontSize:12, fontWeight:500, color:V.ink0 }}>{s.v}</p>
                 </div>
               ))}
@@ -288,11 +269,11 @@ export default function VertexTerminal() {
           </div>
         </div>
 
-        {/* Chart — seamless into card */}
+        {/* Chart */}
         <div style={{ position:"relative", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px 12px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:6, height:6, borderRadius:"50%", background:lineColor, animation:"live-pulse 2.5s ease-in-out infinite", boxShadow:`0 0 8px ${lineColor}` }} />
+              <div style={{ width:6, height:6, borderRadius:"50%", background:lineColor, animation:"live-pulse 2.5s ease-in-out infinite", boxShadow:`0 0 8px ${lineColor}` }}/>
               <span style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em" }}>90-day · Polygon.io</span>
             </div>
           </div>
@@ -318,19 +299,12 @@ export default function VertexTerminal() {
         </div>
       </div>
 
-      {/* ── Countdown bar ── */}
-      <CountdownBar
-        secondsLeft={countdown.secondsLeft}
-        pct={countdown.pct}
-        refreshing={countdown.refreshing}
-        lastUpdated={countdown.lastUpdated}
-        onRefresh={countdown.forceRefresh}
-        label="Next market update"
-      />
+      {/* Countdown — self-contained, zero parent re-renders */}
+      <CountdownBar onRefresh={refreshMarkets} label="Next market update"/>
 
-      {/* ── Ticker quick-select ── */}
+      {/* Quick-select */}
       <div>
-        <p className="label" style={{ marginBottom:10 }}>Quick Select</p>
+        <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Quick Select</p>
         <div className="scroll-x" style={{ marginLeft:-16, marginRight:-16, paddingLeft:16, paddingRight:16 }}>
           <div style={{ display:"flex", gap:6, minWidth:"max-content" }}>
             {TICKERS.map(t => {
@@ -338,10 +312,9 @@ export default function VertexTerminal() {
               return (
                 <button key={t} onClick={() => go(t)}
                   style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"9px 13px", borderRadius:11, border:`1px solid`, cursor:"pointer", minWidth:68, transition:"all 0.2s cubic-bezier(0.16,1,0.3,1)",
-                    background: active ? `linear-gradient(145deg, rgba(79,142,247,0.12), rgba(79,142,247,0.06))` : "rgba(255,255,255,0.025)",
+                    background: active ? "linear-gradient(145deg,rgba(79,142,247,0.12),rgba(79,142,247,0.06))" : "rgba(255,255,255,0.025)",
                     borderColor: active ? V.arcWire : V.w1,
-                    boxShadow: active ? `0 0 20px ${V.arcDim}, inset 0 1px 0 rgba(255,255,255,0.08)` : "none",
-                  }}>
+                    boxShadow: active ? `0 0 20px ${V.arcDim}, inset 0 1px 0 rgba(255,255,255,0.08)` : "none" }}>
                   <span style={{ ...mono, fontSize:12, fontWeight:500, color:active?"#7EB6FF":V.ink0 }}>{t}</span>
                   <span style={{ ...mono, fontSize:9, color:pos?V.gain:V.loss, marginTop:2 }}>{q ? fp(q.changePct) : ""}</span>
                 </button>
@@ -351,7 +324,7 @@ export default function VertexTerminal() {
         </div>
       </div>
 
-      {/* ── Watchlist ── */}
+      {/* Watchlist */}
       <div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
           <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -385,8 +358,8 @@ export default function VertexTerminal() {
             {TICKERS.filter(t=>!watchlist.includes(t)).map(t => (
               <button key={t} onClick={() => toggleWatch(t)}
                 style={{ ...mono, fontSize:10, padding:"4px 10px", borderRadius:6, background:"transparent", border:`1px solid ${V.w1}`, color:V.ink3, cursor:"pointer", transition:"all 0.2s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = V.arcWire; e.currentTarget.style.color = "#7EB6FF"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = V.w1; e.currentTarget.style.color = V.ink3; }}>
+                onMouseEnter={e=>{ e.currentTarget.style.borderColor=V.arcWire; e.currentTarget.style.color="#7EB6FF"; }}
+                onMouseLeave={e=>{ e.currentTarget.style.borderColor=V.w1; e.currentTarget.style.color=V.ink3; }}>
                 +{t}
               </button>
             ))}
@@ -394,7 +367,7 @@ export default function VertexTerminal() {
         </div>
       </div>
 
-      {/* ── Market indices ── */}
+      {/* Global markets */}
       <div>
         <p style={{ fontSize:13, fontWeight:600, color:V.ink0, marginBottom:12 }}>Global Markets</p>
         <div style={{ ...glassCard({ overflow:"hidden" }) }}>
@@ -411,9 +384,18 @@ export default function VertexTerminal() {
       </div>
     </div>
   );
+});
 
-  /* ── AI Signals panel ───────────────────────────────────── */
-  const AIPanel = () => (
+/* ══════════════════════════════════════════════════════════════
+   AI PANEL — also memoized, only re-renders on data change
+   ══════════════════════════════════════════════════════════════ */
+interface AIPanelProps {
+  go: (t:string)=>void;
+  refreshMarkets: ()=>Promise<void>;
+}
+
+const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
+  return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }} className="vx-rise">
       {/* Header card */}
       <div style={{ ...glassCard({ padding:24 }) }}>
@@ -433,22 +415,15 @@ export default function VertexTerminal() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:18 }}>
           {[{l:"Model Accuracy",v:"73.4%",c:"#7EB6FF"},{l:"Avg Confidence",v:"78.5%",c:V.gain},{l:"Alpha vs S&P",v:"+5.9%",c:V.gain}].map(s => (
             <div key={s.l} style={{ background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"11px 14px", textAlign:"center" }}>
-              <p className="label" style={{ marginBottom:5 }}>{s.l}</p>
+              <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>{s.l}</p>
               <p style={{ ...mono, fontSize:19, fontWeight:500, color:s.c, letterSpacing:"-0.02em" }}>{s.v}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Countdown bar ── */}
-      <CountdownBar
-        secondsLeft={countdown.secondsLeft}
-        pct={countdown.pct}
-        refreshing={countdown.refreshing}
-        lastUpdated={countdown.lastUpdated}
-        onRefresh={countdown.forceRefresh}
-        label="Next signal update"
-      />
+      {/* Countdown — self-contained */}
+      <CountdownBar onRefresh={refreshMarkets} label="Next signal update"/>
 
       {/* Long signals */}
       <div>
@@ -461,10 +436,10 @@ export default function VertexTerminal() {
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {AI_LONG.map((s, i) => (
-            <div key={s.ticker} style={{ ...glassCard({ padding:20 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s cubic-bezier(0.16,1,0.3,1)" }} className="vx-card-lift"
+            <div key={s.ticker} style={{ ...glassCard({ padding:20 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s cubic-bezier(0.16,1,0.3,1)" }}
               onClick={() => go(s.ticker)}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = V.gainWire; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = V.w2; }}>
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor=V.gainWire; (e.currentTarget as HTMLElement).style.transform="translateY(-1px)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor=V.w2; (e.currentTarget as HTMLElement).style.transform="translateY(0)"; }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
                 <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
                   <span style={{ ...mono, fontSize:10, color:V.ink4, marginTop:3 }}>#{i+1}</span>
@@ -474,7 +449,7 @@ export default function VertexTerminal() {
                   </div>
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0 }}>
-                  <p className="label" style={{ marginBottom:3 }}>Price Target</p>
+                  <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Price Target</p>
                   <p style={{ ...mono, fontSize:17, fontWeight:500, color:V.gain, letterSpacing:"-0.02em" }}>{f$(s.target)}</p>
                   <p style={{ ...mono, fontSize:10, color:V.gain }}>+{s.up.toFixed(1)}% upside</p>
                 </div>
@@ -500,10 +475,10 @@ export default function VertexTerminal() {
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {AI_SHORT.map((s, i) => (
-            <div key={s.ticker} style={{ ...glassCard({ padding:20 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s cubic-bezier(0.16,1,0.3,1)" }} className="vx-card-lift"
+            <div key={s.ticker} style={{ ...glassCard({ padding:20 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s cubic-bezier(0.16,1,0.3,1)" }}
               onClick={() => go(s.ticker)}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = V.lossWire; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = V.w2; }}>
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor=V.lossWire; (e.currentTarget as HTMLElement).style.transform="translateY(-1px)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor=V.w2; (e.currentTarget as HTMLElement).style.transform="translateY(0)"; }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
                 <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
                   <span style={{ ...mono, fontSize:10, color:V.ink4, marginTop:3 }}>#{i+1}</span>
@@ -513,7 +488,7 @@ export default function VertexTerminal() {
                   </div>
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0 }}>
-                  <p className="label" style={{ marginBottom:3 }}>Price Target</p>
+                  <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Price Target</p>
                   <p style={{ ...mono, fontSize:17, fontWeight:500, color:V.loss, letterSpacing:"-0.02em" }}>{f$(s.target)}</p>
                   <p style={{ ...mono, fontSize:10, color:V.loss }}>{s.down.toFixed(1)}% downside</p>
                 </div>
@@ -538,9 +513,21 @@ export default function VertexTerminal() {
       </div>
     </div>
   );
+});
 
-  /* ── Desktop sidebar ───────────────────────────────────── */
-  const Sidebar = () => (
+/* ══════════════════════════════════════════════════════════════
+   SIDEBAR — memoized
+   ══════════════════════════════════════════════════════════════ */
+interface SidebarProps {
+  ticker: string;
+  watchlist: string[];
+  go: (t:string)=>void;
+  toggleWatch: (t:string)=>void;
+  setTab: Dispatch<SetStateAction<Tab>>;
+}
+
+const Sidebar = memo(function Sidebar({ ticker, watchlist, go, toggleWatch, setTab }: SidebarProps) {
+  return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {/* Watchlist */}
       <div style={{ ...glassCard({ overflow:"hidden", padding:0 }) }}>
@@ -570,8 +557,8 @@ export default function VertexTerminal() {
           {TICKERS.filter(t=>!watchlist.includes(t)).map(t => (
             <button key={t} onClick={() => toggleWatch(t)}
               style={{ ...mono, fontSize:9, padding:"3px 8px", borderRadius:5, background:"transparent", border:`1px solid ${V.w1}`, color:V.ink3, cursor:"pointer", transition:"all 0.18s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor=V.arcWire; e.currentTarget.style.color="#7EB6FF"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor=V.w1; e.currentTarget.style.color=V.ink3; }}>
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor=V.arcWire; e.currentTarget.style.color="#7EB6FF"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor=V.w1; e.currentTarget.style.color=V.ink3; }}>
               +{t}
             </button>
           ))}
@@ -594,19 +581,19 @@ export default function VertexTerminal() {
         ))}
       </div>
 
-      {/* Explore nav */}
+      {/* Explore */}
       <div style={{ ...glassCard({ padding:16 }) }}>
-        <p className="label" style={{ marginBottom:12 }}>Explore</p>
+        <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Explore</p>
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {[
-            { id:"top15"     as Tab, label:"Top 15 Stocks",  color:V.gold, dimBg:V.goldDim,                  dimWire:"rgba(232,160,48,0.2)" },
-            { id:"portfolio" as Tab, label:"My Portfolio",   color:V.ame,  dimBg:V.ameDim,                   dimWire:V.ameWire },
-            { id:"ai"        as Tab, label:"AI Signals",     color:"#7EB6FF", dimBg:V.arcDim,                dimWire:V.arcWire },
+            { id:"top15"     as Tab, label:"Top 15 Stocks", color:V.gold,    dimBg:V.goldDim, dimWire:"rgba(232,160,48,0.2)" },
+            { id:"portfolio" as Tab, label:"My Portfolio",  color:V.ame,     dimBg:V.ameDim,  dimWire:V.ameWire },
+            { id:"ai"        as Tab, label:"AI Signals",    color:"#7EB6FF", dimBg:V.arcDim,  dimWire:V.arcWire },
           ].map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
               style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:item.dimBg, border:`1px solid ${item.dimWire}`, borderRadius:10, color:item.color, padding:"9px 13px", cursor:"pointer", fontSize:12, fontWeight:500, transition:"all 0.18s" }}
-              onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
-              onMouseLeave={e => e.currentTarget.style.opacity = "1"}>
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.8"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
               <span>{item.label}</span>
               <ChevronRight size={13}/>
             </button>
@@ -615,23 +602,106 @@ export default function VertexTerminal() {
       </div>
     </div>
   );
+});
 
-  /* ── Tab icon ───────────────────────────────────────────── */
-  const TabIcon = ({ id, size = 20, active }: { id:Tab; size?:number; active:boolean }) => {
-    const sw = active ? 2 : 1.5;
-    if (id === "markets")   return <LayoutDashboard size={size} strokeWidth={sw}/>;
-    if (id === "top15")     return <Trophy          size={size} strokeWidth={sw}/>;
-    if (id === "portfolio") return <BookOpen        size={size} strokeWidth={sw}/>;
-    if (id === "ai")        return <Brain           size={size} strokeWidth={sw}/>;
-    return null;
-  };
+/* ══════════════════════════════════════════════════════════════
+   ROOT COMPONENT
+   State lives here; panels are memo-isolated from timer ticks.
+   ══════════════════════════════════════════════════════════════ */
+export default function VertexTerminal() {
+  const [ticker,    setTicker]    = useState("AAPL");
+  const [quote,     setQuote]     = useState<Quote>(MOCK["AAPL"]);
+  const [bars,      setBars]      = useState<Bar[]>(seedBars(228.52));
+  const [watchlist, setWatchlist] = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
+  const [search,    setSearch]    = useState("");
+  const [results,   setResults]   = useState<string[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [tab,       setTab]       = useState<Tab>("markets");
+  const [searching, setSearching] = useState(false);
+  const [showSearch,setShowSearch]= useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  /* Load quote+bars when ticker changes */
+  const load = useCallback(async (t: string) => {
+    setLoading(true);
+    const [q, b] = await Promise.all([loadQuote(t), loadBars(t)]);
+    setQuote(q); setBars(b); setLoading(false);
+  }, []);
+  useEffect(() => { load(ticker); }, [ticker, load]);
+
+  /* tickerRef lets refreshMarkets always read the current ticker
+     without being recreated (so CountdownBar never remounts). */
+  const tickerRef = useRef(ticker);
+  useEffect(() => { tickerRef.current = ticker; }, [ticker]);
+
+  const refreshMarkets = useCallback(async () => {
+    const [q, b] = await Promise.all([
+      loadQuote(tickerRef.current),
+      loadBars(tickerRef.current),
+    ]);
+    setQuote(q);
+    setBars(b);
+  }, []); // intentionally empty — reads ticker via ref
+
+  /* Search */
+  useEffect(() => {
+    if (!search.trim()) { setResults([]); return; }
+    const id = setTimeout(async () => {
+      setSearching(true);
+      setResults((await searchTickers(search)).slice(0, 7));
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  /* Click-outside to close search */
+  useEffect(() => {
+    const h = (e:MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setResults([]); setShowSearch(false);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  /* Stable callbacks */
+  const go = useCallback((t: string) => {
+    setTicker(t); setSearch(""); setResults([]); setShowSearch(false); setTab("markets");
+  }, []);
+
+  const toggleWatch = useCallback((t: string) => {
+    setWatchlist(w => w.includes(t) ? w.filter(x=>x!==t) : [...w,t]);
+  }, []);
+
+  /* Derived values */
+  const up        = quote.changePct >= 0;
+  const lineColor = up ? V.gain : V.loss;
+  const watched   = watchlist.includes(ticker);
+  const fullWide  = tab === "top15" || tab === "portfolio";
+
+  /* Stable prop bundles for memoized panels.
+     Only re-computed when the underlying data actually changes. */
+  const marketProps = useMemo<MarketsPanelProps>(() => ({
+    ticker, quote, bars, loading,
+    up: quote.changePct >= 0,
+    lineColor: quote.changePct >= 0 ? V.gain : V.loss,
+    watched: watchlist.includes(ticker),
+    watchlist, go, toggleWatch, refreshMarkets,
+  }), [ticker, quote, bars, loading, watchlist, go, toggleWatch, refreshMarkets]);
+
+  const aiProps = useMemo<AIPanelProps>(() => ({
+    go, refreshMarkets,
+  }), [go, refreshMarkets]);
+
+  const sidebarProps = useMemo<SidebarProps>(() => ({
+    ticker, watchlist, go, toggleWatch, setTab,
+  }), [ticker, watchlist, go, toggleWatch]);
 
   return (
     <div style={{ minHeight:"100vh", background:V.d0, color:V.ink1, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
 
-      {/* ══════════════════════════════════════════
-          HEADER
-          ══════════════════════════════════════════ */}
+      {/* ═══ HEADER ═══════════════════════════════════════════ */}
       <header style={{ position:"sticky", top:0, zIndex:100, background:"rgba(5,8,16,0.92)", backdropFilter:"blur(40px) saturate(2.5)", WebkitBackdropFilter:"blur(40px) saturate(2.5)", borderBottom:`1px solid ${V.w2}` }}>
         {/* Index ticker strip */}
         <div style={{ display:"flex", alignItems:"center", gap:16, padding:"0 20px", height:36, borderBottom:`1px solid ${V.w1}`, overflow:"hidden" }}>
@@ -645,7 +715,7 @@ export default function VertexTerminal() {
             ))}
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
-            <div style={{ width:5, height:5, borderRadius:"50%", background:V.gain, animation:"live-pulse 2.5s ease-in-out infinite" }} />
+            <div style={{ width:5, height:5, borderRadius:"50%", background:V.gain, animation:"live-pulse 2.5s ease-in-out infinite" }}/>
             <span style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.12em" }}>Live</span>
           </div>
         </div>
@@ -654,7 +724,7 @@ export default function VertexTerminal() {
         <div style={{ display:"flex", alignItems:"center", gap:14, padding:"0 20px", height:52 }}>
           {/* Logo */}
           <div style={{ display:"flex", alignItems:"center", gap:9, flexShrink:0 }}>
-            <div style={{ width:30, height:30, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 12px rgba(79,142,247,0.35), 0 0 0 1px rgba(79,142,247,0.2)" }}>
+            <div style={{ width:30, height:30, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 12px rgba(79,142,247,0.35)" }}>
               <Zap size={14} color="#fff" strokeWidth={2.5}/>
             </div>
             <div style={{ lineHeight:1 }}>
@@ -682,17 +752,15 @@ export default function VertexTerminal() {
           <div ref={searchRef} style={{ position:"relative" }}>
             <button onClick={() => setShowSearch(s=>!s)}
               style={{ background:showSearch?"rgba(79,142,247,0.10)":"none", border:`1px solid ${showSearch?V.arcWire:"transparent"}`, borderRadius:9, cursor:"pointer", color:showSearch?"#7EB6FF":V.ink3, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, fontSize:12, minHeight:36, transition:"all 0.2s" }}>
-              <Search size={16}/><span style={{ display:"none" }} className="sm-show">Search</span>
+              <Search size={16}/>
             </button>
-
             {showSearch && (
-              <div style={{ position:"absolute", right:0, top:46, width:"min(360px,93vw)", background:"rgba(8,13,24,0.97)", backdropFilter:"blur(40px)", WebkitBackdropFilter:"blur(40px)", border:`1px solid ${V.w3}`, borderRadius:16, overflow:"hidden", zIndex:200, boxShadow:"0 24px 64px rgba(0,0,0,0.75)", animation:"vx-rise 0.2s var(--ease-expo) both" }}>
+              <div style={{ position:"absolute", right:0, top:46, width:"min(360px,93vw)", background:"rgba(8,13,24,0.97)", backdropFilter:"blur(40px)", WebkitBackdropFilter:"blur(40px)", border:`1px solid ${V.w3}`, borderRadius:16, overflow:"hidden", zIndex:200, boxShadow:"0 24px 64px rgba(0,0,0,0.75)", animation:"vx-rise 0.2s ease-out both" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 16px", borderBottom:`1px solid ${V.w1}` }}>
                   <Search size={14} color={V.ink3}/>
                   <input autoFocus value={search} onChange={e=>setSearch(e.target.value)} className="vx-input" placeholder="Search ticker or company…"
-                    style={{ background:"transparent", border:"none", boxShadow:"none", padding:"0", borderRadius:0, fontSize:14 }}/>
-                  {searching && <RefreshCw size={12} color={V.ink3} className="vx-spin"/>}
-                  {search && <button onClick={()=>setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:2, borderRadius:4, display:"flex" }}><X size={13}/></button>}
+                    style={{ background:"transparent", border:"none", boxShadow:"none", padding:0, borderRadius:0, fontSize:14 }}/>
+                  {search && <button onClick={()=>setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:2, display:"flex" }}><X size={13}/></button>}
                 </div>
                 {results.map(t => (
                   <button key={t} onClick={() => go(t)}
@@ -711,33 +779,27 @@ export default function VertexTerminal() {
         </div>
       </header>
 
-      {/* ══════════════════════════════════════════
-          MAIN CONTENT
-          ══════════════════════════════════════════ */}
+      {/* ═══ MAIN CONTENT ════════════════════════════════════ */}
       <main style={{ paddingBottom:80, position:"relative", zIndex:1 }}>
-        {/* Full-width panels */}
         {tab === "top15"     && <Top15/>}
         {tab === "portfolio" && <MyStocks/>}
 
-        {/* Two-col panels */}
         {(tab === "markets" || tab === "ai") && (
           <div style={{ maxWidth:1280, margin:"0 auto", padding:"24px 16px" }}>
             <div className="vx-two-col" style={{ display:"flex", flexDirection:"column", gap:20 }}>
               <div style={{ minWidth:0 }}>
-                {tab === "markets" && <MarketsPanel/>}
-                {tab === "ai"      && <AIPanel/>}
+                {tab === "markets" && <MarketsPanel {...marketProps}/>}
+                {tab === "ai"      && <AIPanel      {...aiProps}/>}
               </div>
               <div id="vx-sidebar" style={{ display:"none" }}>
-                <Sidebar/>
+                <Sidebar {...sidebarProps}/>
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* ══════════════════════════════════════════
-          MOBILE BOTTOM NAV
-          ══════════════════════════════════════════ */}
+      {/* ═══ MOBILE BOTTOM NAV ═══════════════════════════════ */}
       <nav className="vx-bottom-nav">
         <div style={{ display:"flex", alignItems:"stretch" }}>
           {TABS.map(t => {
@@ -756,16 +818,15 @@ export default function VertexTerminal() {
       </nav>
 
       <style>{`
-        @keyframes vx-rise  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes live-pulse{ 0%,100%{opacity:1;transform:scale(1);box-shadow:0 0 0 0 rgba(0,200,150,.5)} 50%{opacity:.5;transform:scale(.75);box-shadow:0 0 0 4px rgba(0,200,150,0)} }
-        @keyframes spin     { to{transform:rotate(360deg)} }
-        @keyframes shimmer  { 0%{background-position:-400% 0}100%{background-position:400% 0} }
+        @keyframes vx-rise   { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes live-pulse{ 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+        @keyframes shimmer   { 0%{background-position:-400% 0} 100%{background-position:400% 0} }
         *, *::before, *::after { box-sizing:border-box; }
         input { font-size:16px; }
         button,[role="button"]{ touch-action:manipulation; }
         ::-webkit-scrollbar{width:2px;height:2px}
         ::-webkit-scrollbar-thumb{background:rgba(130,180,255,0.12);border-radius:99px}
-        .row-hover:hover { background: var(--depth-hover, #1E2D40) !important; }
+        .row-hover:hover { background: rgba(30,45,64,0.7) !important; }
         @media(min-width:1024px){
           .vx-two-col { display:grid!important; grid-template-columns:1fr 296px!important; gap:22px; align-items:start; }
           #vx-sidebar { display:block!important; }
