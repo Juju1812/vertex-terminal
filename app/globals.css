@@ -1,26 +1,114 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ── Base reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #060B14;
+  color: #E2EAF4;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  /* Reserve space at bottom for mobile nav */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: #0D1321; }
+::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2D4A6E; }
+
+/* ── Monospace util ─────────────────────────────────────────────────────────── */
+.mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes pulse-dot  { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(0.85); } }
+@keyframes spin       { to { transform: rotate(360deg); } }
+@keyframes shimmer    { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+@keyframes fade-in    { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+@keyframes slide-up   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes bar-grow   { from { width:0; } to { width:var(--w); } }
+
+.animate-spin     { animation: spin 1s linear infinite; }
+.animate-fade-in  { animation: fade-in 0.25s ease-out both; }
+.animate-slide-up { animation: slide-up 0.3s ease-out both; }
+
+.shimmer {
+  background: linear-gradient(90deg, #0D1321 25%, #152030 50%, #0D1321 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Recharts global overrides ──────────────────────────────────────────────── */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical   line { stroke: #1E293B !important; }
+.recharts-tooltip-wrapper { outline: none !important; }
+.recharts-surface { overflow: visible; }
+
+/* ── Touch targets — minimum 44×44px ────────────────────────────────────────── */
+button, [role="button"] { touch-action: manipulation; }
+
+/* ── Horizontal scroll containers ──────────────────────────────────────────── */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+
+/* ── Table responsive wrapper ────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0 0 12px 12px;
+}
+.table-wrap table { min-width: 600px; width: 100%; border-collapse: collapse; }
+
+/* ── Bottom nav safe area ────────────────────────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10, 15, 25, 0.96);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-top: 1px solid #1E293B;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Card styles ─────────────────────────────────────────────────────────────── */
+.card {
+  background: #0D1321;
+  border: 1px solid #1E293B;
+  border-radius: 12px;
+}
+.card-sm {
+  background: #0D1321;
+  border: 1px solid #1E293B;
+  border-radius: 8px;
+}
+
+/* ── Badge ───────────────────────────────────────────────────────────────────── */
+.badge-up   { background:rgba(0,255,148,.1); color:#00FF94; border:1px solid rgba(0,255,148,.2); }
+.badge-down { background:rgba(255,59,92,.1); color:#FF3B5C; border:1px solid rgba(255,59,92,.2); }
+
+/* ── Mobile-specific helpers ─────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* Larger tap zones */
+  .tap-target { min-height: 48px; min-width: 48px; }
 }
