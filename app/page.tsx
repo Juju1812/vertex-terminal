@@ -722,17 +722,14 @@ export default function VertexTerminal() {
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:50 }}>
           {/* Logo */}
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <Image 
-             src="/logo.png" 
-             alt="ArbibX" 
-             width={42} 
-             height={42} 
-             className="rounded-2xl"
-             priority 
-           />
-           <span className="font-bold text-2xl tracking-tighter text-white">ARBIBX</span>
-         </div>
+          <Image 
+            src="/logo.png" 
+            alt="ArbibX" 
+            width={42} 
+            height={42} 
+            className="rounded-2xl"
+            priority 
+          />
 
           {/* Desktop tabs — hidden on mobile (uses bottom nav instead) */}
           <div style={{ display:"flex", alignItems:"center", gap:0, marginLeft:6, flex:1, overflow:"hidden" }}>
