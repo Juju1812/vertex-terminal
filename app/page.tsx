@@ -12,9 +12,9 @@ import {
 import {
   Search, TrendingUp, TrendingDown, Brain, Star, StarOff,
   Zap, AlertTriangle, Trophy, BookOpen, X,
-  LayoutDashboard, ChevronRight,
+  LayoutDashboard, ChevronRight, ExternalLink,
 } from "lucide-react";
-import { CountdownBar } from "@/components/CountdownBar";
+import { resolvePrices, resolvePrice, fetchBars, seedBars as seedBarsLib, type LivePrice } from "@/lib/prices";
 
 const Top15    = dynamic(() => import("@/components/Top15"),    { ssr: false, loading: () => <PanelSkeleton/> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"), { ssr: false, loading: () => <PanelSkeleton/> });
@@ -79,134 +79,63 @@ const TABS: { id:Tab; label:string; short:string }[] = [
   { id:"ai",        label:"AI Signals", short:"AI"        },
 ];
 
-/* ── API ─────────────────────────────────────────────────────── */
-function seedBars(base: number, days = 90): Bar[] {
-  const out: Bar[] = [];
-  let p = base * 0.81, seed = Math.round(base * 137);
-  const r = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i);
-    if (d.getDay() === 0 || d.getDay() === 6) continue;
-    p += (r() - 0.47) * 0.022 * p;
-    out.push({ date: d.toISOString().split("T")[0], close: +p.toFixed(2) });
-  }
-  return out;
-}
+/* ── Price helpers — delegate to lib/prices.ts ─────────────── */
 
-async function apiFetch<T>(path: string): Promise<T | null> {
-  try {
-    const sep = path.includes("?") ? "&" : "?";
-    const r = await fetch(`${BASE}${path}${sep}apiKey=${API_KEY}`);
-    return r.ok ? r.json() : null;
-  } catch { return null; }
-}
+// Alias the imported seedBars so existing call sites in this file work unchanged
+const seedBars = (base: number, days = 90): Bar[] => seedBarsLib(base, days);
 
-/** Fetch daily bars (90 days). Returns [] on failure — never falls back to seed data.
- *  Seed bars are injected by the caller so the chart renders instantly. */
 async function loadBars(ticker: string): Promise<Bar[]> {
-  const to   = new Date().toISOString().split("T")[0];
-  const from = new Date(Date.now() - 92*86_400_000).toISOString().split("T")[0];
-  const d = await apiFetch<{ results?:{c:number;t:number}[] }>(
-    `/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=120`
-  );
-  if (!d?.results?.length) return [];
-  return d.results.map(b => ({
-    date:  new Date(b.t).toISOString().split("T")[0],
-    close: b.c,
-  }));
+  return fetchBars(ticker, 92);
 }
 
-/**
- * Load a quote that is ALWAYS consistent with the chart.
- *
- * Strategy:
- *  1. Try the snapshot endpoint first (works during live market hours).
- *     day.c is the live/last-sale price; prevDay.c is yesterday's official close.
- *  2. If snapshot is unavailable or returns zero (market closed, pre-market,
- *     or free-tier limitation), fall back to the daily bars:
- *       – price  = last bar's close  (same value the chart plots as its rightmost point)
- *       – change = last bar vs second-to-last bar
- *  3. Only use MOCK data as a last resort for static fields (name, open/high/low)
- *     — never for price, change, or changePct.
- */
 async function loadQuote(ticker: string, bars?: Bar[]): Promise<Quote> {
-  const m = MOCK[ticker];
-  const name = m?.name ?? ticker;
-
-  /* ── 1. Try live snapshot ── */
-  const snap = await apiFetch<{
-    ticker: {
-      day:     { c:number; h:number; l:number; o:number; v:number };
-      prevDay: { c:number };
-      lastTrade?: { p:number };
-    }
-  }>(`/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`);
-
-  const sd = snap?.ticker;
-
-  // Snapshot is valid when day.c > 0 (live session has printed at least one trade)
-  if (sd?.day?.c && sd.day.c > 0 && sd?.prevDay?.c && sd.prevDay.c > 0) {
-    const price = sd.day.c;
-    const prev  = sd.prevDay.c;
-    const chg   = price - prev;
+  const m  = MOCK[ticker];
+  const lp = await resolvePrice(ticker);
+  if (lp) {
     return {
       ticker,
-      name,
-      price,
-      change:    +chg.toFixed(2),
-      changePct: +((chg / prev) * 100).toFixed(2),
-      high:      sd.day.h || price,
-      low:       sd.day.l || price,
-      open:      sd.day.o || price,
-      volume:    sd.day.v || 0,
+      name:      m?.name ?? ticker,
+      price:     lp.price,
+      change:    lp.change,
+      changePct: lp.changePct,
+      high:      lp.high,
+      low:       lp.low,
+      open:      lp.open,
+      volume:    lp.volume,
     };
   }
-
-  /* ── 2. Fall back to bars (market closed / pre-market / free-tier zero) ── */
-  // Re-use bars if caller already fetched them to avoid a redundant request
-  const barData = bars?.length ? bars : await loadBars(ticker);
-
-  if (barData.length >= 2) {
-    const last = barData[barData.length - 1];
-    const prev = barData[barData.length - 2];
+  // True last resort: derive from bars we already have
+  const b = bars?.length ? bars : await loadBars(ticker);
+  if (b.length >= 2) {
+    const last = b[b.length - 1], prev = b[b.length - 2];
     const chg  = last.close - prev.close;
     return {
-      ticker,
-      name,
+      ticker, name: m?.name ?? ticker,
       price:     last.close,
       change:    +chg.toFixed(2),
       changePct: +((chg / prev.close) * 100).toFixed(2),
-      // Snapshot gave us nothing useful for OHLV — use last-known mock or derive
-      high:      (sd?.day?.h && sd.day.h > 0) ? sd.day.h : +(last.close * 1.005).toFixed(2),
-      low:       (sd?.day?.l && sd.day.l > 0) ? sd.day.l : +(last.close * 0.995).toFixed(2),
-      open:      (sd?.day?.o && sd.day.o > 0) ? sd.day.o : prev.close,
-      volume:    (sd?.day?.v && sd.day.v > 0) ? sd.day.v : (m?.volume ?? 0),
+      high:  +(last.close * 1.005).toFixed(2),
+      low:   +(last.close * 0.995).toFixed(2),
+      open:  prev.close,
+      volume: m?.volume ?? 0,
     };
   }
-
-  /* ── 3. True fallback: MOCK only — at least show something ── */
-  // This path only runs when both API calls fail completely (e.g. network down)
-  if (m) return m;
-
-  // Unknown ticker with no data at all
-  return {
-    ticker,
-    name,
-    price: 0, change: 0, changePct: 0,
-    high: 0, low: 0, open: 0, volume: 0,
-  };
+  return m ?? { ticker, name:ticker, price:0, change:0, changePct:0, high:0, low:0, open:0, volume:0 };
 }
 
 async function searchTickers(q: string): Promise<string[]> {
-  const d = await apiFetch<{ results?:{ticker:string}[] }>(
-    `/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks`
-  );
-  if (!d?.results?.length)
-    return TICKERS.filter(t =>
-      t.includes(q.toUpperCase()) || MOCK[t]?.name.toLowerCase().includes(q.toLowerCase())
+  try {
+    const r = await fetch(
+      `${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks&apiKey=${API_KEY}`
     );
-  return d.results.map(r => r.ticker);
+    if (r.ok) {
+      const d = await r.json() as { results?:{ticker:string}[] };
+      if (d?.results?.length) return d.results.map(x => x.ticker);
+    }
+  } catch { /**/ }
+  return TICKERS.filter(t =>
+    t.includes(q.toUpperCase()) || MOCK[t]?.name.toLowerCase().includes(q.toLowerCase())
+  );
 }
 
 /* ── Design tokens ───────────────────────────────────────────── */
@@ -336,6 +265,12 @@ const MarketsPanel = memo(function MarketsPanel({
                   {up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
                   {fp(quote.changePct)}
                 </span>
+                <a href={`https://finance.yahoo.com/quote/${ticker}`} target="_blank" rel="noopener noreferrer"
+                  style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:6, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:10, fontFamily:"'Geist Mono','Courier New',monospace", whiteSpace:"nowrap", flexShrink:0, transition:"background 0.15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(79,142,247,0.16)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(79,142,247,0.08)"; }}>
+                  <ExternalLink size={10}/>Yahoo Finance
+                </a>
                 <button onClick={() => toggleWatch(ticker)}
                   style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex", alignItems:"center", minWidth:36, minHeight:36, justifyContent:"center", borderRadius:8, flexShrink:0 }}>
                   {watched ? <Star size={17} color={V.gold} fill={V.gold}/> : <StarOff size={17} color={V.ink3}/>}
@@ -492,8 +427,46 @@ const MarketsPanel = memo(function MarketsPanel({
   );
 });
 
+/* ── Yahoo Finance link button ──────────────────────────────── */
+function YahooBtn({ ticker, compact=false }: { ticker:string; compact?:boolean }) {
+  return (
+    <a
+      href={`https://finance.yahoo.com/quote/${ticker}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      title={`View ${ticker} on Yahoo Finance`}
+      style={{
+        display:"inline-flex", alignItems:"center", gap: compact ? 3 : 4,
+        padding: compact ? "2px 7px" : "4px 9px",
+        borderRadius:6,
+        background:"rgba(79,142,247,0.08)",
+        border:"1px solid rgba(79,142,247,0.18)",
+        color:"#7EB6FF",
+        textDecoration:"none",
+        fontSize: compact ? 9 : 10,
+        fontFamily:"'Geist Mono','Courier New',monospace",
+        whiteSpace:"nowrap",
+        transition:"background 0.15s, border-color 0.15s",
+        flexShrink:0,
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.background = "rgba(79,142,247,0.16)";
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(79,142,247,0.35)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.background = "rgba(79,142,247,0.08)";
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(79,142,247,0.18)";
+      }}
+    >
+      <ExternalLink size={compact ? 8 : 10}/>
+      {!compact && "Yahoo Finance"}
+    </a>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════
-   AI SIGNAL CARD — with embedded mini chart
+   AI SIGNAL CARD — with embedded mini chart + Yahoo link
    ══════════════════════════════════════════════════════════════ */
 function SignalCard({
   ticker, name, conf, target, upside, downside, thesis, tags, isGain, rank, go,
@@ -514,12 +487,15 @@ function SignalCard({
       onMouseEnter={e=>{ e.currentTarget.style.borderColor=wire; (e.currentTarget as HTMLElement).style.transform="translateY(-1px)"; }}
       onMouseLeave={e=>{ e.currentTarget.style.borderColor=V.w2; (e.currentTarget as HTMLElement).style.transform="translateY(0)"; }}>
 
-      {/* Top row: rank + ticker + target */}
+      {/* Top row: rank + ticker + target + Yahoo link */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
           <span style={{ ...mono, fontSize:10, color:V.ink4, marginTop:3 }}>#{rank}</span>
           <div>
-            <p style={{ ...mono, fontSize:15, fontWeight:500, color:"#7EB6FF", letterSpacing:"-0.02em" }}>{ticker}</p>
+            <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
+              <p style={{ ...mono, fontSize:15, fontWeight:500, color:"#7EB6FF", letterSpacing:"-0.02em" }}>{ticker}</p>
+              <YahooBtn ticker={ticker} compact/>
+            </div>
             <p style={{ color:V.ink2, fontSize:11, marginTop:1 }}>{name}</p>
           </div>
         </div>
@@ -763,52 +739,17 @@ export default function VertexTerminal() {
     setBars(realBars);
   }, []);
 
-  // Bulk-fetch live prices for the quick-select strip and watchlist.
-  // Uses the multi-ticker snapshot endpoint — one request for all tickers.
+  // Bulk-fetch live prices for quick-select chips and watchlist.
+  // Uses lib/prices resolvePrices which handles snapshot + bars fallback.
   const fetchLivePrices = useCallback(async () => {
     const all = [...new Set([...TICKERS, ...watchlist])];
-    const d = await apiFetch<{
-      tickers?: Array<{
-        ticker: string;
-        day: { c: number };
-        prevDay: { c: number };
-      }>
-    }>(`/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${all.join(",")}`);
-
+    const priceMap = await resolvePrices(all);
     const next: Record<string, { price:number; changePct:number }> = {};
-
-    if (d?.tickers?.length) {
-      for (const s of d.tickers) {
-        const price = s.day?.c;
-        const prev  = s.prevDay?.c;
-        if (price && price > 0 && prev && prev > 0) {
-          next[s.ticker] = {
-            price,
-            changePct: +((price - prev) / prev * 100).toFixed(2),
-          };
-        }
+    priceMap.forEach((lp, ticker) => {
+      if (lp.price > 0) {
+        next[ticker] = { price: lp.price, changePct: lp.changePct };
       }
-    }
-
-    // For any ticker the snapshot didn't cover, fall back to its last bar close.
-    // This keeps chips accurate even outside market hours.
-    const missing = all.filter(t => !next[t]);
-    if (missing.length) {
-      const barResults = await Promise.all(
-        missing.map(t => loadBars(t).then(bars => ({ t, bars })))
-      );
-      for (const { t, bars } of barResults) {
-        if (bars.length >= 2) {
-          const last = bars[bars.length - 1];
-          const prev = bars[bars.length - 2];
-          next[t] = {
-            price:     last.close,
-            changePct: +((last.close - prev.close) / prev.close * 100).toFixed(2),
-          };
-        }
-      }
-    }
-
+    });
     if (Object.keys(next).length > 0) setLivePrices(next);
   }, [watchlist]);
 
