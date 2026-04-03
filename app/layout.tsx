@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vertex",
-  description: "Vertex Terminal",
+  title: "Vertex Terminal",
+  description: "Professional stock market intelligence platform with AI predictions",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({

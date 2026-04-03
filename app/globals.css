@@ -331,11 +331,17 @@ body::before {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 200;
-  background: rgba(5, 8, 16, 0.94);
+  background: rgba(5, 8, 16, 0.96);
   backdrop-filter: blur(40px) saturate(2.5);
   -webkit-backdrop-filter: blur(40px) saturate(2.5);
   border-top: 1px solid var(--wire-2);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Hidden by default — shown only on mobile via media query below */
+  display: none;
+}
+/* Show bottom nav only on mobile */
+@media (max-width: 767px) {
+  .vx-bottom-nav { display: block; }
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
