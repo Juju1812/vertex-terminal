@@ -9,7 +9,6 @@ import {
 /* ── Types ────────────────────────────────────────────────── */
 interface H  { id:string; ticker:string; shares:number; buyPrice:number; }
 interface EH extends H { name:string; cur:number; cost:number; val:number; pnl:number; pct:number; day:number; }
-interface Grade { letter:string; score:number; summary:string; strengths:string[]; weaknesses:string[]; tips:string[]; }
 
 const KEY  = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE = "https://api.polygon.io";
@@ -41,35 +40,73 @@ async function fetchPrices(tks:string[]):Promise<Record<string,{p:number;d:numbe
   return res;
 }
 
+interface Grade {
+  letter:string; score:number; summary:string;
+  strengths:string[]; weaknesses:string[]; tips:string[];
+  divScore: number;       // 0–100 diversification
+  volatility: string;     // Low / Medium / High / Very High
+  winRate: number;        // % profitable positions
+  maxDrawdown: number;    // largest single loss %
+  concentration: number;  // largest position weight %
+}
+
 function grade(h:EH[]):Grade{
-  if(!h.length)return{letter:"N/A",score:0,summary:"Add positions to receive a portfolio analysis.",strengths:[],weaknesses:[],tips:["Add at least 3 positions to begin."]};
+  if(!h.length)return{letter:"N/A",score:0,summary:"Add positions to receive a portfolio analysis.",strengths:[],weaknesses:[],tips:["Add at least 3 positions to begin."],divScore:0,volatility:"—",winRate:0,maxDrawdown:0,concentration:0};
   let s=50;const st:string[]=[],wk:string[]=[],tp:string[]=[];
   const n=h.length;
+
+  // Diversification
   if(n>=8){s+=15;st.push(`Strong diversification across ${n} positions.`);}
   else if(n>=5){s+=8;st.push(`Reasonable spread across ${n} positions.`);}
   else if(n<3){s-=10;wk.push("High concentration — under 3 positions.");tp.push("Add 3–5 more positions across different sectors.");}
-  const wr=h.filter(x=>x.pct>0).length/n;
+
+  // Win rate
+  const winners=h.filter(x=>x.pct>0).length;
+  const wr=winners/n;
   if(wr>.7){s+=15;st.push(`${(wr*100).toFixed(0)}% of positions are profitable.`);}
   else if(wr>.5)s+=7;
   else if(wr<.35){s-=12;wk.push(`${Math.round((1-wr)*100)}% of positions are underwater.`);tp.push("Review losers — trim positions down more than 15%.");}
+
+  // Avg return
   const avg=h.reduce((x,y)=>x+y.pct,0)/n;
   if(avg>20){s+=15;st.push(`Exceptional avg return of +${avg.toFixed(1)}%.`);}
   else if(avg>10){s+=10;st.push(`Solid avg return of +${avg.toFixed(1)}%.`);}
   else if(avg>0)s+=4;
   else if(avg<-10){s-=15;wk.push(`Portfolio averaging ${avg.toFixed(1)}%.`);tp.push("Reallocate from laggards to stronger momentum names.");}
   else if(avg<0)s-=6;
-  const tv=h.reduce((x,y)=>x+y.val,0),max=Math.max(...h.map(x=>(x.val/tv)*100));
-  if(max>40){s-=8;wk.push(`Top position is ${max.toFixed(0)}% of portfolio.`);tp.push("Trim largest position to below 25%.");}
-  else if(max<25){s+=6;st.push("No single position dominates — balanced weighting.");}
+
+  // Concentration
+  const tv=h.reduce((x,y)=>x+y.val,0);
+  const weights=h.map(x=>+(x.val/tv*100).toFixed(1));
+  const maxW=Math.max(...weights);
+  if(maxW>40){s-=8;wk.push(`Top position is ${maxW.toFixed(0)}% of portfolio.`);tp.push("Trim largest position to below 25%.");}
+  else if(maxW<25){s+=6;st.push("No single position dominates — balanced weighting.");}
+
+  // Sector concentration
   const tech=["NVDA","MSFT","AAPL","META","GOOGL","AMD","PLTR","ORCL","CRWD","CRM","AVGO"];
   const tp2=h.filter(x=>tech.includes(x.ticker)).length/n;
   if(tp2>.8){s-=6;wk.push("Heavy tech concentration — sector rotation risk.");tp.push("Add Financials, Healthcare, or Consumer exposure.");}
   else if(tp2<.5){s+=5;st.push("Good cross-sector exposure.");}
+
   s=Math.min(100,Math.max(0,Math.round(s)));
   const L=s>=95?"A+":s>=90?"A":s>=85?"A-":s>=80?"B+":s>=75?"B":s>=70?"B-":s>=65?"C+":s>=60?"C":s>=55?"C-":s>=50?"D+":s>=45?"D":"F";
-  const sum=s>=85?"Outstanding — excellent diversification and returns.":s>=70?"Strong portfolio with targeted areas to optimize.":s>=55?"Average — risk factors need addressing.":"Below par — significant restructuring recommended.";
+  const sum=s>=85?"Outstanding — excellent diversification and strong risk-adjusted returns.":s>=70?"Strong portfolio with targeted areas to optimize.":s>=55?"Average — notable risk factors need addressing.":"Below par — significant restructuring recommended.";
   if(!tp.length)tp.push("Continue monitoring and rebalance quarterly.");
-  return{letter:L,score:s,summary:sum,strengths:st,weaknesses:wk,tips:tp};
+
+  // Risk metrics
+  const divScore = Math.min(100, Math.round(
+    (Math.min(n,10)/10)*40 + (1-tp2)*30 + (maxW<25?30:maxW<35?20:10)
+  ));
+
+  // Volatility estimate from daily change spread
+  const dayChanges = h.map(x => Math.abs(x.day));
+  const avgDayChg = dayChanges.reduce((a,b)=>a+b,0) / (dayChanges.length||1);
+  const volatility = avgDayChg > 3 ? "Very High" : avgDayChg > 1.8 ? "High" : avgDayChg > 0.9 ? "Medium" : "Low";
+
+  // Max drawdown = worst single position loss
+  const maxDrawdown = Math.min(0, Math.min(...h.map(x => x.pct)));
+
+  return{letter:L,score:s,summary:sum,strengths:st,weaknesses:wk,tips:tp,divScore,volatility,winRate:Math.round(wr*100),maxDrawdown,concentration:maxW};
 }
 
 const f$=(n:number,d=2)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:d,maximumFractionDigits:d}).format(n);
@@ -235,47 +272,124 @@ export default function MyStocks(){
             </div>
           </div>
 
-          {/* AI Portfolio Grade */}
+          {/* ══════════════════════════════════════════════════
+              AI PORTFOLIO GRADE — enhanced
+          ══════════════════════════════════════════════════ */}
           <div style={{...glass({overflow:"hidden"})}}>
-            {/* Grade hero row */}
-            <div style={{display:"flex",flexWrap:"wrap",borderBottom:`1px solid ${V.w1}`}}>
-              {/* Big grade badge */}
-              <div style={{padding:"26px 28px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRight:`1px solid ${V.w1}`,minWidth:110,background:`radial-gradient(circle at 50% 50%, ${gc_}08, transparent 70%)`,flexShrink:0}}>
-                <p style={{...mono,fontSize:8,color:gc_,textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:7}}>Grade</p>
-                <p style={{fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",fontSize:56,fontWeight:700,lineHeight:1,color:gc_,textShadow:`0 0 40px ${gc_}55`,letterSpacing:"-0.03em"}}>{g.letter}</p>
-                <p style={{...mono,fontSize:11,color:gc_,marginTop:6,opacity:.8}}>{g.score}/100</p>
+
+            {/* ── Top ambient glow matching grade color ── */}
+            <div style={{position:"absolute",top:-60,left:"50%",transform:"translateX(-50%)",width:300,height:200,borderRadius:"50%",background:`radial-gradient(ellipse, ${gc_}14 0%, transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
+
+            {/* ── Grade hero ── */}
+            <div style={{position:"relative",zIndex:1,display:"flex",flexWrap:"wrap",borderBottom:`1px solid ${V.w1}`}}>
+
+              {/* Big letter */}
+              <div style={{padding:"28px 32px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRight:`1px solid ${V.w1}`,minWidth:120,flexShrink:0,background:`radial-gradient(circle at 50% 40%, ${gc_}10, transparent 70%)`}}>
+                <p style={{...mono,fontSize:8,color:gc_,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:8,opacity:.8}}>AI Grade</p>
+                <p style={{fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",fontSize:62,fontWeight:700,lineHeight:1,color:gc_,textShadow:`0 0 48px ${gc_}60, 0 0 12px ${gc_}30`,letterSpacing:"-0.04em"}}>{g.letter}</p>
+                <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8}}>
+                  <div style={{width:36,height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${g.score}%`,background:gc_,borderRadius:99}}/>
+                  </div>
+                  <p style={{...mono,fontSize:9,color:gc_,opacity:.75}}>{g.score}</p>
+                </div>
               </div>
-              <div style={{flex:1,padding:"22px 24px",minWidth:200}}>
+
+              {/* Summary + score bar */}
+              <div style={{flex:1,padding:"22px 24px",minWidth:200,position:"relative",zIndex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                   <Star size={14} color={gc_} fill={gc_}/>
                   <span style={{fontSize:15,fontWeight:700,color:V.ink0}}>AI Portfolio Analysis</span>
                 </div>
-                <p style={{color:V.ink2,fontSize:13,lineHeight:1.65,marginBottom:16}}>{g.summary}</p>
-                {/* Score bar */}
-                <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:99,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${g.score}%`,background:`linear-gradient(90deg,${gc_}80,${gc_})`,borderRadius:99,transition:"width 1.2s cubic-bezier(0.16,1,0.3,1)"}}/>
+                <p style={{color:V.ink2,fontSize:13,lineHeight:1.7,marginBottom:16}}>{g.summary}</p>
+                {/* Segmented score bar */}
+                <div style={{position:"relative",height:6,background:"rgba(255,255,255,0.05)",borderRadius:99,overflow:"hidden",marginBottom:6}}>
+                  <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${g.score}%`,background:`linear-gradient(90deg,${gc_}70,${gc_})`,borderRadius:99,transition:"width 1.4s cubic-bezier(0.16,1,0.3,1)",boxShadow:`0 0 8px ${gc_}50`}}/>
+                  {/* Grade zone markers */}
+                  {[45,55,65,70,75,80,85,90,95].map(mark=>(
+                    <div key={mark} style={{position:"absolute",left:`${mark}%`,top:0,bottom:0,width:1,background:"rgba(255,255,255,0.08)"}}/>
+                  ))}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>F</span>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>D</span>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>C</span>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>B</span>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>A</span>
+                  <span style={{...mono,fontSize:8,color:V.ink4}}>A+</span>
                 </div>
               </div>
             </div>
 
-            {/* Three-column analysis */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))"}}>
+            {/* ── Risk metrics strip ── */}
+            <div style={{position:"relative",zIndex:1,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",borderBottom:`1px solid ${V.w1}`}}>
               {[
-                {t:"Strengths",  c:V.gain, icon:<CheckCircle size={11} color={V.gain}/>,  items:g.strengths, sym:"✓",  empty:"None yet."},
-                {t:"Weaknesses", c:V.loss, icon:<XCircle     size={11} color={V.loss}/>,  items:g.weaknesses,sym:"!",  empty:"No major issues."},
-                {t:"Suggestions",c:"#7EB6FF",icon:<Info      size={11} color="#7EB6FF"/>, items:g.tips,      sym:"→",  empty:"Keep monitoring."},
+                {
+                  label: "Diversification",
+                  value: `${g.divScore}/100`,
+                  sub: g.divScore >= 70 ? "Well diversified" : g.divScore >= 45 ? "Moderate" : "Concentrated",
+                  color: g.divScore >= 70 ? V.gain : g.divScore >= 45 ? V.gold : V.loss,
+                  bar: g.divScore,
+                },
+                {
+                  label: "Volatility",
+                  value: g.volatility,
+                  sub: g.volatility === "Low" ? "Stable" : g.volatility === "Medium" ? "Normal range" : "Elevated risk",
+                  color: g.volatility === "Low" ? V.gain : g.volatility === "Medium" ? V.gold : V.loss,
+                  bar: g.volatility === "Low" ? 25 : g.volatility === "Medium" ? 55 : g.volatility === "High" ? 78 : 95,
+                },
+                {
+                  label: "Win Rate",
+                  value: `${g.winRate}%`,
+                  sub: `${enriched.filter(x=>x.pct>0).length} of ${enriched.length} profitable`,
+                  color: g.winRate >= 60 ? V.gain : g.winRate >= 40 ? V.gold : V.loss,
+                  bar: g.winRate,
+                },
+                {
+                  label: "Top Concentration",
+                  value: `${g.concentration.toFixed(1)}%`,
+                  sub: g.concentration < 25 ? "Balanced" : g.concentration < 40 ? "Moderate" : "Overweight",
+                  color: g.concentration < 25 ? V.gain : g.concentration < 40 ? V.gold : V.loss,
+                  bar: Math.min(100, g.concentration * 2),
+                },
+                {
+                  label: "Max Drawdown",
+                  value: g.maxDrawdown < -0.01 ? `${g.maxDrawdown.toFixed(1)}%` : "None",
+                  sub: g.maxDrawdown < -15 ? "Review position" : g.maxDrawdown < -5 ? "Monitor closely" : "Within tolerance",
+                  color: g.maxDrawdown < -15 ? V.loss : g.maxDrawdown < -5 ? V.gold : V.gain,
+                  bar: Math.min(100, Math.abs(g.maxDrawdown) * 4),
+                },
+              ].map((m, i, arr) => (
+                <div key={m.label} style={{padding:"16px 18px",borderRight:i<arr.length-1?`1px solid ${V.w1}`:"none"}}>
+                  <p style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{m.label}</p>
+                  <p style={{...mono,fontSize:16,fontWeight:500,color:m.color,letterSpacing:"-0.02em",marginBottom:3}}>{m.value}</p>
+                  <p style={{fontSize:10,color:V.ink3,marginBottom:8}}>{m.sub}</p>
+                  {/* Mini bar */}
+                  <div style={{height:2,background:"rgba(255,255,255,0.05)",borderRadius:99,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${m.bar}%`,background:m.color,borderRadius:99,transition:"width 1s cubic-bezier(0.16,1,0.3,1)",opacity:.75}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Three-column analysis ── */}
+            <div style={{position:"relative",zIndex:1,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))"}}>
+              {[
+                {t:"Strengths",  c:V.gain,   icon:<CheckCircle size={11} color={V.gain}/>,  items:g.strengths,  sym:"✓", empty:"None identified yet."},
+                {t:"Weaknesses", c:V.loss,   icon:<XCircle     size={11} color={V.loss}/>,  items:g.weaknesses, sym:"!", empty:"No major issues."},
+                {t:"Suggestions",c:"#7EB6FF",icon:<Info        size={11} color="#7EB6FF"/>, items:g.tips,       sym:"→", empty:"Keep monitoring."},
               ].map((col,ci)=>(
                 <div key={col.t} style={{padding:"18px 20px",borderRight:ci<2?`1px solid ${V.w1}`:"none",borderTop:`1px solid ${V.w1}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
                     {col.icon}
                     <span style={{...mono,fontSize:9,fontWeight:500,color:col.c,textTransform:"uppercase",letterSpacing:"0.1em"}}>{col.t}</span>
                   </div>
-                  {col.items.length?col.items.map((s,i)=>(
+                  {col.items.length ? col.items.map((s,i)=>(
                     <div key={i} style={{display:"flex",gap:9,marginBottom:9}}>
                       <span style={{color:col.c,fontSize:12,marginTop:1,flexShrink:0,opacity:.9}}>{col.sym}</span>
                       <span style={{fontSize:12,color:V.ink2,lineHeight:1.6}}>{s}</span>
                     </div>
-                  )):<p style={{fontSize:12,color:V.ink4}}>{col.empty}</p>}
+                  )) : <p style={{fontSize:12,color:V.ink4}}>{col.empty}</p>}
                 </div>
               ))}
             </div>

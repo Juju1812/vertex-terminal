@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  TrendingUp, TrendingDown, RefreshCw, DollarSign,
+  TrendingUp, TrendingDown, DollarSign,
   Trophy, Target, Shield, Zap, ChevronUp, ChevronDown, X,
 } from "lucide-react";
+import { CountdownBar, useAutoRefresh } from "@/components/CountdownBar";
 
 /* ── Types ────────────────────────────────────────────────── */
 interface Stock  { rank:number; ticker:string; name:string; price:number; changePct:number; floor:number; ceiling:number; conf:number; sector:string; score:number; }
@@ -165,14 +166,21 @@ function SimModal({stocks,onClose}:{stocks:Stock[];onClose:()=>void}){
 export default function Top15(){
   const [stocks,setStocks]=useState<Stock[]>([]);
   const [loading,setLoading]=useState(true);
-  const [ts,setTs]=useState<Date|null>(null);
   const [showSim,setShowSim]=useState(false);
   const [sortCol,setSortCol]=useState<keyof Stock>("rank");
   const [sortDir,setSortDir]=useState<"asc"|"desc">("asc");
-  const [busy,setBusy]=useState(false);
 
-  const load=useCallback(async()=>{setBusy(true);const d=await fetchTop15();setStocks(d);setTs(new Date());setLoading(false);setBusy(false);},[]);
-  useEffect(()=>{load();const id=setInterval(load,15*60*1000);return()=>clearInterval(id);},[load]);
+  const loadData=useCallback(async()=>{
+    const d=await fetchTop15();
+    setStocks(d);
+    setLoading(false);
+  },[]);
+
+  // Initial load
+  useEffect(()=>{ loadData(); },[loadData]);
+
+  // Auto-refresh every 15 min via shared hook
+  const countdown=useAutoRefresh(loadData);
 
   const sorted=[...stocks].sort((a,b)=>{const av=a[sortCol]as number,bv=b[sortCol]as number;return sortDir==="asc"?av-bv:bv-av;});
   const toggle=(col:keyof Stock)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
@@ -210,14 +218,22 @@ export default function Top15(){
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          {ts&&<span style={{...mono,color:V.ink4,fontSize:9}}>{ts.toLocaleTimeString()}</span>}
-          <button onClick={load} disabled={busy} className="vx-btn vx-btn-ghost" style={{fontFamily:"'Bricolage Grotesque',system-ui,sans-serif"}}>
-            <RefreshCw size={12} style={{animation:busy?"spin 1s linear infinite":"none"}}/> Refresh
-          </button>
           <button onClick={()=>setShowSim(true)} className="vx-btn vx-btn-arc" style={{fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",fontWeight:600}}>
             <DollarSign size={13}/> Simulate Portfolio
           </button>
         </div>
+      </div>
+
+      {/* Countdown bar */}
+      <div style={{marginBottom:18}}>
+        <CountdownBar
+          secondsLeft={countdown.secondsLeft}
+          pct={countdown.pct}
+          refreshing={countdown.refreshing}
+          lastUpdated={countdown.lastUpdated}
+          onRefresh={countdown.forceRefresh}
+          label="Next ranking update"
+        />
       </div>
 
       {/* Stat strip */}

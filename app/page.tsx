@@ -11,6 +11,7 @@ import {
   Zap, RefreshCw, AlertTriangle, Trophy, BookOpen, X,
   LayoutDashboard, ChevronRight, Activity,
 } from "lucide-react";
+import { CountdownBar, useAutoRefresh } from "@/components/CountdownBar";
 
 /* ── Lazy panels ──────────────────────────────────────────────── */
 const Top15    = dynamic(() => import("@/components/Top15"),    { ssr: false, loading: () => <PanelSkeleton/> });
@@ -198,6 +199,13 @@ export default function VertexTerminal() {
   }, []);
   useEffect(() => { load(ticker); }, [ticker, load]);
 
+  // Auto-refresh: re-fetches the current quote + bars every 15 min
+  const refreshMarkets = useCallback(async () => {
+    const [q, b] = await Promise.all([loadQuote(ticker), loadBars(ticker)]);
+    setQuote(q); setBars(b);
+  }, [ticker]);
+  const countdown = useAutoRefresh(refreshMarkets);
+
   useEffect(() => {
     if (!search.trim()) { setResults([]); return; }
     const id = setTimeout(async () => {
@@ -310,6 +318,16 @@ export default function VertexTerminal() {
         </div>
       </div>
 
+      {/* ── Countdown bar ── */}
+      <CountdownBar
+        secondsLeft={countdown.secondsLeft}
+        pct={countdown.pct}
+        refreshing={countdown.refreshing}
+        lastUpdated={countdown.lastUpdated}
+        onRefresh={countdown.forceRefresh}
+        label="Next market update"
+      />
+
       {/* ── Ticker quick-select ── */}
       <div>
         <p className="label" style={{ marginBottom:10 }}>Quick Select</p>
@@ -421,6 +439,16 @@ export default function VertexTerminal() {
           ))}
         </div>
       </div>
+
+      {/* ── Countdown bar ── */}
+      <CountdownBar
+        secondsLeft={countdown.secondsLeft}
+        pct={countdown.pct}
+        refreshing={countdown.refreshing}
+        lastUpdated={countdown.lastUpdated}
+        onRefresh={countdown.forceRefresh}
+        label="Next signal update"
+      />
 
       {/* Long signals */}
       <div>
