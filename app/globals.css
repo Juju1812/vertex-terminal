@@ -1,64 +1,131 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base reset ─────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════════ */
+:root {
+  --bg-void:      #030609;
+  --bg-base:      #060B14;
+  --bg-raised:    #0A1220;
+  --bg-elevated:  #0F1A2B;
+  --bg-overlay:   #142035;
+  --bg-hover:     #18273D;
+  --bg-active:    #1D2F47;
+
+  --border-dim:   rgba(100,160,220,0.06);
+  --border-soft:  rgba(100,160,220,0.11);
+  --border-mid:   rgba(100,160,220,0.18);
+  --border-bright:rgba(100,160,220,0.28);
+
+  --text-primary:   #EEF3FA;
+  --text-secondary: #7A9DBF;
+  --text-muted:     #3D5A7A;
+  --text-accent:    #B8D0E8;
+
+  --emerald:        #10B981;
+  --emerald-bright: #34D399;
+  --emerald-dim:    rgba(16,185,129,0.10);
+  --emerald-border: rgba(16,185,129,0.20);
+
+  --crimson:        #F43F5E;
+  --crimson-bright: #FB7185;
+  --crimson-dim:    rgba(244,63,94,0.10);
+  --crimson-border: rgba(244,63,94,0.20);
+
+  --sapphire:       #3B82F6;
+  --sapphire-dim:   rgba(59,130,246,0.10);
+  --sapphire-border:rgba(59,130,246,0.22);
+
+  --gold:           #F59E0B;
+  --gold-dim:       rgba(245,158,11,0.10);
+
+  --amethyst:       #8B5CF6;
+  --amethyst-dim:   rgba(139,92,246,0.10);
+
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* ══════════════════════════════════════════════
+   BASE
+══════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
+html { -webkit-text-size-adjust: 100%; }
 
 body {
-  background: #060B14;
-  color: #E2EAF4;
-  font-family: 'Inter', system-ui, sans-serif;
-  overflow-x: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  /* Reserve space at bottom for mobile nav */
-  padding-bottom: env(safe-area-inset-bottom);
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ── Scrollbars ──────────────────────────────────────────────────────────────── */
+/* Subtle noise grain for premium depth */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ══════════════════════════════════════════════
+   SCROLLBARS
+══════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
-::-webkit-scrollbar-track { background: #0D1321; }
-::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #2D4A6E; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-mid) transparent; }
 
-/* ── Monospace util ─────────────────────────────────────────────────────────── */
-.mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+/* ══════════════════════════════════════════════
+   KEYFRAMES
+══════════════════════════════════════════════ */
+@keyframes fadeUp  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+@keyframes slideUp { from { opacity:0; transform:translateY(100%); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulseDot{ 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
+@keyframes spin    { to { transform: rotate(360deg); } }
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
 
-/* ── Animations ─────────────────────────────────────────────────────────────── */
-@keyframes pulse-dot  { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(0.85); } }
-@keyframes spin       { to { transform: rotate(360deg); } }
-@keyframes shimmer    { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
-@keyframes fade-in    { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-@keyframes slide-up   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-@keyframes bar-grow   { from { width:0; } to { width:var(--w); } }
-
-.animate-spin     { animation: spin 1s linear infinite; }
-.animate-fade-in  { animation: fade-in 0.25s ease-out both; }
-.animate-slide-up { animation: slide-up 0.3s ease-out both; }
-
-.shimmer {
-  background: linear-gradient(90deg, #0D1321 25%, #152030 50%, #0D1321 75%);
+/* ══════════════════════════════════════════════
+   SKELETON
+══════════════════════════════════════════════ */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-raised) 25%, var(--bg-overlay) 50%, var(--bg-raised) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 6px;
 }
 
-/* ── Recharts global overrides ──────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   RECHARTS
+══════════════════════════════════════════════ */
 .recharts-cartesian-grid-horizontal line,
-.recharts-cartesian-grid-vertical   line { stroke: #1E293B !important; }
+.recharts-cartesian-grid-vertical line { stroke: var(--border-dim) !important; }
 .recharts-tooltip-wrapper { outline: none !important; }
 .recharts-surface { overflow: visible; }
 
-/* ── Touch targets — minimum 44×44px ────────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   TOUCH / MOBILE
+══════════════════════════════════════════════ */
 button, [role="button"] { touch-action: manipulation; }
+@media (max-width: 640px) { input, select, textarea { font-size: 16px !important; } }
 
-/* ── Horizontal scroll containers ──────────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   SCROLL CONTAINER
+══════════════════════════════════════════════ */
 .scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -66,49 +133,16 @@ button, [role="button"] { touch-action: manipulation; }
 }
 .scroll-x::-webkit-scrollbar { display: none; }
 
-/* ── Table responsive wrapper ────────────────────────────────────────────────── */
-.table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 0 0 12px 12px;
-}
-.table-wrap table { min-width: 600px; width: 100%; border-collapse: collapse; }
-
-/* ── Bottom nav safe area ────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   BOTTOM NAV (mobile)
+══════════════════════════════════════════════ */
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   z-index: 100;
-  background: rgba(10, 15, 25, 0.96);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border-top: 1px solid #1E293B;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* ── Card styles ─────────────────────────────────────────────────────────────── */
-.card {
-  background: #0D1321;
-  border: 1px solid #1E293B;
-  border-radius: 12px;
-}
-.card-sm {
-  background: #0D1321;
-  border: 1px solid #1E293B;
-  border-radius: 8px;
-}
-
-/* ── Badge ───────────────────────────────────────────────────────────────────── */
-.badge-up   { background:rgba(0,255,148,.1); color:#00FF94; border:1px solid rgba(0,255,148,.2); }
-.badge-down { background:rgba(255,59,92,.1); color:#FF3B5C; border:1px solid rgba(255,59,92,.2); }
-
-/* ── Mobile-specific helpers ─────────────────────────────────────────────────── */
-@media (max-width: 639px) {
-  /* Prevent iOS zoom on input focus */
-  input, select, textarea { font-size: 16px !important; }
-
-  /* Larger tap zones */
-  .tap-target { min-height: 48px; min-width: 48px; }
+  background: rgba(6, 10, 20, 0.97);
+  backdrop-filter: blur(28px) saturate(2);
+  -webkit-backdrop-filter: blur(28px) saturate(2);
+  border-top: 1px solid var(--border-soft);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
