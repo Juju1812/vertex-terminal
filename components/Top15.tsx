@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, DollarSign,
   Trophy, Target, Shield, Zap, ChevronUp, ChevronDown, X,
 } from "lucide-react";
-import { CountdownBar, useAutoRefresh } from "@/components/CountdownBar";
+import { CountdownBar } from "@/components/CountdownBar";
 
 /* ── Types ────────────────────────────────────────────────── */
 interface Stock  { rank:number; ticker:string; name:string; price:number; changePct:number; floor:number; ceiling:number; conf:number; sector:string; score:number; }
@@ -179,9 +179,6 @@ export default function Top15(){
   // Initial load
   useEffect(()=>{ loadData(); },[loadData]);
 
-  // Auto-refresh every 15 min via shared hook
-  const countdown=useAutoRefresh(loadData);
-
   const sorted=[...stocks].sort((a,b)=>{const av=a[sortCol]as number,bv=b[sortCol]as number;return sortDir==="asc"?av-bv:bv-av;});
   const toggle=(col:keyof Stock)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
 
@@ -227,11 +224,7 @@ export default function Top15(){
       {/* Countdown bar */}
       <div style={{marginBottom:18}}>
         <CountdownBar
-          secondsLeft={countdown.secondsLeft}
-          pct={countdown.pct}
-          refreshing={countdown.refreshing}
-          lastUpdated={countdown.lastUpdated}
-          onRefresh={countdown.forceRefresh}
+          onRefresh={loadData}
           label="Next ranking update"
         />
       </div>
