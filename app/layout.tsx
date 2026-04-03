@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vertex Terminal",
-  description: "Professional stock market intelligence platform with AI predictions",
+  title: "ArbibX",
+  description: "Arbibs Run The World!",
   icons: {
     icon: "/logo.png",
   },
