@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-
 import {
   useState, useEffect, useCallback, useRef,
   memo, useMemo, type SetStateAction, type Dispatch,
@@ -104,25 +102,110 @@ async function apiFetch<T>(path: string): Promise<T | null> {
   } catch { return null; }
 }
 
-async function loadQuote(ticker: string): Promise<Quote> {
-  const m = MOCK[ticker] ?? { ticker, name:ticker, price:100, change:0, changePct:0, high:101, low:99, open:100, volume:1e6 };
-  const d = await apiFetch<{ ticker: { day:{c:number;h:number;l:number;o:number;v:number}; prevDay:{c:number} } }>(`/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`);
-  if (!d?.ticker?.day?.c) return m;
-  const { day, prevDay } = d.ticker, chg = day.c - prevDay.c;
-  return { ticker, name:m.name, price:day.c, change:+chg.toFixed(2), changePct:+((chg/prevDay.c)*100).toFixed(2), high:day.h, low:day.l, open:day.o, volume:day.v };
-}
-
+/** Fetch daily bars (90 days). Returns [] on failure — never falls back to seed data.
+ *  Seed bars are injected by the caller so the chart renders instantly. */
 async function loadBars(ticker: string): Promise<Bar[]> {
   const to   = new Date().toISOString().split("T")[0];
-  const from = new Date(Date.now() - 90*86_400_000).toISOString().split("T")[0];
-  const d = await apiFetch<{ results?:{c:number;t:number}[] }>(`/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=120`);
-  if (!d?.results?.length) return seedBars(MOCK[ticker]?.price ?? 100);
-  return d.results.map(b => ({ date: new Date(b.t).toISOString().split("T")[0], close: b.c }));
+  const from = new Date(Date.now() - 92*86_400_000).toISOString().split("T")[0];
+  const d = await apiFetch<{ results?:{c:number;t:number}[] }>(
+    `/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=120`
+  );
+  if (!d?.results?.length) return [];
+  return d.results.map(b => ({
+    date:  new Date(b.t).toISOString().split("T")[0],
+    close: b.c,
+  }));
+}
+
+/**
+ * Load a quote that is ALWAYS consistent with the chart.
+ *
+ * Strategy:
+ *  1. Try the snapshot endpoint first (works during live market hours).
+ *     day.c is the live/last-sale price; prevDay.c is yesterday's official close.
+ *  2. If snapshot is unavailable or returns zero (market closed, pre-market,
+ *     or free-tier limitation), fall back to the daily bars:
+ *       – price  = last bar's close  (same value the chart plots as its rightmost point)
+ *       – change = last bar vs second-to-last bar
+ *  3. Only use MOCK data as a last resort for static fields (name, open/high/low)
+ *     — never for price, change, or changePct.
+ */
+async function loadQuote(ticker: string, bars?: Bar[]): Promise<Quote> {
+  const m = MOCK[ticker];
+  const name = m?.name ?? ticker;
+
+  /* ── 1. Try live snapshot ── */
+  const snap = await apiFetch<{
+    ticker: {
+      day:     { c:number; h:number; l:number; o:number; v:number };
+      prevDay: { c:number };
+      lastTrade?: { p:number };
+    }
+  }>(`/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`);
+
+  const sd = snap?.ticker;
+
+  // Snapshot is valid when day.c > 0 (live session has printed at least one trade)
+  if (sd?.day?.c && sd.day.c > 0 && sd?.prevDay?.c && sd.prevDay.c > 0) {
+    const price = sd.day.c;
+    const prev  = sd.prevDay.c;
+    const chg   = price - prev;
+    return {
+      ticker,
+      name,
+      price,
+      change:    +chg.toFixed(2),
+      changePct: +((chg / prev) * 100).toFixed(2),
+      high:      sd.day.h || price,
+      low:       sd.day.l || price,
+      open:      sd.day.o || price,
+      volume:    sd.day.v || 0,
+    };
+  }
+
+  /* ── 2. Fall back to bars (market closed / pre-market / free-tier zero) ── */
+  // Re-use bars if caller already fetched them to avoid a redundant request
+  const barData = bars?.length ? bars : await loadBars(ticker);
+
+  if (barData.length >= 2) {
+    const last = barData[barData.length - 1];
+    const prev = barData[barData.length - 2];
+    const chg  = last.close - prev.close;
+    return {
+      ticker,
+      name,
+      price:     last.close,
+      change:    +chg.toFixed(2),
+      changePct: +((chg / prev.close) * 100).toFixed(2),
+      // Snapshot gave us nothing useful for OHLV — use last-known mock or derive
+      high:      (sd?.day?.h && sd.day.h > 0) ? sd.day.h : +(last.close * 1.005).toFixed(2),
+      low:       (sd?.day?.l && sd.day.l > 0) ? sd.day.l : +(last.close * 0.995).toFixed(2),
+      open:      (sd?.day?.o && sd.day.o > 0) ? sd.day.o : prev.close,
+      volume:    (sd?.day?.v && sd.day.v > 0) ? sd.day.v : (m?.volume ?? 0),
+    };
+  }
+
+  /* ── 3. True fallback: MOCK only — at least show something ── */
+  // This path only runs when both API calls fail completely (e.g. network down)
+  if (m) return m;
+
+  // Unknown ticker with no data at all
+  return {
+    ticker,
+    name,
+    price: 0, change: 0, changePct: 0,
+    high: 0, low: 0, open: 0, volume: 0,
+  };
 }
 
 async function searchTickers(q: string): Promise<string[]> {
-  const d = await apiFetch<{ results?:{ticker:string}[] }>(`/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks`);
-  if (!d?.results?.length) return TICKERS.filter(t => t.includes(q.toUpperCase()) || MOCK[t]?.name.toLowerCase().includes(q.toLowerCase()));
+  const d = await apiFetch<{ results?:{ticker:string}[] }>(
+    `/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks`
+  );
+  if (!d?.results?.length)
+    return TICKERS.filter(t =>
+      t.includes(q.toUpperCase()) || MOCK[t]?.name.toLowerCase().includes(q.toLowerCase())
+    );
   return d.results.map(r => r.ticker);
 }
 
@@ -231,11 +314,12 @@ interface MarketsPanelProps {
   ticker:string; quote:Quote; bars:Bar[]; loading:boolean;
   up:boolean; lineColor:string; watched:boolean; watchlist:string[];
   go:(t:string)=>void; toggleWatch:(t:string)=>void; refreshMarkets:()=>Promise<void>;
+  livePrices: Record<string, { price:number; changePct:number }>;
 }
 
 const MarketsPanel = memo(function MarketsPanel({
   ticker, quote, bars, loading, up, lineColor, watched, watchlist,
-  go, toggleWatch, refreshMarkets,
+  go, toggleWatch, refreshMarkets, livePrices,
 }: MarketsPanelProps) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -325,14 +409,17 @@ const MarketsPanel = memo(function MarketsPanel({
         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginLeft:-16, marginRight:-16, paddingLeft:16, paddingRight:16 }}>
           <div style={{ display:"flex", gap:6, minWidth:"max-content", paddingBottom:2 }}>
             {TICKERS.map(t => {
-              const q = MOCK[t], pos = (q?.changePct??0) >= 0, active = t === ticker;
+              const live = livePrices[t];
+              const changePct = live?.changePct ?? MOCK[t]?.changePct ?? 0;
+              const pos    = changePct >= 0;
+              const active = t === ticker;
               return (
                 <button key={t} onClick={() => go(t)}
                   style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"9px 12px", borderRadius:10, border:`1px solid`, cursor:"pointer", minWidth:64, minHeight:48, transition:"all 0.2s",
                     background: active ? "linear-gradient(145deg,rgba(79,142,247,0.12),rgba(79,142,247,0.06))" : "rgba(255,255,255,0.025)",
                     borderColor: active ? V.arcWire : V.w1 }}>
                   <span style={{ ...mono, fontSize:12, fontWeight:500, color:active?"#7EB6FF":V.ink0 }}>{t}</span>
-                  <span style={{ ...mono, fontSize:9, color:pos?V.gain:V.loss, marginTop:2 }}>{q ? fp(q.changePct) : ""}</span>
+                  <span style={{ ...mono, fontSize:9, color:pos?V.gain:V.loss, marginTop:2 }}>{fp(changePct)}</span>
                 </button>
               );
             })}
@@ -354,18 +441,21 @@ const MarketsPanel = memo(function MarketsPanel({
             <p style={{ color:V.ink3, fontSize:13, textAlign:"center", padding:"24px 20px" }}>Star a ticker to add it here</p>
           )}
           {watchlist.map((t, i) => {
-            const q = MOCK[t], pos = (q?.changePct??0) >= 0;
+            const live = livePrices[t];
+            const price     = live?.price     ?? MOCK[t]?.price     ?? 0;
+            const changePct = live?.changePct ?? MOCK[t]?.changePct ?? 0;
+            const pos = changePct >= 0;
             return (
               <button key={t} onClick={() => go(t)}
                 style={{ display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%", padding:"12px 16px", background:t===ticker?`linear-gradient(90deg,rgba(79,142,247,0.08),transparent)`:"none", border:"none", cursor:"pointer", minHeight:54, textAlign:"left", transition:"background 0.2s", borderLeft:t===ticker?`2px solid ${V.arc}`:"2px solid transparent", borderBottom:i<watchlist.length-1?`1px solid ${V.w1}`:"none" }}
                 className="row-hover">
                 <div>
                   <p style={{ ...mono, fontSize:13, fontWeight:500, color:t===ticker?"#7EB6FF":V.ink0 }}>{t}</p>
-                  <p style={{ color:V.ink3, fontSize:11, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"min(180px,40vw)" }}>{q?.name}</p>
+                  <p style={{ color:V.ink3, fontSize:11, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"min(180px,40vw)" }}>{MOCK[t]?.name ?? t}</p>
                 </div>
                 <div style={{ textAlign:"right", marginLeft:8 }}>
-                  <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{q ? f$(q.price) : "—"}</p>
-                  <p style={{ ...mono, fontSize:11, color:pos?V.gain:V.loss, marginTop:1 }}>{q ? fp(q.changePct) : ""}</p>
+                  <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{price > 0 ? f$(price) : "—"}</p>
+                  <p style={{ ...mono, fontSize:11, color:pos?V.gain:V.loss, marginTop:1 }}>{fp(changePct)}</p>
                 </div>
               </button>
             );
@@ -548,9 +638,10 @@ interface SidebarProps {
   ticker:string; watchlist:string[];
   go:(t:string)=>void; toggleWatch:(t:string)=>void;
   setTab:Dispatch<SetStateAction<Tab>>;
+  livePrices: Record<string, { price:number; changePct:number }>;
 }
 
-const Sidebar = memo(function Sidebar({ ticker, watchlist, go, toggleWatch, setTab }: SidebarProps) {
+const Sidebar = memo(function Sidebar({ ticker, watchlist, go, toggleWatch, setTab, livePrices }: SidebarProps) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ ...glassCard({ overflow:"hidden", padding:0 }) }}>
@@ -560,18 +651,21 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, go, toggleWatch, setT
           <span style={{ ...mono, fontSize:10, color:V.ink3, marginLeft:"auto" }}>{watchlist.length}</span>
         </div>
         {watchlist.map((t, i) => {
-          const q = MOCK[t], pos = (q?.changePct??0) >= 0;
+          const live = livePrices[t];
+          const price     = live?.price     ?? MOCK[t]?.price     ?? 0;
+          const changePct = live?.changePct ?? MOCK[t]?.changePct ?? 0;
+          const pos = changePct >= 0;
           return (
             <button key={t} onClick={() => go(t)}
               style={{ display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%", padding:"10px 16px", background:t===ticker?`linear-gradient(90deg,rgba(79,142,247,0.07),transparent)`:"none", border:"none", cursor:"pointer", borderBottom:i<watchlist.length-1?`1px solid ${V.w1}`:"none", borderLeft:t===ticker?`2px solid ${V.arc}`:"2px solid transparent", minHeight:48, textAlign:"left", transition:"background 0.18s" }}
               className="row-hover">
               <div>
                 <p style={{ ...mono, fontSize:12, fontWeight:500, color:t===ticker?"#7EB6FF":V.ink0 }}>{t}</p>
-                <p style={{ color:V.ink3, fontSize:10, marginTop:1, maxWidth:100, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{q?.name}</p>
+                <p style={{ color:V.ink3, fontSize:10, marginTop:1, maxWidth:100, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{MOCK[t]?.name ?? t}</p>
               </div>
               <div style={{ textAlign:"right" }}>
-                <p style={{ ...mono, fontSize:12, fontWeight:500, color:V.ink0 }}>{q ? f$(q.price) : "—"}</p>
-                <p style={{ ...mono, fontSize:10, color:pos?V.gain:V.loss, marginTop:1 }}>{q ? fp(q.changePct) : ""}</p>
+                <p style={{ ...mono, fontSize:12, fontWeight:500, color:V.ink0 }}>{price > 0 ? f$(price) : "—"}</p>
+                <p style={{ ...mono, fontSize:10, color:pos?V.gain:V.loss, marginTop:1 }}>{fp(changePct)}</p>
               </div>
             </button>
           );
@@ -629,22 +723,31 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, go, toggleWatch, setT
    ROOT
    ══════════════════════════════════════════════════════════════ */
 export default function VertexTerminal() {
-  const [ticker,    setTicker]    = useState("AAPL");
-  const [quote,     setQuote]     = useState<Quote>(MOCK["AAPL"]);
-  const [bars,      setBars]      = useState<Bar[]>(seedBars(228.52));
-  const [watchlist, setWatchlist] = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
-  const [search,    setSearch]    = useState("");
-  const [results,   setResults]   = useState<string[]>([]);
-  const [loading,   setLoading]   = useState(false);
-  const [tab,       setTab]       = useState<Tab>("markets");
-  const [searching, setSearching] = useState(false);
-  const [showSearch,setShowSearch]= useState(false);
+  const [ticker,     setTicker]    = useState("AAPL");
+  const [quote,      setQuote]     = useState<Quote>(MOCK["AAPL"]);
+  const [bars,       setBars]      = useState<Bar[]>(seedBars(228.52));
+  const [watchlist,  setWatchlist] = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
+  const [search,     setSearch]    = useState("");
+  const [results,    setResults]   = useState<string[]>([]);
+  const [loading,    setLoading]   = useState(false);
+  const [tab,        setTab]       = useState<Tab>("markets");
+  const [searching,  setSearching] = useState(false);
+  const [showSearch, setShowSearch]= useState(false);
+  // Live prices for all tickers shown in quick-select chips + watchlist
+  const [livePrices, setLivePrices] = useState<Record<string, { price:number; changePct:number }>>({});
   const searchRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (t: string) => {
     setLoading(true);
-    const [q, b] = await Promise.all([loadQuote(t), loadBars(t)]);
-    setQuote(q); setBars(b); setLoading(false);
+    // Fetch bars first — they're the authoritative price source.
+    // Pass them to loadQuote so it can derive the price from bars
+    // when the snapshot endpoint returns zero (market closed / free tier).
+    const b = await loadBars(t);
+    const realBars = b.length ? b : seedBars(MOCK[t]?.price ?? 100);
+    const q = await loadQuote(t, realBars);
+    setQuote(q);
+    setBars(realBars);
+    setLoading(false);
   }, []);
   useEffect(() => { load(ticker); }, [ticker, load]);
 
@@ -652,9 +755,65 @@ export default function VertexTerminal() {
   useEffect(() => { tickerRef.current = ticker; }, [ticker]);
 
   const refreshMarkets = useCallback(async () => {
-    const [q, b] = await Promise.all([loadQuote(tickerRef.current), loadBars(tickerRef.current)]);
-    setQuote(q); setBars(b);
+    const t  = tickerRef.current;
+    const b  = await loadBars(t);
+    const realBars = b.length ? b : seedBars(MOCK[t]?.price ?? 100);
+    const q  = await loadQuote(t, realBars);
+    setQuote(q);
+    setBars(realBars);
   }, []);
+
+  // Bulk-fetch live prices for the quick-select strip and watchlist.
+  // Uses the multi-ticker snapshot endpoint — one request for all tickers.
+  const fetchLivePrices = useCallback(async () => {
+    const all = [...new Set([...TICKERS, ...watchlist])];
+    const d = await apiFetch<{
+      tickers?: Array<{
+        ticker: string;
+        day: { c: number };
+        prevDay: { c: number };
+      }>
+    }>(`/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${all.join(",")}`);
+
+    const next: Record<string, { price:number; changePct:number }> = {};
+
+    if (d?.tickers?.length) {
+      for (const s of d.tickers) {
+        const price = s.day?.c;
+        const prev  = s.prevDay?.c;
+        if (price && price > 0 && prev && prev > 0) {
+          next[s.ticker] = {
+            price,
+            changePct: +((price - prev) / prev * 100).toFixed(2),
+          };
+        }
+      }
+    }
+
+    // For any ticker the snapshot didn't cover, fall back to its last bar close.
+    // This keeps chips accurate even outside market hours.
+    const missing = all.filter(t => !next[t]);
+    if (missing.length) {
+      const barResults = await Promise.all(
+        missing.map(t => loadBars(t).then(bars => ({ t, bars })))
+      );
+      for (const { t, bars } of barResults) {
+        if (bars.length >= 2) {
+          const last = bars[bars.length - 1];
+          const prev = bars[bars.length - 2];
+          next[t] = {
+            price:     last.close,
+            changePct: +((last.close - prev.close) / prev.close * 100).toFixed(2),
+          };
+        }
+      }
+    }
+
+    if (Object.keys(next).length > 0) setLivePrices(next);
+  }, [watchlist]);
+
+  // Fetch live prices on mount and whenever watchlist changes
+  useEffect(() => { fetchLivePrices(); }, [fetchLivePrices]);
 
   useEffect(() => {
     if (!search.trim()) { setResults([]); return; }
@@ -688,10 +847,11 @@ export default function VertexTerminal() {
     lineColor: quote.changePct >= 0 ? V.gain : V.loss,
     watched: watchlist.includes(ticker),
     watchlist, go, toggleWatch, refreshMarkets,
-  }), [ticker, quote, bars, loading, watchlist, go, toggleWatch, refreshMarkets]);
+    livePrices,
+  }), [ticker, quote, bars, loading, watchlist, go, toggleWatch, refreshMarkets, livePrices]);
 
   const aiProps    = useMemo<AIPanelProps>(() => ({ go, refreshMarkets }), [go, refreshMarkets]);
-  const sideProps  = useMemo<SidebarProps>(() => ({ ticker, watchlist, go, toggleWatch, setTab }), [ticker, watchlist, go, toggleWatch]);
+  const sideProps  = useMemo<SidebarProps>(() => ({ ticker, watchlist, go, toggleWatch, setTab, livePrices }), [ticker, watchlist, go, toggleWatch, livePrices]);
 
   const fullWide = tab === "top15" || tab === "portfolio";
 
@@ -721,15 +881,15 @@ export default function VertexTerminal() {
         {/* Main row */}
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:50 }}>
           {/* Logo */}
-          {/* Logo */}
-          <Image 
-            src="/logo.png" 
-            alt="ArbibX" 
-            width={42} 
-            height={42} 
-            className="rounded-2xl"
-            priority 
-          />
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px rgba(79,142,247,0.35)" }}>
+              <Zap size={13} color="#fff" strokeWidth={2.5}/>
+            </div>
+            <div style={{ lineHeight:1, display:"flex", flexDirection:"column" }}>
+              <span style={{ ...mono, fontSize:11, fontWeight:500, letterSpacing:"0.14em", color:V.ink0 }}>VERTEX</span>
+              <span style={{ ...mono, fontSize:7, color:V.ink4, letterSpacing:"0.18em", marginTop:1 }}>TERMINAL</span>
+            </div>
+          </div>
 
           {/* Desktop tabs — hidden on mobile (uses bottom nav instead) */}
           <div style={{ display:"flex", alignItems:"center", gap:0, marginLeft:6, flex:1, overflow:"hidden" }}>
