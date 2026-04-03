@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import {
   useState, useEffect, useCallback, useRef,
   memo, useMemo, type SetStateAction, type Dispatch,
@@ -719,15 +721,18 @@ export default function VertexTerminal() {
         {/* Main row */}
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:50 }}>
           {/* Logo */}
-          <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-            <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px rgba(79,142,247,0.35)" }}>
-              <Zap size={13} color="#fff" strokeWidth={2.5}/>
-            </div>
-            <div style={{ lineHeight:1, display:"flex", flexDirection:"column" }}>
-              <span style={{ ...mono, fontSize:11, fontWeight:500, letterSpacing:"0.14em", color:V.ink0 }}>VERTEX</span>
-              <span style={{ ...mono, fontSize:7, color:V.ink4, letterSpacing:"0.18em", marginTop:1 }}>TERMINAL</span>
-            </div>
-          </div>
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <Image 
+             src="/logo.png" 
+             alt="ArbibX" 
+             width={42} 
+             height={42} 
+             className="rounded-2xl"
+             priority 
+           />
+           <span className="font-bold text-2xl tracking-tighter text-white">ARBIBX</span>
+         </div>
 
           {/* Desktop tabs — hidden on mobile (uses bottom nav instead) */}
           <div style={{ display:"flex", alignItems:"center", gap:0, marginLeft:6, flex:1, overflow:"hidden" }}>
