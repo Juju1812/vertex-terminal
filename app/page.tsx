@@ -266,19 +266,45 @@ async function bulkPrices(
 }
 
 async function searchTickers(q: string): Promise<{ ticker: string; name: string }[]> {
+  const qUp = q.toUpperCase().trim();
+  if (!qUp) return [];
+
   try {
-    const r = await fetch(
-      `${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=8&market=stocks&sort=ticker&apiKey=${API_KEY}`
-    );
-    if (r.ok) {
-      const d = await r.json() as { results?: { ticker: string; name: string }[] };
-      if (d?.results?.length) {
-        return d.results.map(x => ({ ticker: x.ticker, name: x.name ?? x.ticker }));
+    // Search by exact ticker first, then by name
+    const [tickerRes, nameRes] = await Promise.all([
+      fetch(`${BASE}/v3/reference/tickers?ticker=${encodeURIComponent(qUp)}&active=true&limit=3&market=stocks&apiKey=${API_KEY}`),
+      fetch(`${BASE}/v3/reference/tickers?search=${encodeURIComponent(qUp)}&active=true&limit=8&market=stocks&apiKey=${API_KEY}`),
+    ]);
+
+    const tickerData = tickerRes.ok ? await tickerRes.json() as { results?: { ticker: string; name: string }[] } : null;
+    const nameData   = nameRes.ok  ? await nameRes.json()  as { results?: { ticker: string; name: string }[] } : null;
+
+    const seen = new Set<string>();
+    const results: { ticker: string; name: string }[] = [];
+
+    // Exact ticker matches first
+    for (const r of tickerData?.results ?? []) {
+      if (!seen.has(r.ticker)) { seen.add(r.ticker); results.push({ ticker: r.ticker, name: r.name ?? r.ticker }); }
+    }
+
+    // Then results where ticker STARTS WITH the query
+    for (const r of nameData?.results ?? []) {
+      if (!seen.has(r.ticker) && r.ticker.startsWith(qUp)) {
+        seen.add(r.ticker); results.push({ ticker: r.ticker, name: r.name ?? r.ticker });
       }
     }
-  } catch { /* ignore */ }
-  // Local fallback using known tickers
-  const qUp = q.toUpperCase();
+
+    // Then remaining name matches
+    for (const r of nameData?.results ?? []) {
+      if (!seen.has(r.ticker)) {
+        seen.add(r.ticker); results.push({ ticker: r.ticker, name: r.name ?? r.ticker });
+      }
+    }
+
+    if (results.length) return results.slice(0, 8);
+  } catch { /* fall through to local */ }
+
+  // Local fallback
   const allKnown = [
     ...Object.entries(NAMES).map(([ticker, name]) => ({ ticker, name })),
     { ticker:"PLTR", name:"Palantir Technologies" },
@@ -295,7 +321,8 @@ async function searchTickers(q: string): Promise<{ ticker: string; name: string 
     { ticker:"ORCL", name:"Oracle Corp." },
   ];
   return allKnown
-    .filter(t => t.ticker.includes(qUp) || t.name.toLowerCase().includes(q.toLowerCase()))
+    .filter(t => t.ticker.startsWith(qUp) || t.name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (a.ticker.startsWith(qUp) ? -1 : 1) - (b.ticker.startsWith(qUp) ? -1 : 1))
     .slice(0, 8);
 }
 
