@@ -265,15 +265,38 @@ async function bulkPrices(
   return result;
 }
 
-async function searchTickers(q: string): Promise<string[]> {
+async function searchTickers(q: string): Promise<{ ticker: string; name: string }[]> {
   try {
-    const r = await fetch(`${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks&apiKey=${API_KEY}`);
+    const r = await fetch(
+      `${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=8&market=stocks&sort=ticker&apiKey=${API_KEY}`
+    );
     if (r.ok) {
-      const d = await r.json() as { results?: { ticker: string }[] };
-      if (d?.results?.length) return d.results.map(x => x.ticker);
+      const d = await r.json() as { results?: { ticker: string; name: string }[] };
+      if (d?.results?.length) {
+        return d.results.map(x => ({ ticker: x.ticker, name: x.name ?? x.ticker }));
+      }
     }
   } catch { /* ignore */ }
-  return TICKERS.filter(t => t.includes(q.toUpperCase()) || NAMES[t]?.toLowerCase().includes(q.toLowerCase()));
+  // Local fallback using known tickers
+  const qUp = q.toUpperCase();
+  const allKnown = [
+    ...Object.entries(NAMES).map(([ticker, name]) => ({ ticker, name })),
+    { ticker:"PLTR", name:"Palantir Technologies" },
+    { ticker:"COIN", name:"Coinbase Global" },
+    { ticker:"CRWD", name:"CrowdStrike" },
+    { ticker:"PANW", name:"Palo Alto Networks" },
+    { ticker:"AVGO", name:"Broadcom Inc." },
+    { ticker:"NOW",  name:"ServiceNow Inc." },
+    { ticker:"CRM",  name:"Salesforce Inc." },
+    { ticker:"LLY",  name:"Eli Lilly" },
+    { ticker:"JPM",  name:"JPMorgan Chase" },
+    { ticker:"V",    name:"Visa Inc." },
+    { ticker:"UNH",  name:"UnitedHealth Group" },
+    { ticker:"ORCL", name:"Oracle Corp." },
+  ];
+  return allKnown
+    .filter(t => t.ticker.includes(qUp) || t.name.toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 8);
 }
 
 /* ---- Format helpers ------------------------------------------ */
@@ -767,7 +790,7 @@ export default function ArbibX() {
   const [bars,       setBars]       = useState<Bar[]>(() => seedBars(203));
   const [watchlist,  setWatchlist]  = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
   const [search,     setSearch]     = useState("");
-  const [results,    setResults]    = useState<string[]>([]);
+  const [results,    setResults]    = useState<{ ticker: string; name: string }[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [tab,        setTab]        = useState<Tab>("markets");
   const [searching,  setSearching]  = useState(false);
@@ -806,7 +829,7 @@ export default function ArbibX() {
     if (!search.trim()) { setResults([]); return; }
     const id = setTimeout(async () => {
       setSearching(true);
-      setResults((await searchTickers(search)).slice(0, 7));
+      setResults(await searchTickers(search));
       setSearching(false);
     }, 300);
     return () => clearTimeout(id);
@@ -892,12 +915,12 @@ export default function ArbibX() {
                     style={{ background:"transparent", border:"none", padding:0, fontSize:16, flex:1, color:V.ink0, outline:"none", fontFamily:"'Geist Mono',monospace" }} />
                   {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:2, display:"flex", minWidth:28, minHeight:28, alignItems:"center", justifyContent:"center" }}><X size={13} /></button>}
                 </div>
-                {results.map(t => (
-                  <button key={t} onClick={() => go(t)}
+                {results.map(r => (
+                  <button key={r.ticker} onClick={() => go(r.ticker)}
                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", padding:"11px 14px", background:"none", border:"none", cursor:"pointer", minHeight:48, textAlign:"left", transition:"background 0.15s" }}
                     className="row-hover">
-                    <span style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{t}</span>
-                    <span style={{ fontSize:12, color:V.ink3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{NAMES[t] ?? ""}</span>
+                    <span style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{r.ticker}</span>
+                    <span style={{ fontSize:12, color:V.ink3, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
                   </button>
                 ))}
                 {results.length === 0 && search.length > 0 && !searching && (
