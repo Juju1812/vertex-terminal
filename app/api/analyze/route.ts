@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+
 const POLYGON_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const POLYGON_BASE = "https://api.polygon.io";
@@ -182,7 +186,7 @@ Guidelines:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
         messages: [{ role: "user", content: prompt }],
       }),
