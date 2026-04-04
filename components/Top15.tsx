@@ -1,41 +1,37 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign,
-  Trophy, Target, Shield, Zap,
+  Trophy, Target, Shield, Zap, Brain,
   ChevronUp, ChevronDown, X,
-  ArrowRight, ExternalLink,
+  ArrowRight, ExternalLink, AlertTriangle,
+  Clock, Activity,
 } from "lucide-react";
-import { CountdownBar } from "@/components/CountdownBar";
 
 /* ---- Types -------------------------------------------------- */
 interface Stock {
-  rank: number; ticker: string; name: string; price: number;
-  changePct: number; change: number; floor: number; ceiling: number;
-  conf: number; sector: string; score: number; volume: number;
+  rank: number; ticker: string; name: string; sector: string;
+  price: number; change: number; changePct: number;
+  high: number; low: number; open: number; volume: number;
+  rsi: number; sma20: number; sma50: number;
+  volumeRatio: number; momentum5d: number; momentum20d: number;
+  support: number; resistance: number;
+  signal: "STRONG BUY" | "BUY" | "HOLD" | "SELL" | "STRONG SELL";
+  confidence: number; targetPrice: number;
+  thesis: string; risks: string; tags: string[];
+  score: number; floor: number; ceiling: number;
 }
+
 interface Alloc {
   ticker: string; name: string; price: number;
   dollars: number; shares: number; pct: number; note: string;
 }
+
 interface Top15Props { onSelectTicker?: (ticker: string) => void; }
-interface SnapTicker {
-  ticker: string;
-  day:     { c: number; o: number; h: number; l: number; v: number };
-  prevDay: { c: number };
-}
-interface AggBar { c: number; o: number; h: number; l: number; v: number; t: number; }
-interface ResolvedPrice {
-  price: number; change: number; changePct: number;
-  high: number; low: number; open: number; volume: number;
-}
 
-/* ---- Constants ---------------------------------------------- */
-const KEY  = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
-const BASE = "https://api.polygon.io";
-
-const UNI: { t: string; n: string; s: string }[] = [
+/* ---- Universe ---------------------------------------------- */
+const UNI = [
   { t:"NVDA",  n:"NVIDIA Corp.",         s:"Technology" },
   { t:"MSFT",  n:"Microsoft Corp.",       s:"Technology" },
   { t:"AAPL",  n:"Apple Inc.",            s:"Technology" },
@@ -63,188 +59,61 @@ const SECTOR_HUE: Record<string, string> = {
   Healthcare:"#00C896",  Consumer:"#E8A030",
 };
 
-/*
- * FALLBACK prices from April 3-4 2026 (Yahoo/Google Finance/Robinhood).
- * Only used when BOTH the snapshot AND bars API calls fail completely.
- * Under any normal network conditions, Polygon bars always work.
- */
-const FALLBACK: Record<string, { price: number; changePct: number; volume: number }> = {
-  NVDA: { price: 177,  changePct: -1.1,  volume:150_000_000 },
-  MSFT: { price: 363,  changePct: -1.7,  volume: 22_000_000 },
-  AAPL: { price: 203,  changePct: -2.3,  volume: 55_000_000 },
-  META: { price: 510,  changePct: -2.8,  volume: 18_000_000 },
-  GOOGL:{ price: 155,  changePct: -2.0,  volume: 30_000_000 },
-  AMZN: { price: 185,  changePct: -3.4,  volume: 50_000_000 },
-  AMD:  { price: 95,   changePct: -3.2,  volume: 55_000_000 },
-  PLTR: { price: 149,  changePct: -2.1,  volume: 45_000_000 },
-  JPM:  { price: 235,  changePct: -1.4,  volume: 11_000_000 },
-  V:    { price: 335,  changePct: -0.7,  volume:  7_000_000 },
-  UNH:  { price: 490,  changePct: -2.5,  volume:  4_000_000 },
-  LLY:  { price: 780,  changePct: -1.1,  volume:  3_000_000 },
-  TSLA: { price: 252,  changePct: -4.9,  volume:120_000_000 },
-  ORCL: { price: 160,  changePct: -1.3,  volume:  7_000_000 },
-  CRWD: { price: 340,  changePct: -1.8,  volume:  5_000_000 },
-  PANW: { price: 165,  changePct: -1.5,  volume:  5_000_000 },
-  AVGO: { price: 294,  changePct: -2.4,  volume: 25_000_000 },
-  CRM:  { price: 255,  changePct: -1.6,  volume:  6_000_000 },
-  NOW:  { price: 750,  changePct: -1.9,  volume:  2_000_000 },
-  COIN: { price: 170,  changePct: -5.2,  volume: 18_000_000 },
+const SIGNAL_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  "STRONG BUY":  { color:"#00C896", bg:"rgba(0,200,150,0.10)",   border:"rgba(0,200,150,0.30)",   label:"STRONG BUY"  },
+  "BUY":         { color:"#00C896", bg:"rgba(0,200,150,0.07)",   border:"rgba(0,200,150,0.20)",   label:"BUY"         },
+  "HOLD":        { color:"#E8A030", bg:"rgba(232,160,48,0.07)",  border:"rgba(232,160,48,0.20)",  label:"HOLD"        },
+  "SELL":        { color:"#E8445A", bg:"rgba(232,68,90,0.07)",   border:"rgba(232,68,90,0.20)",   label:"SELL"        },
+  "STRONG SELL": { color:"#E8445A", bg:"rgba(232,68,90,0.12)",   border:"rgba(232,68,90,0.30)",   label:"STRONG SELL" },
 };
 
-/* ---- Scoring ------------------------------------------------ */
-const calcConf = (chg: number, vol: number): number => {
-  let c = 60;
-  if (chg > 3) c += 18; else if (chg > 1) c += 10; else if (chg < -2) c -= 12;
-  if (vol > 50e6) c += 12; else if (vol > 25e6) c += 6;
-  return Math.min(96, Math.max(42, c));
-};
-const calcScore = (chg: number, vol: number, conf: number): number =>
-  +(Math.min(Math.max(chg / 5, -1), 1) * 40 + Math.min(vol / 60e6, 1) * 30 + (conf / 100) * 30).toFixed(2);
-const calcLevels = (price: number, chg: number) => ({
-  floor:   +(price * (1 - (chg < 0 ? 0.06 : 0.04))).toFixed(2),
-  ceiling: +(price * (1 + (chg > 2 ? 0.14 : chg > 0 ? 0.10 : 0.08))).toFixed(2),
-});
-
-/* ---- API helpers -------------------------------------------- */
-async function polyFetch<T>(path: string): Promise<T | null> {
-  try {
-    const sep = path.includes("?") ? "&" : "?";
-    const r = await fetch(`${BASE}${path}${sep}apiKey=${KEY}`);
-    return r.ok ? (r.json() as Promise<T>) : null;
-  } catch { return null; }
+/* ---- Market hours check ------------------------------------ */
+function isMarketHours(): boolean {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = et.getDay();
+  const hour = et.getHours();
+  const min  = et.getMinutes();
+  const mins = hour * 60 + min;
+  // Mon-Fri, 9:30am - 4:00pm ET
+  return day >= 1 && day <= 5 && mins >= 570 && mins < 960;
 }
 
-/*
- * getBarsPrice -- BARS-FIRST price resolution.
- * The /v2/aggs endpoint always returns historical closes regardless of
- * whether the market is open, closed, or it's a weekend/holiday.
- * Uses a 60-day window to guarantee at least 2 trading days.
- */
-async function getBarsPrice(ticker: string): Promise<ResolvedPrice | null> {
-  const to   = new Date().toISOString().split("T")[0];
-  const from = new Date(Date.now() - 60 * 86_400_000).toISOString().split("T")[0];
-  const d = await polyFetch<{ results?: AggBar[] }>(
-    `/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=60`
-  );
-  if (!d?.results || d.results.length < 2) return null;
-  const bars = d.results;
-  const last = bars[bars.length - 1];
-  const prev = bars[bars.length - 2];
-  const chg  = last.c - prev.c;
-  return {
-    price:     last.c,
-    change:    +chg.toFixed(2),
-    changePct: +((chg / prev.c) * 100).toFixed(2),
-    high:      last.h, low: last.l, open: last.o, volume: last.v,
-  };
+function nextMarketOpen(): string {
+  const now = new Date();
+  const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = et.getDay();
+  if (day === 0) return "Monday 9:30 AM ET";
+  if (day === 6) return "Monday 9:30 AM ET";
+  const hour = et.getHours();
+  const min  = et.getMinutes();
+  if (hour < 9 || (hour === 9 && min < 30)) return "Today at 9:30 AM ET";
+  return "Tomorrow at 9:30 AM ET";
 }
 
-/*
- * fetchAllPrices -- resolves live prices for all UNI tickers.
- *
- * Strategy:
- *  1. Bulk snapshot  -- one request, live price if market is open.
- *  2. Bars fallback  -- for any ticker where snapshot has day.c = 0.
- *     Fetched in batches of 4 to avoid rate-limiting.
- *  3. FALLBACK table -- April 2026 approximations. Only if network is down.
- */
-async function fetchAllPrices(): Promise<Record<string, ResolvedPrice>> {
-  const tickers = UNI.map(u => u.t);
-  const result: Record<string, ResolvedPrice> = {};
-
-  /* Step 1: bulk snapshot */
-  const snap = await polyFetch<{ tickers?: SnapTicker[] }>(
-    `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickers.join(",")}`
-  );
-  const snapMap: Record<string, SnapTicker> = {};
-  if (snap?.tickers) { for (const s of snap.tickers) snapMap[s.ticker] = s; }
-
-  const needBars: string[] = [];
-  for (const t of tickers) {
-    const s = snapMap[t];
-    if (s && s.day?.c > 0 && s.prevDay?.c > 0) {
-      const price = s.day.c, prev = s.prevDay.c, chg = price - prev;
-      result[t] = {
-        price, change: +chg.toFixed(2),
-        changePct: +((chg / prev) * 100).toFixed(2),
-        high: s.day.h || price, low: s.day.l || price,
-        open: s.day.o || price, volume: s.day.v || 0,
-      };
-    } else {
-      needBars.push(t);
-    }
-  }
-
-  /* Step 2: bars for everything snapshot missed */
-  const BATCH = 4;
-  for (let i = 0; i < needBars.length; i += BATCH) {
-    const batch = needBars.slice(i, i + BATCH);
-    const barData = await Promise.all(batch.map(t => getBarsPrice(t).then(p => ({ t, p }))));
-    for (const { t, p } of barData) {
-      if (p && p.price > 0) result[t] = p;
-    }
-    if (i + BATCH < needBars.length) await new Promise(res => setTimeout(res, 250));
-  }
-
-  /* Step 3: FALLBACK for any still missing */
-  for (const t of tickers) {
-    if (!result[t]) {
-      const fb = FALLBACK[t];
-      if (fb) {
-        const chg = +(fb.price * fb.changePct / 100).toFixed(2);
-        result[t] = {
-          price: fb.price, change: chg, changePct: fb.changePct,
-          high: +(fb.price * 1.005).toFixed(2), low: +(fb.price * 0.995).toFixed(2),
-          open: +(fb.price - chg).toFixed(2), volume: fb.volume,
-        };
-      }
-    }
-  }
-  return result;
-}
-
-async function fetchTop15(): Promise<Stock[]> {
-  const prices = await fetchAllPrices();
-  const rows = UNI.map((u): Stock | null => {
-    const lp = prices[u.t];
-    if (!lp || lp.price <= 0) return null;
-    const conf = calcConf(lp.changePct, lp.volume);
-    const { floor, ceiling } = calcLevels(lp.price, lp.changePct);
-    return {
-      rank: 0, ticker: u.t, name: u.n, sector: u.s,
-      price: lp.price, change: lp.change, changePct: lp.changePct,
-      high: lp.high, low: lp.low, open: lp.open, volume: lp.volume,
-      floor, ceiling, conf, score: calcScore(lp.changePct, lp.volume, conf),
-    };
-  }).filter((r): r is Stock => r !== null);
-
-  rows.sort((a, b) => b.score - a.score);
-  rows.forEach((r, i) => { r.rank = i + 1; });
-  return rows.slice(0, 15);
-}
-
-/* ---- Portfolio simulator ------------------------------------ */
+/* ---- Portfolio simulator ----------------------------------- */
 function simulate(stocks: Stock[], cash: number): Alloc[] {
-  const picks = stocks.slice(0, 8);
-  const tw = picks.reduce((s, p) => s + p.conf * Math.max(p.score + 60, 1), 0);
-  return picks.map(p => {
-    const w = (p.conf * Math.max(p.score + 60, 1)) / tw;
+  const buys = stocks.filter(s => s.signal === "STRONG BUY" || s.signal === "BUY").slice(0, 8);
+  if (!buys.length) return [];
+  const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
+  return buys.map(p => {
+    const w = (p.confidence * Math.max(p.score, 1)) / tw;
     const dollars = Math.round(cash * w * 100) / 100;
-    const upside  = (((p.ceiling - p.price) / p.price) * 100).toFixed(1);
     return {
       ticker: p.ticker, name: p.name, price: p.price,
       dollars, shares: Math.floor(dollars / p.price),
       pct: +(w * 100).toFixed(1),
-      note: `${(w * 100).toFixed(1)}% -- +${upside}% target -- ${p.conf}% conf`,
+      note: `${(w * 100).toFixed(1)}% -- target $${p.targetPrice.toFixed(0)} -- ${p.confidence}% conf`,
     };
   }).sort((a, b) => b.dollars - a.dollars);
 }
 
-/* ---- Format & design ---------------------------------------- */
+/* ---- Formatters -------------------------------------------- */
 const f$ = (n: number, d = 2) =>
   new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
+/* ---- Design tokens ----------------------------------------- */
 const V = {
   d0:"#050810", dh:"rgba(30,45,64,0.85)",
   w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)",
@@ -263,51 +132,151 @@ const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
   position: "relative" as const, overflow: "hidden", ...ex,
 });
 
-/* ---- Sub-components ----------------------------------------- */
-function ConfBar({ pct }: { pct: number }) {
-  const color = pct >= 80 ? V.gain : pct >= 65 ? V.gold : V.loss;
+/* ---- ConfBar ----------------------------------------------- */
+function ConfBar({ pct, color }: { pct: number; color: string }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-      <div style={{ flex:1, height:2, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden" }}>
-        <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:99, transition:"width 0.9s cubic-bezier(0.16,1,0.3,1)" }} />
+      <div style={{ flex:1, height:3, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden" }}>
+        <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:99, transition:"width 1s cubic-bezier(0.16,1,0.3,1)" }} />
       </div>
-      <span style={{ ...mono, fontSize:10, color, minWidth:26 }}>{pct}%</span>
+      <span style={{ ...mono, fontSize:10, color, minWidth:30 }}>{pct}%</span>
     </div>
   );
 }
 
+/* ---- Yahoo Finance link ------------------------------------ */
 function YahooBtn({ ticker }: { ticker: string }) {
   return (
     <a href={`https://finance.yahoo.com/quote/${ticker}`} target="_blank" rel="noopener noreferrer"
       onClick={e => e.stopPropagation()}
-      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", transition:"background 0.15s", flexShrink:0 }}
+      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", flexShrink:0 }}
       onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.16)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.08)"; }}
-    >
+      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.08)"; }}>
       <ExternalLink size={8} /> Yahoo
     </a>
   );
 }
 
-/* ---- Simulator modal ---------------------------------------- */
+/* ---- Stock Detail Modal ------------------------------------ */
+function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
+  const sig = SIGNAL_CONFIG[stock.signal] ?? SIGNAL_CONFIG["HOLD"];
+  const up  = stock.changePct >= 0;
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div style={{ ...glass({ borderRadius:"18px 18px 0 0" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
+
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+                <span style={{ ...mono, fontSize:20, fontWeight:700, color:"#7EB6FF" }}>{stock.ticker}</span>
+                <span style={{ ...mono, fontSize:10, padding:"3px 8px", borderRadius:5, background:sig.bg, color:sig.color, border:`1px solid ${sig.border}`, fontWeight:600 }}>{sig.label}</span>
+                <YahooBtn ticker={stock.ticker} />
+              </div>
+              <span style={{ fontSize:12, color:V.ink3 }}>{stock.name}</span>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:6, borderRadius:7, display:"flex", minWidth:34, minHeight:34, alignItems:"center", justifyContent:"center" }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:16 }}>
+
+          {/* Price + target */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+            {[
+              { l:"Price",     v:f$(stock.price),       c:V.ink0  },
+              { l:"Target",    v:f$(stock.targetPrice),  c:sig.color },
+              { l:"Upside",    v:fp(((stock.targetPrice - stock.price) / stock.price) * 100), c: stock.targetPrice > stock.price ? V.gain : V.loss },
+            ].map(s => (
+              <div key={s.l} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"12px 14px" }}>
+                <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{s.l}</p>
+                <p style={{ ...mono, fontSize:18, fontWeight:600, color:s.c, letterSpacing:"-0.02em" }}>{s.v}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Confidence */}
+          <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"14px 16px" }}>
+            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>AI Confidence</p>
+            <ConfBar pct={stock.confidence} color={sig.color} />
+          </div>
+
+          {/* Technical indicators */}
+          <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"14px 16px" }}>
+            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Technical Indicators</p>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+              {[
+                { l:"RSI(14)",        v:stock.rsi.toString(), c: stock.rsi < 30 ? V.gain : stock.rsi > 70 ? V.loss : V.ink0 },
+                { l:"SMA 20",         v:f$(stock.sma20),       c: stock.price > stock.sma20 ? V.gain : V.loss },
+                { l:"SMA 50",         v:f$(stock.sma50),       c: stock.price > stock.sma50 ? V.gain : V.loss },
+                { l:"Volume Ratio",   v:`${stock.volumeRatio}x`, c: stock.volumeRatio > 1.5 ? "#7EB6FF" : V.ink2 },
+                { l:"5d Momentum",    v:fp(stock.momentum5d),  c: stock.momentum5d >= 0 ? V.gain : V.loss },
+                { l:"20d Momentum",   v:fp(stock.momentum20d), c: stock.momentum20d >= 0 ? V.gain : V.loss },
+                { l:"Support",        v:f$(stock.support),     c:V.loss },
+                { l:"Resistance",     v:f$(stock.resistance),  c:V.gain },
+              ].map(s => (
+                <div key={s.l} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ ...mono, fontSize:10, color:V.ink4 }}>{s.l}</span>
+                  <span style={{ ...mono, fontSize:11, fontWeight:500, color:s.c }}>{s.v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Thesis */}
+          <div style={{ background:"rgba(79,142,247,0.05)", border:`1px solid rgba(79,142,247,0.15)`, borderRadius:10, padding:"16px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+              <Brain size={14} color="#7EB6FF" />
+              <span style={{ ...mono, fontSize:9, color:"#7EB6FF", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:600 }}>AI Analysis</span>
+            </div>
+            <p style={{ fontSize:13, color:V.ink1, lineHeight:1.7, margin:"0 0 12px" }}>{stock.thesis}</p>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"10px 12px", borderRadius:8, background:"rgba(232,68,90,0.06)", border:`1px solid rgba(232,68,90,0.15)` }}>
+              <AlertTriangle size={12} color={V.loss} style={{ flexShrink:0, marginTop:1 }} />
+              <p style={{ fontSize:12, color:V.ink3, margin:0, lineHeight:1.6 }}>{stock.risks}</p>
+            </div>
+          </div>
+
+          {/* Tags */}
+          {stock.tags.length > 0 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {stock.tags.map(t => (
+                <span key={t} style={{ ...mono, fontSize:9, padding:"4px 10px", borderRadius:99, background:sig.bg, color:sig.color, border:`1px solid ${sig.border}` }}>{t}</span>
+              ))}
+            </div>
+          )}
+
+          <p style={{ ...mono, fontSize:10, color:V.ink4, lineHeight:1.6, margin:0 }}>
+            Analysis powered by Claude AI using real-time Polygon.io data. Not financial advice.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Simulator Modal --------------------------------------- */
 function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void }) {
   const [cash, setCash] = useState("50000");
-  const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
+  const num    = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   const allocs = simulate(stocks, num);
   const total  = allocs.reduce((s, a) => s + a.dollars, 0);
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div style={{ ...glass({ borderRadius:"18px 18px 0 0", boxShadow:"0 -20px 60px rgba(0,0,0,0.6)" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
+      <div style={{ ...glass({ borderRadius:"18px 18px 0 0" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center" }}>
               <DollarSign size={15} color="#fff" />
             </div>
             <div>
-              <p style={{ fontWeight:600, fontSize:14, color:V.ink0 }}>Portfolio Simulator</p>
-              <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.07em" }}>AI-weighted</p>
+              <p style={{ fontWeight:600, fontSize:14, color:V.ink0, margin:0 }}>Portfolio Simulator</p>
+              <p style={{ ...mono, fontSize:9, color:V.ink4, margin:0, textTransform:"uppercase" }}>AI Buy signals only</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:6, borderRadius:7, display:"flex", minWidth:34, minHeight:34, alignItems:"center", justifyContent:"center" }}>
@@ -316,17 +285,19 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
         </div>
 
         <div style={{ padding:"14px 20px", borderBottom:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-          <label style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Investment</label>
+          <label style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em" }}>Investment</label>
           <div style={{ position:"relative", flex:1, minWidth:120 }}>
             <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:V.ink3, ...mono, fontSize:14 }}>$</span>
             <input type="number" value={cash} onChange={e => setCash(e.target.value)} min="100" step="1000"
               style={{ width:"100%", background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w2}`, borderRadius:9, color:V.ink0, ...mono, fontSize:14, padding:"9px 12px 9px 22px", outline:"none" }} />
           </div>
-          <p style={{ ...mono, fontSize:11, color:V.gain, whiteSpace:"nowrap" }}>Reserve: {f$(num - total)}</p>
+          <p style={{ ...mono, fontSize:11, color:V.gain }}>{f$(num - total)} reserve</p>
         </div>
 
         <div style={{ padding:"12px 20px" }}>
-          {allocs.map((a, i) => (
+          {allocs.length === 0 ? (
+            <p style={{ color:V.ink3, fontSize:13, textAlign:"center", padding:"20px 0" }}>No BUY signals in current analysis to simulate.</p>
+          ) : allocs.map((a, i) => (
             <div key={a.ticker} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:"1px solid rgba(130,180,255,0.05)", flexWrap:"wrap" }}>
               <span style={{ ...mono, color:V.ink4, fontSize:10, minWidth:22 }}>#{i + 1}</span>
               <span style={{ ...mono, fontWeight:500, fontSize:13, color:"#7EB6FF", minWidth:48 }}>{a.ticker}</span>
@@ -338,17 +309,17 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{f$(a.dollars)}</p>
-                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh -- {a.pct}%</p>
+                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh</p>
               </div>
             </div>
           ))}
         </div>
 
         <div style={{ padding:"12px 20px", borderTop:`1px solid ${V.w1}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, background:"rgba(5,8,16,0.8)" }}>
-          <p style={{ fontSize:11, color:V.ink3, maxWidth:280 }}>Weighted by confidence. Fractional shares excluded.</p>
+          <p style={{ fontSize:11, color:V.ink3, maxWidth:280 }}>Only allocates to BUY/STRONG BUY signals. Not financial advice.</p>
           <div style={{ textAlign:"right" }}>
-            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>Total Deployed</p>
-            <p style={{ ...mono, fontSize:20, fontWeight:500, color:V.gain, letterSpacing:"-0.02em" }}>{f$(total)}</p>
+            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase" }}>Deployed</p>
+            <p style={{ ...mono, fontSize:20, fontWeight:500, color:V.gain }}>{f$(total)}</p>
           </div>
         </div>
       </div>
@@ -359,20 +330,88 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
 /* ============================================================
    MAIN EXPORT
    ============================================================ */
-export default function Top15({ onSelectTicker }: Top15Props) {
-  const [stocks,  setStocks]  = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showSim, setShowSim] = useState(false);
-  const [sortCol, setSortCol] = useState<keyof Stock>("rank");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [hovRow,  setHovRow]  = useState<string | null>(null);
+const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
 
-  const loadData = useCallback(async () => {
-    const d = await fetchTop15();
-    setStocks(d); setLoading(false);
+export default function Top15({ onSelectTicker }: Top15Props) {
+  const [stocks,     setStocks]     = useState<Stock[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [analyzing,  setAnalyzing]  = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [nextUpdate, setNextUpdate] = useState<Date | null>(null);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [showSim,    setShowSim]    = useState(false);
+  const [selected,   setSelected]   = useState<Stock | null>(null);
+  const [sortCol,    setSortCol]    = useState<keyof Stock>("rank");
+  const [sortDir,    setSortDir]    = useState<"asc" | "desc">("asc");
+  const [hovRow,     setHovRow]     = useState<string | null>(null);
+  const [timeLeft,   setTimeLeft]   = useState("");
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const runAnalysis = useCallback(async () => {
+    setAnalyzing(true);
+    try {
+      const r = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers: UNI }),
+      });
+      if (!r.ok) throw new Error("Analysis failed");
+      const d = await r.json() as { stocks: Stock[]; analyzedAt: string };
+      if (d.stocks?.length) {
+        setStocks(d.stocks);
+        const now = new Date();
+        setLastUpdate(now);
+        setNextUpdate(new Date(now.getTime() + REFRESH_INTERVAL));
+      }
+    } catch (err) {
+      console.error("Analysis error:", err);
+    }
+    setLoading(false);
+    setAnalyzing(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Initial load + auto-refresh during market hours
+  useEffect(() => {
+    const check = () => {
+      const open = isMarketHours();
+      setMarketOpen(open);
+      return open;
+    };
+
+    // Always run on mount to get initial data
+    runAnalysis();
+
+    // Set up auto-refresh every 20 min during market hours
+    timerRef.current = setInterval(() => {
+      if (check()) {
+        runAnalysis();
+      }
+    }, REFRESH_INTERVAL);
+
+    // Update market open status every minute
+    const statusTimer = setInterval(check, 60_000);
+    check();
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      clearInterval(statusTimer);
+    };
+  }, [runAnalysis]);
+
+  // Countdown timer display
+  useEffect(() => {
+    if (!nextUpdate) return;
+    const tick = () => {
+      const diff = nextUpdate.getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft("Updating..."); return; }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${m}:${s.toString().padStart(2, "0")}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [nextUpdate]);
 
   const sorted = [...stocks].sort((a, b) => {
     const av = a[sortCol] as number, bv = b[sortCol] as number;
@@ -381,12 +420,20 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
   const toggle = (col: keyof Stock) => {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortCol(col); setSortDir("asc"); }
+    else { setSortCol(col); setSortDir("desc"); }
   };
 
+  /* Loading skeleton */
   if (loading) return (
-    <div style={{ padding:24, display:"flex", flexDirection:"column", gap:12 }}>
-      {[180, 60, 60, 60, 60, 60].map((h, i) => (
+    <div style={{ padding:24, display:"flex", flexDirection:"column", gap:16 }}>
+      <div style={{ ...glass({ padding:20, display:"flex", alignItems:"center", gap:14 }) }}>
+        <Brain size={22} color="#9B72F5" />
+        <div>
+          <p style={{ color:"#F2F6FF", fontWeight:600, fontSize:14, margin:0 }}>AI is analyzing {UNI.length} stocks...</p>
+          <p style={{ color:"#3D5A7A", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~15 seconds.</p>
+        </div>
+      </div>
+      {[200, 60, 60, 60, 60, 60].map((h, i) => (
         <div key={i} style={{ background:"linear-gradient(105deg,#0C1220 30%,#151F30 50%,#0C1220 70%)", backgroundSize:"400% 100%", animation:"shimmer 2.2s ease-in-out infinite", borderRadius:12, height:h }} />
       ))}
       <style>{`@keyframes shimmer{0%{background-position:-400% 0}100%{background-position:400% 0}}`}</style>
@@ -398,44 +445,73 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       style={{ ...mono, fontSize:9, color: sortCol === col ? "#7EB6FF" : V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", cursor:"pointer", userSelect:"none", textAlign: right ? "right" : "left", fontWeight: sortCol === col ? 500 : 400, whiteSpace:"nowrap", background:"rgba(5,8,16,0.75)" }}>
       <span style={{ display:"inline-flex", alignItems:"center", gap:3 }}>
         {label}
-        {sortCol === col
-          ? (sortDir === "asc" ? <ChevronUp size={10} color="#7EB6FF" /> : <ChevronDown size={10} color="#7EB6FF" />)
-          : <span style={{ opacity:0.18 }}>{"^v"}</span>}
+        {sortCol === col ? (sortDir === "asc" ? <ChevronUp size={10} color="#7EB6FF" /> : <ChevronDown size={10} color="#7EB6FF" />) : <span style={{ opacity:0.18 }}>{"^v"}</span>}
       </span>
     </th>
   );
 
+  const buyCount      = stocks.filter(s => s.signal === "STRONG BUY" || s.signal === "BUY").length;
+  const avgConf       = Math.round(stocks.reduce((s, x) => s + x.confidence, 0) / (stocks.length || 1));
+  const avgUpside     = (stocks.filter(s => s.signal === "BUY" || s.signal === "STRONG BUY").reduce((s, x) => s + ((x.targetPrice - x.price) / x.price) * 100, 0) / (buyCount || 1)).toFixed(1);
+
   return (
     <div style={{ padding:"20px 16px", maxWidth:1280, margin:"0 auto" }}>
 
+      {/* Header */}
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:18, gap:12, flexWrap:"wrap" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:11, background:"linear-gradient(135deg,rgba(232,160,48,0.15),rgba(232,160,48,0.06))", border:"1px solid rgba(232,160,48,0.25)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             <Trophy size={20} color={V.gold} />
           </div>
           <div>
-            <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0, letterSpacing:"-0.01em" }}>Top 15 Stocks</h2>
+            <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0 }}>AI Top 15</h2>
             <p style={{ ...mono, color:V.ink4, fontSize:9, margin:0, marginTop:2, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Real prices from Polygon.io -- Click any row for full details
+              Claude AI + Polygon.io -- Real data analysis
             </p>
           </div>
         </div>
-        <button onClick={() => setShowSim(true)} className="vx-btn vx-btn-arc"
-          style={{ fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", fontWeight:600, flexShrink:0 }}>
+        <button onClick={() => setShowSim(true)}
+          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.15),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"#7EB6FF", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0 }}>
           <DollarSign size={13} /> Simulate Portfolio
         </button>
       </div>
 
-      <div style={{ marginBottom:16 }}>
-        <CountdownBar onRefresh={loadData} label="Next ranking update" />
+      {/* Status bar */}
+      <div style={{ ...glass({ padding:"12px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }) }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ width:7, height:7, borderRadius:"50%", background: marketOpen ? V.gain : V.gold, animation: marketOpen ? "live-pulse 2s ease-in-out infinite" : "none" }} />
+          <span style={{ ...mono, fontSize:10, color: marketOpen ? V.gain : V.gold }}>
+            {marketOpen ? "Market Open -- Auto-refreshing every hour" : `Market Closed -- Next open: ${nextMarketOpen()}`}
+          </span>
+        </div>
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+          {analyzing && (
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <Activity size={11} color="#9B72F5" style={{ animation:"spin 1.5s linear infinite" }} />
+              <span style={{ ...mono, fontSize:9, color:"#9B72F5" }}>Analyzing...</span>
+            </div>
+          )}
+          {lastUpdate && (
+            <span style={{ ...mono, fontSize:9, color:V.ink4 }}>
+              Updated {lastUpdate.toLocaleTimeString()}
+            </span>
+          )}
+          {nextUpdate && marketOpen && timeLeft && (
+            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <Clock size={10} color={V.ink4} />
+              <span style={{ ...mono, fontSize:9, color:V.ink4 }}>Next: {timeLeft}</span>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
         {[
-          { icon:<TrendingUp size={13} color={V.gain} />,  label:"Bullish",        val:`${stocks.filter(s => s.changePct > 0).length}/${stocks.length}` },
-          { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${Math.round(stocks.reduce((s,x) => s+x.conf,0)/(stocks.length||1))}%` },
-          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Upside",     val:`+${(stocks.reduce((s,x) => s+((x.ceiling-x.price)/x.price)*100,0)/(stocks.length||1)).toFixed(1)}%` },
-          { icon:<Zap       size={13} color={V.ame} />,    label:"Sectors",        val:`${[...new Set(stocks.map(s=>s.sector))].length} covered` },
+          { icon:<TrendingUp size={13} color={V.gain} />,  label:"Buy Signals",    val:`${buyCount}/${stocks.length}` },
+          { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${avgConf}%` },
+          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Buy Upside", val:`+${avgUpside}%` },
+          { icon:<Brain     size={13} color={V.ame} />,    label:"AI Model",       val:"Claude Opus" },
         ].map(s => (
           <div key={s.label} style={{ ...glass({ padding:"11px 14px", display:"flex", alignItems:"center", gap:10 }) }}>
             <div style={{ width:28, height:28, borderRadius:7, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{s.icon}</div>
@@ -447,33 +523,36 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         ))}
       </div>
 
+      {/* Table */}
       <div style={{ ...glass({ overflow:"hidden" }) }}>
         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:640 }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:720 }}>
             <thead>
               <tr style={{ borderBottom:`1px solid ${V.w1}` }}>
-                <ColH label="Rank"    col="rank" />
+                <ColH label="Rank"       col="rank" />
                 <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"left", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Ticker</th>
-                <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"left", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap", minWidth:120 }}>Company</th>
-                <ColH label="Price"   col="price"     right />
-                <ColH label="Today"   col="changePct" right />
-                <ColH label="Floor"   col="floor"     right />
-                <ColH label="Ceiling" col="ceiling"   right />
-                <ColH label="Conf."   col="conf"      right />
-                <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"center", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Link</th>
+                <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"left", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap", minWidth:100 }}>Company</th>
+                <ColH label="Signal"     col="signal"     right />
+                <ColH label="Price"      col="price"      right />
+                <ColH label="Today"      col="changePct"  right />
+                <ColH label="Target"     col="targetPrice" right />
+                <ColH label="RSI"        col="rsi"        right />
+                <ColH label="Conf."      col="confidence" right />
+                <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"center", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Info</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((s, idx) => {
-                const up = s.changePct >= 0;
-                const sc = SECTOR_HUE[s.sector] ?? "#7A9CBF";
+                const up  = s.changePct >= 0;
+                const sc  = SECTOR_HUE[s.sector] ?? "#7A9CBF";
+                const sig = SIGNAL_CONFIG[s.signal] ?? SIGNAL_CONFIG["HOLD"];
                 const isH = hovRow === s.ticker;
                 return (
                   <tr key={s.ticker}
-                    onClick={() => onSelectTicker?.(s.ticker)}
+                    onClick={() => setSelected(s)}
                     onMouseEnter={() => setHovRow(s.ticker)}
                     onMouseLeave={() => setHovRow(null)}
-                    style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor: onSelectTicker ? "pointer" : "default" }}>
+                    style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor:"pointer" }}>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <span style={{ ...mono, fontSize:12, color: idx < 3 ? V.gold : V.ink4, fontWeight:500 }}>
                         {idx === 0 ? "1st" : idx === 1 ? "2nd" : idx === 2 ? "3rd" : `#${s.rank}`}
@@ -482,32 +561,33 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                     <td style={{ padding:"13px 10px", whiteSpace:"nowrap" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                         <div>
-                          <p style={{ ...mono, fontSize:13, fontWeight:500, color: isH ? "#93C5FD" : "#7EB6FF", letterSpacing:"-0.01em" }}>{s.ticker}</p>
+                          <p style={{ ...mono, fontSize:13, fontWeight:500, color: isH ? "#93C5FD" : "#7EB6FF" }}>{s.ticker}</p>
                           <span style={{ ...mono, fontSize:8, padding:"1px 5px", borderRadius:4, background:`${sc}15`, color:sc, border:`1px solid ${sc}22` }}>{s.sector}</span>
                         </div>
-                        {isH && onSelectTicker && <ArrowRight size={13} color="#7EB6FF" style={{ flexShrink:0 }} />}
+                        {isH && <ArrowRight size={13} color="#7EB6FF" style={{ flexShrink:0 }} />}
                       </div>
                     </td>
-                    <td style={{ padding:"13px 10px", fontSize:12, color:V.ink2, maxWidth:150 }}>
+                    <td style={{ padding:"13px 10px", fontSize:12, color:V.ink2, maxWidth:120 }}>
                       <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block" }}>{s.name}</span>
+                    </td>
+                    <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
+                      <span style={{ ...mono, fontSize:10, padding:"3px 8px", borderRadius:5, background:sig.bg, color:sig.color, border:`1px solid ${sig.border}`, fontWeight:600 }}>{sig.label}</span>
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right" }}>
                       <span style={{ ...mono, fontSize:13, fontWeight:600, color:V.ink0 }}>{f$(s.price)}</span>
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
-                      <span style={{ ...mono, fontSize:11, padding:"3px 7px", borderRadius:5, background: up ? V.gainDim : V.lossDim, color: up ? V.gain : V.loss, border:`1px solid ${up ? V.gainWire : V.lossWire}`, display:"inline-flex", alignItems:"center", gap:2 }}>
-                        {up ? <TrendingUp size={9} /> : <TrendingDown size={9} />}{fp(s.changePct)}
-                      </span>
+                      <span style={{ ...mono, fontSize:11, color: up ? V.gain : V.loss }}>{fp(s.changePct)}</span>
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
-                      <span style={{ ...mono, fontSize:11, color:V.loss }}>{f$(s.floor)}</span>
+                      <p style={{ ...mono, fontSize:12, color: s.targetPrice > s.price ? V.gain : V.loss, fontWeight:500 }}>{f$(s.targetPrice)}</p>
+                      <p style={{ ...mono, fontSize:9, color:V.ink4 }}>{fp(((s.targetPrice - s.price) / s.price) * 100)}</p>
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
-                      <p style={{ ...mono, fontSize:12, color:V.gain, fontWeight:500 }}>{f$(s.ceiling)}</p>
-                      <p style={{ ...mono, fontSize:9, color:V.ink4 }}>+{(((s.ceiling-s.price)/s.price)*100).toFixed(1)}%</p>
+                      <span style={{ ...mono, fontSize:11, color: s.rsi < 30 ? V.gain : s.rsi > 70 ? V.loss : V.ink2 }}>{s.rsi}</span>
                     </td>
-                    <td style={{ padding:"13px 14px 13px 10px", minWidth:110 }}>
-                      <ConfBar pct={s.conf} />
+                    <td style={{ padding:"13px 14px 13px 10px", minWidth:100 }}>
+                      <ConfBar pct={s.confidence} color={sig.color} />
                     </td>
                     <td style={{ padding:"8px 10px", textAlign:"center" }}>
                       <YahooBtn ticker={s.ticker} />
@@ -518,21 +598,26 @@ export default function Top15({ onSelectTicker }: Top15Props) {
             </tbody>
           </table>
         </div>
-        {onSelectTicker && (
-          <div style={{ padding:"10px 16px", borderTop:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:6 }}>
-            <ArrowRight size={11} color={V.ink4} />
-            <span style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Tap any row to view full stock details
-            </span>
-          </div>
-        )}
+        <div style={{ padding:"10px 16px", borderTop:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:6 }}>
+          <Brain size={11} color={V.ink4} />
+          <span style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+            Click any row for full AI analysis -- Auto-refreshes every hour during market hours
+          </span>
+        </div>
       </div>
 
       <p style={{ ...mono, color:V.ink4, fontSize:9, marginTop:10, lineHeight:1.6 }}>
-        Prices from Polygon.io -- live during market hours, last official close otherwise. Not financial advice.
+        AI analysis by Claude Opus using RSI, SMA, momentum, volume, and live news. Not financial advice. Past performance does not guarantee future results.
       </p>
 
-      {showSim && <SimModal stocks={stocks} onClose={() => setShowSim(false)} />}
+      {selected && <StockModal stock={selected} onClose={() => setSelected(null)} />}
+      {showSim   && <SimModal  stocks={stocks}  onClose={() => setShowSim(false)} />}
+
+      <style>{`
+        @keyframes shimmer{0%{background-position:-400% 0}100%{background-position:400% 0}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+      `}</style>
     </div>
   );
 }
