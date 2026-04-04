@@ -10,7 +10,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "ArbibX Alerts <onboarding@resend.dev>",
+      from: "ArbibX Alerts <alerts@arbibx.com>",
       to,
       subject,
       html,
