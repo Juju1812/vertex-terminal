@@ -9,75 +9,103 @@ import {
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
+/* -- Types ---------------------------------------------------- */
 interface Stock {
   rank: number; ticker: string; name: string; price: number;
   changePct: number; change: number; floor: number; ceiling: number;
   conf: number; sector: string; score: number; volume: number;
 }
-
 interface Alloc {
   ticker: string; name: string; price: number;
   dollars: number; shares: number; pct: number; note: string;
 }
-
 interface Top15Props {
   onSelectTicker?: (ticker: string) => void;
 }
-
 interface SnapTicker {
   ticker:  string;
   day:     { c: number; o: number; h: number; l: number; v: number };
   prevDay: { c: number };
 }
-
 interface AggBar { c: number; o: number; h: number; l: number; v: number; t: number; }
 
+/* -- Constants ------------------------------------------------ */
 const KEY  = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE = "https://api.polygon.io";
 
 const UNI: { t: string; n: string; s: string }[] = [
-  { t:"NVDA",  n:"NVIDIA Corp.",          s:"Technology" },
-  { t:"MSFT",  n:"Microsoft Corp.",        s:"Technology" },
-  { t:"AAPL",  n:"Apple Inc.",             s:"Technology" },
-  { t:"META",  n:"Meta Platforms",         s:"Technology" },
-  { t:"GOOGL", n:"Alphabet Inc.",          s:"Technology" },
-  { t:"AMZN",  n:"Amazon.com",             s:"Consumer"   },
-  { t:"AMD",   n:"Advanced Micro Dev.",    s:"Technology" },
-  { t:"PLTR",  n:"Palantir Tech.",         s:"Technology" },
-  { t:"JPM",   n:"JPMorgan Chase",         s:"Financials" },
-  { t:"V",     n:"Visa Inc.",              s:"Financials" },
-  { t:"UNH",   n:"UnitedHealth Group",     s:"Healthcare" },
-  { t:"LLY",   n:"Eli Lilly & Co.",        s:"Healthcare" },
-  { t:"TSLA",  n:"Tesla Inc.",             s:"Consumer"   },
-  { t:"ORCL",  n:"Oracle Corp.",           s:"Technology" },
-  { t:"CRWD",  n:"CrowdStrike",            s:"Technology" },
-  { t:"PANW",  n:"Palo Alto Networks",     s:"Technology" },
-  { t:"AVGO",  n:"Broadcom Inc.",          s:"Technology" },
-  { t:"CRM",   n:"Salesforce Inc.",        s:"Technology" },
-  { t:"NOW",   n:"ServiceNow Inc.",        s:"Technology" },
-  { t:"COIN",  n:"Coinbase Global",        s:"Financials" },
+  { t:"NVDA",  n:"NVIDIA Corp.",         s:"Technology" },
+  { t:"MSFT",  n:"Microsoft Corp.",       s:"Technology" },
+  { t:"AAPL",  n:"Apple Inc.",            s:"Technology" },
+  { t:"META",  n:"Meta Platforms",        s:"Technology" },
+  { t:"GOOGL", n:"Alphabet Inc.",         s:"Technology" },
+  { t:"AMZN",  n:"Amazon.com",            s:"Consumer"   },
+  { t:"AMD",   n:"Advanced Micro Dev.",   s:"Technology" },
+  { t:"PLTR",  n:"Palantir Tech.",        s:"Technology" },
+  { t:"JPM",   n:"JPMorgan Chase",        s:"Financials" },
+  { t:"V",     n:"Visa Inc.",             s:"Financials" },
+  { t:"UNH",   n:"UnitedHealth Group",    s:"Healthcare" },
+  { t:"LLY",   n:"Eli Lilly & Co.",       s:"Healthcare" },
+  { t:"TSLA",  n:"Tesla Inc.",            s:"Consumer"   },
+  { t:"ORCL",  n:"Oracle Corp.",          s:"Technology" },
+  { t:"CRWD",  n:"CrowdStrike",           s:"Technology" },
+  { t:"PANW",  n:"Palo Alto Networks",    s:"Technology" },
+  { t:"AVGO",  n:"Broadcom Inc.",         s:"Technology" },
+  { t:"CRM",   n:"Salesforce Inc.",       s:"Technology" },
+  { t:"NOW",   n:"ServiceNow Inc.",       s:"Technology" },
+  { t:"COIN",  n:"Coinbase Global",       s:"Financials" },
 ];
 
 const SECTOR_HUE: Record<string, string> = {
   Technology:"#4F8EF7", Financials:"#9B72F5",
-  Healthcare:"#00C896", Consumer:"#E8A030",
+  Healthcare:"#00C896",  Consumer:"#E8A030",
 };
 
+/*
+ * FALLBACK -- approximate prices as of early April 2026.
+ * These are shown ONLY when BOTH the snapshot AND bars API calls
+ * fail completely (e.g. network down). Under normal conditions,
+ * even on weekends, the bars endpoint returns the last close
+ * and these are never used.
+ */
+const FALLBACK: Record<string, { price: number; changePct: number; volume: number }> = {
+  NVDA: { price:110,   changePct:-1.2,  volume:280_000_000 },
+  MSFT: { price:385,   changePct:-0.8,  volume:22_000_000  },
+  AAPL: { price:203,   changePct:-1.0,  volume:55_000_000  },
+  META: { price:560,   changePct:-1.5,  volume:15_000_000  },
+  GOOGL:{ price:155,   changePct:-1.3,  volume:25_000_000  },
+  AMZN: { price:187,   changePct:-1.8,  volume:35_000_000  },
+  AMD:  { price:97,    changePct:-1.5,  volume:50_000_000  },
+  PLTR: { price:87,    changePct:-2.0,  volume:90_000_000  },
+  JPM:  { price:235,   changePct:-1.0,  volume:11_000_000  },
+  V:    { price:335,   changePct:-0.5,  volume:7_000_000   },
+  UNH:  { price:490,   changePct:-2.5,  volume:4_000_000   },
+  LLY:  { price:780,   changePct:-0.8,  volume:3_000_000   },
+  TSLA: { price:250,   changePct:-3.0,  volume:100_000_000 },
+  ORCL: { price:160,   changePct:-0.5,  volume:7_000_000   },
+  CRWD: { price:340,   changePct:-1.2,  volume:5_000_000   },
+  PANW: { price:165,   changePct:-1.0,  volume:5_000_000   },
+  AVGO: { price:175,   changePct:-1.5,  volume:25_000_000  },
+  CRM:  { price:255,   changePct:-1.0,  volume:6_000_000   },
+  NOW:  { price:750,   changePct:-1.0,  volume:2_000_000   },
+  COIN: { price:170,   changePct:-3.5,  volume:18_000_000  },
+};
+
+/* -- Scoring -------------------------------------------------- */
 const calcConf = (chg: number, vol: number): number => {
   let c = 60;
   if (chg > 3) c += 18; else if (chg > 1) c += 10; else if (chg < -2) c -= 12;
   if (vol > 50e6) c += 12; else if (vol > 25e6) c += 6;
   return Math.min(96, Math.max(42, c));
 };
-
 const calcScore = (chg: number, vol: number, conf: number): number =>
   +(Math.min(Math.max(chg / 5, -1), 1) * 40 + Math.min(vol / 60e6, 1) * 30 + (conf / 100) * 30).toFixed(2);
-
 const calcLevels = (price: number, chg: number) => ({
   floor:   +(price * (1 - (chg < 0 ? 0.06 : 0.04))).toFixed(2),
   ceiling: +(price * (1 + (chg > 2 ? 0.14 : chg > 0 ? 0.10 : 0.08))).toFixed(2),
 });
 
+/* -- Fetch helper --------------------------------------------- */
 async function polyFetch<T>(path: string): Promise<T | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
@@ -88,53 +116,59 @@ async function polyFetch<T>(path: string): Promise<T | null> {
   }
 }
 
-/* Fallback prices used when the API returns nothing (market closed,
-   rate-limited, or weekend). These are approximate last-known values
-   used only for display -- the real API data takes priority.          */
-const FALLBACK: Record<string, { price: number; changePct: number; volume: number }> = {
-  NVDA:{ price:875,   changePct: 2.90, volume:42_000_000 },
-  MSFT:{ price:415,   changePct:-0.52, volume:21_000_000 },
-  AAPL:{ price:228,   changePct: 1.42, volume:58_000_000 },
-  META:{ price:554,   changePct: 1.63, volume:14_000_000 },
-  GOOGL:{ price:178,  changePct: 0.81, volume:18_000_000 },
-  AMZN:{ price:201,   changePct:-0.44, volume:29_000_000 },
-  AMD: { price:162,   changePct: 3.72, volume:45_000_000 },
-  PLTR:{ price:38,    changePct: 4.96, volume:60_000_000 },
-  JPM: { price:224,   changePct: 0.50, volume:10_000_000 },
-  V:   { price:296,   changePct: 0.83, volume:8_000_000  },
-  UNH: { price:512,   changePct:-0.81, volume:3_000_000  },
-  LLY: { price:798,   changePct: 1.24, volume:4_000_000  },
-  TSLA:{ price:248,   changePct:-3.58, volume:89_000_000 },
-  ORCL:{ price:142,   changePct: 0.92, volume:7_000_000  },
-  CRWD:{ price:368,   changePct: 2.44, volume:5_000_000  },
-  PANW:{ price:341,   changePct: 1.87, volume:4_000_000  },
-  AVGO:{ price:1642,  changePct: 1.11, volume:3_000_000  },
-  CRM: { price:299,   changePct: 0.68, volume:5_000_000  },
-  NOW: { price:812,   changePct: 1.33, volume:2_000_000  },
-  COIN:{ price:234,   changePct: 5.21, volume:15_000_000 },
-};
-
-async function fetchDailyBars(ticker: string): Promise<Array<{ close: number; open: number; high: number; low: number; volume: number }>> {
-  const to   = new Date().toISOString().split("T")[0];
-  /* Use a 30-day window so we always catch at least 2 trading days
-     even across long weekends / holidays.                            */
-  const from = new Date(Date.now() - 30 * 86_400_000).toISOString().split("T")[0];
-  const d = await polyFetch<{ results?: AggBar[] }>(
-    `/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=30`
-  );
-  if (!d?.results?.length) return [];
-  return d.results.map(b => ({ close:b.c, open:b.o, high:b.h, low:b.l, volume:b.v }));
+/* -- Price type used internally ------------------------------- */
+interface ResolvedPrice {
+  price: number; change: number; changePct: number;
+  high: number; low: number; open: number; volume: number;
 }
 
-async function fetchAllPrices(): Promise<Record<string, { price: number; changePct: number; change: number; high: number; low: number; open: number; volume: number }>> {
-  const tickers = UNI.map(u => u.t);
-  const result: Record<string, { price: number; changePct: number; change: number; high: number; low: number; open: number; volume: number }> = {};
+/*
+ * getBarsPrice -- fetch daily bars for a single ticker.
+ * Uses a 60-day window and returns the last 2 bars.
+ * This is the RELIABLE path: the /v2/aggs endpoint always has
+ * historical closes regardless of whether the market is open.
+ */
+async function getBarsPrice(ticker: string): Promise<ResolvedPrice | null> {
+  const to   = new Date().toISOString().split("T")[0];
+  const from = new Date(Date.now() - 60 * 86_400_000).toISOString().split("T")[0];
+  const d = await polyFetch<{ results?: AggBar[] }>(
+    `/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=60`
+  );
+  if (!d?.results || d.results.length < 2) return null;
+  const bars = d.results;
+  const last = bars[bars.length - 1];
+  const prev = bars[bars.length - 2];
+  const chg  = last.c - prev.c;
+  return {
+    price:     last.c,
+    change:    +chg.toFixed(2),
+    changePct: +((chg / prev.c) * 100).toFixed(2),
+    high:      last.h,
+    low:       last.l,
+    open:      last.o,
+    volume:    last.v,
+  };
+}
 
-  /* Step 1: try the bulk snapshot (fast, works during market hours) */
+/*
+ * fetchAllPrices -- resolves prices for all UNI tickers.
+ *
+ * Strategy (in priority order):
+ *   1. Bulk snapshot  -- live intraday price during market hours.
+ *      Accepted only when day.c > 0 AND prevDay.c > 0.
+ *   2. Daily bars     -- last official close, always available.
+ *      Fetched in parallel batches of 4 to respect rate limits.
+ *   3. FALLBACK table -- approximate prices from April 2026.
+ *      Used only when the network is completely unreachable.
+ */
+async function fetchAllPrices(): Promise<Record<string, ResolvedPrice>> {
+  const tickers = UNI.map(u => u.t);
+  const result: Record<string, ResolvedPrice> = {};
+
+  /* ---- Step 1: bulk snapshot (one request, works live) ---- */
   const snap = await polyFetch<{ tickers?: SnapTicker[] }>(
     `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickers.join(",")}`
   );
-
   const snapMap: Record<string, SnapTicker> = {};
   if (snap?.tickers) {
     for (const s of snap.tickers) snapMap[s.ticker] = s;
@@ -148,49 +182,35 @@ async function fetchAllPrices(): Promise<Record<string, { price: number; changeP
       const prev  = s.prevDay.c;
       const chg   = price - prev;
       result[t] = {
-        price, change: +chg.toFixed(2),
+        price,
+        change:    +chg.toFixed(2),
         changePct: +((chg / prev) * 100).toFixed(2),
-        high:   s.day.h || price,
-        low:    s.day.l || price,
-        open:   s.day.o || price,
-        volume: s.day.v || 0,
+        high:      s.day.h || price,
+        low:       s.day.l || price,
+        open:      s.day.o || price,
+        volume:    s.day.v || 0,
       };
     } else {
       needBars.push(t);
     }
   }
 
-  /* Step 2: bar fallback for anything snapshot missed (market closed) */
-  if (needBars.length) {
-    /* Fetch in small parallel batches to avoid rate-limits on free tier */
-    const BATCH = 5;
-    for (let i = 0; i < needBars.length; i += BATCH) {
-      const batch = needBars.slice(i, i + BATCH);
-      const barData = await Promise.all(
-        batch.map(t => fetchDailyBars(t).then(bars => ({ t, bars })))
-      );
-      for (const { t, bars } of barData) {
-        if (bars.length >= 2) {
-          const last  = bars[bars.length - 1];
-          const prev  = bars[bars.length - 2];
-          const chg   = last.close - prev.close;
-          const snap2 = snapMap[t];
-          result[t] = {
-            price:     last.close,
-            change:    +chg.toFixed(2),
-            changePct: +((chg / prev.close) * 100).toFixed(2),
-            high:   snap2?.day?.h > 0 ? snap2.day.h : +(last.close * 1.005).toFixed(2),
-            low:    snap2?.day?.l > 0 ? snap2.day.l : +(last.close * 0.995).toFixed(2),
-            open:   snap2?.day?.o > 0 ? snap2.day.o : prev.close,
-            volume: snap2?.day?.v > 0 ? snap2.day.v : last.volume,
-          };
-        }
-      }
+  /* ---- Step 2: bars for everything snapshot missed -------- */
+  /* Batch size 4 to avoid rate-limiting on the free tier */
+  const BATCH = 4;
+  for (let i = 0; i < needBars.length; i += BATCH) {
+    const batch = needBars.slice(i, i + BATCH);
+    const prices = await Promise.all(batch.map(t => getBarsPrice(t).then(p => ({ t, p }))));
+    for (const { t, p } of prices) {
+      if (p && p.price > 0) result[t] = p;
+    }
+    /* Small delay between batches so we don't hammer the API */
+    if (i + BATCH < needBars.length) {
+      await new Promise(res => setTimeout(res, 300));
     }
   }
 
-  /* Step 3: for any ticker still missing, use the hardcoded fallback
-     so the table is never empty. These are stale but better than blank. */
+  /* ---- Step 3: hardcoded fallback for anything still missing */
   for (const t of tickers) {
     if (!result[t]) {
       const fb = FALLBACK[t];
@@ -200,10 +220,10 @@ async function fetchAllPrices(): Promise<Record<string, { price: number; changeP
           price:     fb.price,
           change:    chg,
           changePct: fb.changePct,
-          high:   +(fb.price * 1.005).toFixed(2),
-          low:    +(fb.price * 0.995).toFixed(2),
-          open:   +(fb.price - chg).toFixed(2),
-          volume: fb.volume,
+          high:      +(fb.price * 1.005).toFixed(2),
+          low:       +(fb.price * 0.995).toFixed(2),
+          open:      +(fb.price - chg).toFixed(2),
+          volume:    fb.volume,
         };
       }
     }
@@ -233,6 +253,7 @@ async function fetchTop15(): Promise<Stock[]> {
   return rows.slice(0, 15);
 }
 
+/* -- Portfolio simulator -------------------------------------- */
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const picks = stocks.slice(0, 8);
   const tw = picks.reduce((s, p) => s + p.conf * Math.max(p.score + 60, 1), 0);
@@ -244,15 +265,17 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
       ticker: p.ticker, name: p.name, price: p.price,
       dollars, shares: Math.floor(dollars / p.price),
       pct: +(w * 100).toFixed(1),
-      note: `${(w * 100).toFixed(1)}%  x  +${upside}% target  x  ${p.conf}% conf`,
+      note: `${(w * 100).toFixed(1)}% x +${upside}% target x ${p.conf}% conf`,
     };
   }).sort((a, b) => b.dollars - a.dollars);
 }
 
+/* -- Formatters ----------------------------------------------- */
 const f$ = (n: number, d = 2) =>
   new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
+/* -- Design tokens -------------------------------------------- */
 const V = {
   d0:"#050810", dh:"rgba(30,45,64,0.85)",
   w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)",
@@ -276,6 +299,7 @@ const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
   ...ex,
 });
 
+/* -- Sub-components ------------------------------------------- */
 function ConfBar({ pct }: { pct: number }) {
   const color = pct >= 80 ? V.gain : pct >= 65 ? V.gold : V.loss;
   return (
@@ -305,6 +329,7 @@ function YahooBtn({ ticker }: { ticker: string }) {
   );
 }
 
+/* -- Simulator modal ------------------------------------------ */
 function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void }) {
   const [cash, setCash] = useState("50000");
   const num    = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
@@ -324,7 +349,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
             </div>
             <div>
               <p style={{ fontWeight:600, fontSize:14, color:V.ink0 }}>Portfolio Simulator</p>
-              <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.07em" }}>AI-weighted  x  Top 8</p>
+              <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.07em" }}>AI-weighted</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:6, borderRadius:7, display:"flex", minWidth:34, minHeight:34, alignItems:"center", justifyContent:"center" }}>
@@ -355,14 +380,14 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{f$(a.dollars)}</p>
-                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh  x  {a.pct}%</p>
+                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh / {a.pct}%</p>
               </div>
             </div>
           ))}
         </div>
 
         <div style={{ padding:"12px 20px", borderTop:`1px solid ${V.w1}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, background:"rgba(5,8,16,0.8)" }}>
-          <p style={{ fontSize:11, color:V.ink3, maxWidth:280 }}>Weighted by confidence x momentum. Fractional shares excluded.</p>
+          <p style={{ fontSize:11, color:V.ink3, maxWidth:280 }}>Weighted by confidence. Fractional shares excluded.</p>
           <div style={{ textAlign:"right" }}>
             <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>Total Deployed</p>
             <p style={{ ...mono, fontSize:20, fontWeight:500, color:V.gain, letterSpacing:"-0.02em" }}>{f$(total)}</p>
@@ -373,6 +398,9 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   );
 }
 
+/* ============================================================
+   MAIN EXPORT
+   ============================================================ */
 export default function Top15({ onSelectTicker }: Top15Props) {
   const [stocks,  setStocks]  = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -418,7 +446,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         {label}
         {sortCol === col
           ? (sortDir === "asc" ? <ChevronUp size={10} color="#7EB6FF" /> : <ChevronDown size={10} color="#7EB6FF" />)
-          : <span style={{ opacity:0.18 }}>{"~"}</span>}
+          : <span style={{ opacity:0.18 }}>{"^v"}</span>}
       </span>
     </th>
   );
@@ -434,7 +462,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
           <div>
             <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0, letterSpacing:"-0.01em" }}>Top 15 Stocks</h2>
             <p style={{ ...mono, color:V.ink4, fontSize:9, margin:0, marginTop:2, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Live prices  x  Click any row to view full details
+              Live prices from Polygon.io -- Click any row for full details
             </p>
           </div>
         </div>
@@ -450,10 +478,10 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
         {[
-          { icon:<TrendingUp size={13} color={V.gain} />,    label:"Bullish",        val:`${stocks.filter(s => s.changePct > 0).length}/${stocks.length}` },
-          { icon:<Shield    size={13} color="#7EB6FF" />,    label:"Avg Confidence", val:`${Math.round(stocks.reduce((s, x) => s + x.conf, 0) / (stocks.length || 1))}%` },
-          { icon:<Target    size={13} color={V.gold} />,     label:"Avg Upside",     val:`+${(stocks.reduce((s, x) => s + ((x.ceiling - x.price) / x.price) * 100, 0) / (stocks.length || 1)).toFixed(1)}%` },
-          { icon:<Zap       size={13} color={V.ame} />,      label:"Sectors",        val:`${[...new Set(stocks.map(s => s.sector))].length} covered` },
+          { icon:<TrendingUp size={13} color={V.gain} />,  label:"Bullish",        val:`${stocks.filter(s => s.changePct > 0).length}/${stocks.length}` },
+          { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${Math.round(stocks.reduce((s, x) => s + x.conf, 0) / (stocks.length || 1))}%` },
+          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Upside",     val:`+${(stocks.reduce((s, x) => s + ((x.ceiling - x.price) / x.price) * 100, 0) / (stocks.length || 1)).toFixed(1)}%` },
+          { icon:<Zap       size={13} color={V.ame} />,    label:"Sectors",        val:`${[...new Set(stocks.map(s => s.sector))].length} covered` },
         ].map(s => (
           <div key={s.label} style={{ ...glass({ padding:"11px 14px", display:"flex", alignItems:"center", gap:10 }) }}>
             <div style={{ width:28, height:28, borderRadius:7, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{s.icon}</div>
@@ -497,7 +525,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                   >
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <span style={{ ...mono, fontSize:12, color: idx < 3 ? V.gold : V.ink4, fontWeight:500 }}>
-                        {idx === 0 ? "#1" : idx === 1 ? "#2" : idx === 2 ? "#3" : `#${s.rank}`}
+                        {idx === 0 ? "1st" : idx === 1 ? "2nd" : idx === 2 ? "3rd" : `#${s.rank}`}
                       </span>
                     </td>
                     <td style={{ padding:"13px 10px", whiteSpace:"nowrap" }}>
@@ -551,7 +579,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       </div>
 
       <p style={{ ...mono, color:V.ink4, fontSize:9, marginTop:10, lineHeight:1.6 }}>
-        Prices from Polygon.io -- live during market hours, last official close otherwise  x  Not financial advice
+        Prices from Polygon.io -- live during market hours, last official close otherwise. Not financial advice.
       </p>
 
       {showSim && <SimModal stocks={stocks} onClose={() => setShowSim(false)} />}
