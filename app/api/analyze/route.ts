@@ -186,33 +186,48 @@ Guidelines:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 4000,
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 8000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
     if (!r.ok) {
-      console.error("Claude API error:", await r.text());
+      const errText = await r.text();
+      console.error("Claude API error status:", r.status, errText);
       return {};
     }
 
-    const data = await r.json() as { content: { type: string; text: string }[] };
-    const text = data.content.find(c => c.type === "text")?.text ?? "";
+    const data = await r.json() as { content: { type: string; text: string }[]; error?: { message: string } };
+    
+    if (data.error) {
+      console.error("Claude API returned error:", data.error.message);
+      return {};
+    }
 
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return {};
+    const text = data.content?.find(c => c.type === "text")?.text ?? "";
+    console.log("Claude response preview:", text.slice(0, 200));
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
+    // Try to extract JSON - handle markdown code blocks too
+    let jsonStr = text;
+    const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlock) jsonStr = codeBlock[1];
+    else {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+    }
+
+    const parsed = JSON.parse(jsonStr) as {
       analyses: Array<{
         ticker: string; signal: string; confidence: number;
         targetPrice: number; thesis: string; risks: string; tags: string[];
       }>
     };
 
+    console.log("Parsed analyses count:", parsed.analyses?.length);
+
     const result: Record<string, { signal: string; confidence: number; targetPrice: number; thesis: string; risks: string; tags: string[] }> = {};
-    for (const a of parsed.analyses) {
+    for (const a of parsed.analyses ?? []) {
       result[a.ticker] = {
         signal: a.signal,
         confidence: Math.min(98, Math.max(30, a.confidence)),
@@ -222,6 +237,7 @@ Guidelines:
         tags: a.tags?.slice(0, 4) ?? [],
       };
     }
+    console.log("Final result tickers:", Object.keys(result).join(", "));
     return result;
   } catch (err) {
     console.error("Claude analysis error:", err);
@@ -324,8 +340,13 @@ export async function POST(req: NextRequest) {
       };
     }).filter(s => s.price > 0);
 
-    // Step 4: Run Claude AI analysis on all stocks at once
-    const aiResults = await runClaudeAnalysis(techData);
+    // Step 4: Run Claude AI analysis in two batches of 10
+    const half = Math.ceil(techData.length / 2);
+    const [aiResults1, aiResults2] = await Promise.all([
+      runClaudeAnalysis(techData.slice(0, half)),
+      runClaudeAnalysis(techData.slice(half)),
+    ]);
+    const aiResults = { ...aiResults1, ...aiResults2 };
 
     // Step 5: Build final stock objects
     const stocks: StockAnalysis[] = techData.map(s => {

@@ -331,13 +331,37 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
    MAIN EXPORT
    ============================================================ */
 const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
+const CACHE_KEY = "arbibx-top15-cache";
+
+interface CachedData {
+  stocks: Stock[];
+  analyzedAt: string;
+}
+
+function loadCache(): { stocks: Stock[]; lastUpdate: Date } | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { stocks, analyzedAt } = JSON.parse(raw) as CachedData;
+    const age = Date.now() - new Date(analyzedAt).getTime();
+    if (age > REFRESH_INTERVAL) return null; // cache expired
+    return { stocks, lastUpdate: new Date(analyzedAt) };
+  } catch { return null; }
+}
+
+function saveCache(stocks: Stock[], analyzedAt: string) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ stocks, analyzedAt }));
+  } catch { /* ignore */ }
+}
 
 export default function Top15({ onSelectTicker }: Top15Props) {
-  const [stocks,     setStocks]     = useState<Stock[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  const cached = loadCache();
+  const [stocks,     setStocks]     = useState<Stock[]>(cached?.stocks ?? []);
+  const [loading,    setLoading]    = useState(!cached);
   const [analyzing,  setAnalyzing]  = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [nextUpdate, setNextUpdate] = useState<Date | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(cached?.lastUpdate ?? null);
+  const [nextUpdate, setNextUpdate] = useState<Date | null>(cached ? new Date(cached.lastUpdate.getTime() + REFRESH_INTERVAL) : null);
   const [marketOpen, setMarketOpen] = useState(false);
   const [showSim,    setShowSim]    = useState(false);
   const [selected,   setSelected]   = useState<Stock | null>(null);
@@ -359,6 +383,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       const d = await r.json() as { stocks: Stock[]; analyzedAt: string };
       if (d.stocks?.length) {
         setStocks(d.stocks);
+        saveCache(d.stocks, d.analyzedAt);
         const now = new Date();
         setLastUpdate(now);
         setNextUpdate(new Date(now.getTime() + REFRESH_INTERVAL));
@@ -378,10 +403,12 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       return open;
     };
 
-    // Always run on mount to get initial data
-    runAnalysis();
+    // Only run analysis if no valid cache exists
+    if (!loadCache()) {
+      runAnalysis();
+    }
 
-    // Set up auto-refresh every 20 min during market hours
+    // Set up auto-refresh every hour during market hours
     timerRef.current = setInterval(() => {
       if (check()) {
         runAnalysis();
