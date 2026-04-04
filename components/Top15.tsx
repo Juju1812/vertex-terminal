@@ -164,8 +164,8 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div style={{ ...glass({ borderRadius:"18px 18px 0 0" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:"20px 16px" }}>
+      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
 
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -267,8 +267,8 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div style={{ ...glass({ borderRadius:"18px 18px 0 0" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:"20px 16px" }}>
+      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center" }}>

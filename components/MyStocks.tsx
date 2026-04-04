@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
-  Info, Mail, LogOut, LogIn, UserPlus, Eye, EyeOff, User,
+  Info, Mail, LogOut, LogIn, UserPlus, Eye, EyeOff, User, X,
 } from "lucide-react";
 
 /* ---- Types -------------------------------------------------- */
@@ -308,6 +308,7 @@ function EmailAlerts({ userEmail }: { userEmail?: string }) {
    ============================================================ */
 export default function MyStocks() {
   const [user,    setUser]   = useState<AuthUser | null>(null);
+  const [skipAuth, setSkipAuth] = useState(false);
   const [holdings, setH]     = useState<H[]>([]);
   const [prices,  setP]      = useState<Record<string, { p: number; d: number; n: string }>>({});
   const [loading, setL]      = useState(false);
@@ -430,15 +431,32 @@ export default function MyStocks() {
       </div>
 
       {/* Auth section */}
-      {!user && (
+      {!user && !skipAuth && (
         <div style={{ marginBottom:24 }}>
-          <div style={{ ...glass({ padding:"14px 20px", marginBottom:16 }) }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:V.gold, flexShrink:0 }} />
-              <span style={{ fontSize:13, color:V.gold, fontWeight:500 }}>Sign in to save your portfolio across devices</span>
+          <div style={{ ...glass({ padding:"16px 20px", marginBottom:16 }) }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background:V.gold, flexShrink:0 }} />
+                <span style={{ fontSize:13, color:V.gold, fontWeight:500 }}>Sign in to save your portfolio across devices</span>
+              </div>
+              <button onClick={() => setSkipAuth(true)}
+                style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, display:"flex", alignItems:"center", padding:4, borderRadius:6, flexShrink:0 }}
+                title="Continue without signing in">
+                <X size={16} />
+              </button>
             </div>
           </div>
           <AuthModal onAuth={handleAuth} />
+        </div>
+      )}
+
+      {!user && skipAuth && (
+        <div style={{ ...glass({ padding:"12px 16px", marginBottom:20 }), display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontSize:12, color:V.ink3 }}>Signed out -- portfolio saves locally only</span>
+          <button onClick={() => setSkipAuth(false)}
+            style={{ ...mono, fontSize:11, color:"#7EB6FF", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:7, padding:"4px 10px", cursor:"pointer" }}>
+            Sign in
+          </button>
         </div>
       )}
 
