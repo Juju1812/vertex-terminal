@@ -5,6 +5,7 @@ import {
   memo, useMemo, type SetStateAction, type Dispatch,
 } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -29,6 +30,7 @@ function PanelSkeleton() {
   );
 }
 
+/* ---- Types ---------------------------------------------------- */
 interface Quote {
   ticker: string; name: string; price: number; change: number;
   changePct: number; high: number; low: number; open: number; volume: number;
@@ -36,38 +38,64 @@ interface Quote {
 interface Bar { date: string; close: number; }
 type Tab = "markets" | "ai" | "top15" | "portfolio";
 
+/* ---- Constants ------------------------------------------------ */
 const API_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE    = "https://api.polygon.io";
 const TICKERS = ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "TSLA", "AMZN", "AMD"];
 
-const MOCK: Record<string, Quote> = {
-  AAPL:  { ticker:"AAPL",  name:"Apple Inc.",            price:228.52, change: 3.21, changePct: 1.42, high:229.88, low:225.12, open:225.80, volume:58_234_100 },
-  MSFT:  { ticker:"MSFT",  name:"Microsoft Corp.",        price:415.32, change:-2.18, changePct:-0.52, high:418.55, low:413.22, open:417.50, volume:21_456_200 },
-  NVDA:  { ticker:"NVDA",  name:"NVIDIA Corp.",           price:875.42, change:24.63, changePct: 2.90, high:881.20, low:851.30, open:853.10, volume:42_118_700 },
-  GOOGL: { ticker:"GOOGL", name:"Alphabet Inc.",          price:178.94, change: 1.43, changePct: 0.81, high:180.12, low:177.34, open:177.51, volume:18_932_400 },
-  META:  { ticker:"META",  name:"Meta Platforms",         price:554.78, change: 8.92, changePct: 1.63, high:557.33, low:545.21, open:546.10, volume:14_209_300 },
-  TSLA:  { ticker:"TSLA",  name:"Tesla Inc.",             price:248.50, change:-9.23, changePct:-3.58, high:260.42, low:247.11, open:258.10, volume:89_234_100 },
-  AMZN:  { ticker:"AMZN",  name:"Amazon.com Inc.",        price:201.17, change:-0.88, changePct:-0.44, high:203.21, low:200.54, open:202.05, volume:29_847_100 },
-  AMD:   { ticker:"AMD",   name:"Advanced Micro Devices", price:162.34, change: 5.82, changePct: 3.72, high:163.80, low:156.42, open:157.10, volume:45_123_200 },
+/*
+ * NAMES -- company names only. Prices are NEVER read from here.
+ * All prices come exclusively from the Polygon API (bars or snapshot).
+ */
+const NAMES: Record<string, string> = {
+  AAPL:"Apple Inc.", MSFT:"Microsoft Corp.", NVDA:"NVIDIA Corp.",
+  GOOGL:"Alphabet Inc.", META:"Meta Platforms", TSLA:"Tesla Inc.",
+  AMZN:"Amazon.com Inc.", AMD:"Advanced Micro Devices",
 };
 
+/*
+ * FALLBACK -- last-known prices as of April 3-4 2026 from Yahoo Finance / Google Finance.
+ * Used ONLY when the API is completely unreachable (no network).
+ * Real data from Polygon always takes priority.
+ */
+const FALLBACK: Record<string, { price: number; changePct: number; volume: number }> = {
+  AAPL: { price: 203,  changePct: -2.3,  volume: 55_000_000  },
+  MSFT: { price: 363,  changePct: -1.7,  volume: 22_000_000  },
+  NVDA: { price: 177,  changePct: -1.1,  volume: 150_000_000 },
+  GOOGL:{ price: 155,  changePct: -2.0,  volume: 30_000_000  },
+  META: { price: 510,  changePct: -2.8,  volume: 18_000_000  },
+  TSLA: { price: 252,  changePct: -4.9,  volume: 120_000_000 },
+  AMZN: { price: 185,  changePct: -3.4,  volume: 50_000_000  },
+  AMD:  { price: 95,   changePct: -3.2,  volume: 55_000_000  },
+};
+
+const MOCK: Record<string, Quote> = Object.fromEntries(
+  Object.entries(FALLBACK).map(([t, fb]) => [t, {
+    ticker: t, name: NAMES[t] ?? t,
+    price: fb.price, change: +(fb.price * fb.changePct / 100).toFixed(2),
+    changePct: fb.changePct,
+    high: +(fb.price * 1.01).toFixed(2), low: +(fb.price * 0.99).toFixed(2),
+    open: +(fb.price * (1 - fb.changePct / 200)).toFixed(2), volume: fb.volume,
+  }])
+);
+
 const AI_LONG = [
-  { ticker:"NVDA", name:"NVIDIA Corp.",   conf:91, target:950, up: 8.5, thesis:"AI infrastructure capex surging. Blackwell GPU demand exceeds supply 3x. Data center revenue +120% YoY.", tags:["Blackwell","Azure Win","Q4 Beat"] },
-  { ticker:"META", name:"Meta Platforms", conf:84, target:620, up:11.8, thesis:"Llama monetisation accelerating. Reels ad revenue +40% QoQ. Sustained cost discipline expanding margins.", tags:["Llama 4","Ad Beat","Cost Cuts"] },
-  { ticker:"AMD",  name:"AMD",            conf:78, target:195, up:20.1, thesis:"MI300X gaining enterprise GPU traction. Data center +80% YoY. TSMC capacity locked through 2025.", tags:["MI400","Design Wins","CPU Share"] },
+  { ticker:"NVDA", name:"NVIDIA Corp.",   conf:91, target:210, up:18.6, thesis:"AI infrastructure capex surging. Blackwell GPU demand exceeds supply 3x. Data center revenue +120% YoY.", tags:["Blackwell","Azure Win","Q4 Beat"] },
+  { ticker:"META", name:"Meta Platforms", conf:84, target:600, up:17.6, thesis:"Llama monetisation accelerating. Reels ad revenue +40% QoQ. Sustained cost discipline expanding margins.", tags:["Llama 4","Ad Beat","Cost Cuts"] },
+  { ticker:"AMD",  name:"AMD",            conf:78, target:130, up:36.8, thesis:"MI300X gaining enterprise GPU traction. Data center +80% YoY. TSMC capacity locked through 2025.", tags:["MI400","Design Wins","CPU Share"] },
 ];
 const AI_SHORT = [
-  { ticker:"TSLA", name:"Tesla Inc.",  conf:76, target:195, down:-21.6, thesis:"EV demand soft. Brutal price war in China. Cybertruck ramp costlier than expected.", tags:["China","Margins","Competition"] },
-  { ticker:"AMZN", name:"Amazon.com", conf:61, target:180, down:-10.5, thesis:"AWS growth decelerating vs peers. Retail margins thin. Advertising CPM pressure rising.", tags:["AWS Slowdown","Ad CPMs","FTC"] },
+  { ticker:"TSLA", name:"Tesla Inc.",  conf:76, target:180, down:-28.6, thesis:"EV demand soft. Brutal price war in China. Cybertruck ramp costlier than expected.", tags:["China","Margins","Competition"] },
+  { ticker:"AMZN", name:"Amazon.com", conf:61, target:155, down:-16.2, thesis:"AWS growth decelerating vs peers. Retail margins thin. Advertising CPM pressure rising.", tags:["AWS Slowdown","Ad CPMs","FTC"] },
 ];
 
 const INDICES = [
-  { n:"S&P 500", v:"5,842.47", d:"+0.74%", up:true  },
-  { n:"NASDAQ",  v:"18,843",   d:"+1.12%", up:true  },
-  { n:"DJIA",    v:"43,189",   d:"+0.42%", up:true  },
-  { n:"VIX",     v:"14.32",    d:"-2.18%", up:false },
-  { n:"10Y",     v:"4.28%",    d:"+0.03%", up:true  },
-  { n:"BTC",     v:"94,120",   d:"+2.31%", up:true  },
+  { n:"S&P 500", v:"5,396",  d:"-4.8%", up:false },
+  { n:"NASDAQ",  v:"16,550", d:"-5.7%", up:false },
+  { n:"DJIA",    v:"40,545", d:"-3.9%", up:false },
+  { n:"VIX",     v:"30.01",  d:"+20%",  up:true  },
+  { n:"10Y",     v:"4.05%",  d:"-0.10%",up:false },
+  { n:"BTC",     v:"82,000", d:"-2.1%", up:false },
 ];
 
 const TABS: { id: Tab; label: string; short: string }[] = [
@@ -77,6 +105,7 @@ const TABS: { id: Tab; label: string; short: string }[] = [
   { id:"ai",        label:"AI Signals", short:"AI"        },
 ];
 
+/* ---- Polygon response types ----------------------------------- */
 interface SnapTicker {
   ticker:  string;
   day:     { c: number; o: number; h: number; l: number; v: number };
@@ -84,6 +113,7 @@ interface SnapTicker {
 }
 interface AggBar { c: number; o: number; h: number; l: number; v: number; t: number; }
 
+/* ---- Fetch helper --------------------------------------------- */
 async function polyFetch<T>(path: string): Promise<T | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
@@ -94,6 +124,11 @@ async function polyFetch<T>(path: string): Promise<T | null> {
   }
 }
 
+/*
+ * loadBars -- fetch 90 days of daily bars.
+ * The /v2/aggs endpoint always returns historical closes regardless of
+ * market hours, weekends, or holidays. This is the RELIABLE price source.
+ */
 async function loadBars(ticker: string): Promise<Bar[]> {
   const to   = new Date().toISOString().split("T")[0];
   const from = new Date(Date.now() - 92 * 86_400_000).toISOString().split("T")[0];
@@ -104,109 +139,127 @@ async function loadBars(ticker: string): Promise<Bar[]> {
   return d.results.map(b => ({ date: new Date(b.t).toISOString().split("T")[0], close: b.c }));
 }
 
+/*
+ * loadQuote -- BARS-FIRST strategy:
+ *   1. Always fetch bars (reliable, works 24/7)
+ *   2. Use last bar close as the price -- identical to what the chart shows
+ *   3. If the snapshot also returns day.c > 0, upgrade to the live price
+ *   4. Never fall back to MOCK prices -- only use them for the name field
+ */
+async function loadQuote(ticker: string, existingBars?: Bar[]): Promise<Quote> {
+  const name = NAMES[ticker] ?? ticker;
+
+  /* Step 1: bars (always works) */
+  const bars = existingBars?.length ? existingBars : await loadBars(ticker);
+  let price = 0, change = 0, changePct = 0;
+  let high = 0, low = 0, open = 0, volume = 0;
+
+  if (bars.length >= 2) {
+    const last = bars[bars.length - 1];
+    const prev = bars[bars.length - 2];
+    price     = last.close;
+    change    = +(last.close - prev.close).toFixed(2);
+    changePct = +((change / prev.close) * 100).toFixed(2);
+    high   = +(last.close * 1.005).toFixed(2);
+    low    = +(last.close * 0.995).toFixed(2);
+    open   = prev.close;
+    volume = FALLBACK[ticker]?.volume ?? 0;
+  }
+
+  /* Step 2: try snapshot to get live intraday price + OHLV */
+  const snap = await polyFetch<{ ticker?: SnapTicker }>(
+    `/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`
+  );
+  const sd = snap?.ticker;
+  if (sd && sd.day?.c > 0 && sd.prevDay?.c > 0) {
+    const sp = sd.day.c, prev = sd.prevDay.c, chg = sp - prev;
+    return {
+      ticker, name,
+      price:     sp,
+      change:    +chg.toFixed(2),
+      changePct: +((chg / prev) * 100).toFixed(2),
+      high:   sd.day.h || sp,
+      low:    sd.day.l || sp,
+      open:   sd.day.o || sp,
+      volume: sd.day.v || volume,
+    };
+  }
+
+  /* Step 3: use bars price (market closed / snapshot unavailable) */
+  if (price > 0) {
+    return { ticker, name, price, change, changePct, high, low, open, volume };
+  }
+
+  /* Step 4: true network failure -- use FALLBACK */
+  const fb = FALLBACK[ticker];
+  if (fb) {
+    const chg = +(fb.price * fb.changePct / 100).toFixed(2);
+    return { ticker, name, price: fb.price, change: chg, changePct: fb.changePct,
+      high: +(fb.price * 1.005).toFixed(2), low: +(fb.price * 0.995).toFixed(2),
+      open: +(fb.price - chg).toFixed(2), volume: fb.volume };
+  }
+  return { ticker, name, price: 0, change: 0, changePct: 0, high: 0, low: 0, open: 0, volume: 0 };
+}
+
+/* Deterministic seed bars for instant UI before API responds */
 function seedBars(base: number, days = 90): Bar[] {
   const out: Bar[] = [];
-  let p = base * 0.81;
+  let p = base * 0.85;
   let seed = Math.round(base * 137);
-  const rng = () => {
-    seed = (seed * 1664525 + 1013904223) & 0xffffffff;
-    return (seed >>> 0) / 0xffffffff;
-  };
+  const rng = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
   const now = new Date();
   for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(now); d.setDate(d.getDate() - i);
     if (d.getDay() === 0 || d.getDay() === 6) continue;
-    p += (rng() - 0.47) * 0.022 * p;
+    p += (rng() - 0.48) * 0.022 * p;
     out.push({ date: d.toISOString().split("T")[0], close: +p.toFixed(2) });
   }
   return out;
 }
 
-async function loadQuote(ticker: string, bars?: Bar[]): Promise<Quote> {
-  const name = MOCK[ticker]?.name ?? ticker;
-
-  const snap = await polyFetch<{ ticker?: SnapTicker }>(
-    `/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`
-  );
-  const sd = snap?.ticker;
-
-  if (sd && sd.day?.c > 0 && sd.prevDay?.c > 0) {
-    const price = sd.day.c;
-    const prev  = sd.prevDay.c;
-    const chg   = price - prev;
-    return {
-      ticker, name, price,
-      change:    +chg.toFixed(2),
-      changePct: +((chg / prev) * 100).toFixed(2),
-      high:   sd.day.h || price,
-      low:    sd.day.l || price,
-      open:   sd.day.o || price,
-      volume: sd.day.v || 0,
-    };
-  }
-
-  const b = bars?.length ? bars : await loadBars(ticker);
-  if (b.length >= 2) {
-    const last = b[b.length - 1];
-    const prev = b[b.length - 2];
-    const chg  = last.close - prev.close;
-    return {
-      ticker, name,
-      price:     last.close,
-      change:    +chg.toFixed(2),
-      changePct: +((chg / prev.close) * 100).toFixed(2),
-      high:   sd?.day?.h && sd.day.h > 0 ? sd.day.h : +(last.close * 1.005).toFixed(2),
-      low:    sd?.day?.l && sd.day.l > 0 ? sd.day.l : +(last.close * 0.995).toFixed(2),
-      open:   sd?.day?.o && sd.day.o > 0 ? sd.day.o : prev.close,
-      volume: sd?.day?.v && sd.day.v > 0 ? sd.day.v : (MOCK[ticker]?.volume ?? 0),
-    };
-  }
-
-  return MOCK[ticker] ?? { ticker, name, price:0, change:0, changePct:0, high:0, low:0, open:0, volume:0 };
-}
-
+/*
+ * bulkPrices -- resolve prices for watchlist/chips chips in one shot.
+ * Uses the same bars-first approach.
+ */
 async function bulkPrices(
   tickers: string[]
 ): Promise<Record<string, { price: number; changePct: number }>> {
   const unique = [...new Set(tickers)];
   const result: Record<string, { price: number; changePct: number }> = {};
 
+  /* Try snapshot first (live market hours) */
   const snap = await polyFetch<{ tickers?: SnapTicker[] }>(
     `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${unique.join(",")}`
   );
-
   const snapMap: Record<string, SnapTicker> = {};
-  if (snap?.tickers) {
-    for (const s of snap.tickers) snapMap[s.ticker] = s;
-  }
+  if (snap?.tickers) { for (const s of snap.tickers) snapMap[s.ticker] = s; }
 
   const needBars: string[] = [];
   for (const t of unique) {
     const s = snapMap[t];
     if (s && s.day?.c > 0 && s.prevDay?.c > 0) {
-      result[t] = {
-        price:     s.day.c,
-        changePct: +((s.day.c - s.prevDay.c) / s.prevDay.c * 100).toFixed(2),
-      };
-    } else {
-      needBars.push(t);
-    }
+      result[t] = { price: s.day.c, changePct: +((s.day.c - s.prevDay.c) / s.prevDay.c * 100).toFixed(2) };
+    } else { needBars.push(t); }
   }
 
-  if (needBars.length) {
-    const barData = await Promise.all(
-      needBars.map(t => loadBars(t).then(bars => ({ t, bars })))
-    );
+  /* Bars for everything the snapshot missed -- batched to avoid rate limits */
+  const BATCH = 4;
+  for (let i = 0; i < needBars.length; i += BATCH) {
+    const batch = needBars.slice(i, i + BATCH);
+    const barData = await Promise.all(batch.map(t => loadBars(t).then(bars => ({ t, bars }))));
     for (const { t, bars } of barData) {
       if (bars.length >= 2) {
-        const last = bars[bars.length - 1];
-        const prev = bars[bars.length - 2];
-        result[t] = {
-          price:     last.close,
-          changePct: +((last.close - prev.close) / prev.close * 100).toFixed(2),
-        };
+        const last = bars[bars.length - 1], prev = bars[bars.length - 2];
+        result[t] = { price: last.close, changePct: +((last.close - prev.close) / prev.close * 100).toFixed(2) };
       }
+    }
+    if (i + BATCH < needBars.length) await new Promise(r => setTimeout(r, 250));
+  }
+
+  /* Fallback for any remaining */
+  for (const t of unique) {
+    if (!result[t] && FALLBACK[t]) {
+      result[t] = { price: FALLBACK[t].price, changePct: FALLBACK[t].changePct };
     }
   }
   return result;
@@ -214,56 +267,47 @@ async function bulkPrices(
 
 async function searchTickers(q: string): Promise<string[]> {
   try {
-    const r = await fetch(
-      `${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks&apiKey=${API_KEY}`
-    );
+    const r = await fetch(`${BASE}/v3/reference/tickers?search=${encodeURIComponent(q)}&active=true&limit=7&market=stocks&apiKey=${API_KEY}`);
     if (r.ok) {
       const d = await r.json() as { results?: { ticker: string }[] };
       if (d?.results?.length) return d.results.map(x => x.ticker);
     }
   } catch { /* ignore */ }
-  return TICKERS.filter(t =>
-    t.includes(q.toUpperCase()) || MOCK[t]?.name.toLowerCase().includes(q.toLowerCase())
-  );
+  return TICKERS.filter(t => t.includes(q.toUpperCase()) || NAMES[t]?.toLowerCase().includes(q.toLowerCase()));
 }
 
-const f$ = (n: number) =>
-  new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2 }).format(n);
+/* ---- Format helpers ------------------------------------------ */
+const f$ = (n: number) => new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:2 }).format(n);
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-const fv = (n: number) =>
-  n >= 1e9 ? `${(n/1e9).toFixed(2)}B` :
-  n >= 1e6 ? `${(n/1e6).toFixed(2)}M` :
-  n >= 1e3 ? `${(n/1e3).toFixed(1)}K` : String(n);
+const fv = (n: number) => n >= 1e9 ? `${(n/1e9).toFixed(2)}B` : n >= 1e6 ? `${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `${(n/1e3).toFixed(1)}K` : String(n);
 
+/* ---- Design tokens ------------------------------------------- */
 const V = {
   void:"#050810", d0:"#050810", d1:"#080D18", d2:"#0C1220", d3:"#101828", d4:"#151F30", dh:"#1E2D40",
   w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)",
   ink0:"#F2F6FF", ink1:"#C8D5E8", ink2:"#7A9CBF", ink3:"#3D5A7A", ink4:"#1F3550",
-  gain:"#00C896",  gainDim:"rgba(0,200,150,0.08)",  gainWire:"rgba(0,200,150,0.20)",  gainGlow:"rgba(0,200,150,0.12)",
-  loss:"#E8445A",  lossDim:"rgba(232,68,90,0.08)",   lossWire:"rgba(232,68,90,0.20)",  lossGlow:"rgba(232,68,90,0.10)",
-  arc:"#4F8EF7",   arcDim:"rgba(79,142,247,0.10)",   arcWire:"rgba(79,142,247,0.22)",
-  gold:"#E8A030",  goldDim:"rgba(232,160,48,0.10)",
-  ame:"#9B72F5",   ameDim:"rgba(155,114,245,0.10)",  ameWire:"rgba(155,114,245,0.22)",
+  gain:"#00C896", gainDim:"rgba(0,200,150,0.08)", gainWire:"rgba(0,200,150,0.20)", gainGlow:"rgba(0,200,150,0.12)",
+  loss:"#E8445A", lossDim:"rgba(232,68,90,0.08)",  lossWire:"rgba(232,68,90,0.20)",  lossGlow:"rgba(232,68,90,0.10)",
+  arc:"#4F8EF7",  arcDim:"rgba(79,142,247,0.10)",  arcWire:"rgba(79,142,247,0.22)",
+  gold:"#E8A030", goldDim:"rgba(232,160,48,0.10)",
+  ame:"#9B72F5",  ameDim:"rgba(155,114,245,0.10)", ameWire:"rgba(155,114,245,0.22)",
 };
-const mono: React.CSSProperties = { fontFamily: "'Geist Mono','Courier New',monospace" };
+const mono: React.CSSProperties = { fontFamily:"'Geist Mono','Courier New',monospace" };
 
 const glassCard = (extra?: React.CSSProperties): React.CSSProperties => ({
   background: "linear-gradient(145deg,rgba(255,255,255,0.030) 0%,rgba(255,255,255,0.012) 100%)",
-  backdropFilter: "blur(24px) saturate(1.5)",
-  WebkitBackdropFilter: "blur(24px) saturate(1.5)",
-  border: `1px solid ${V.w2}`,
-  borderRadius: 16,
-  boxShadow: "0 4px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)",
-  position: "relative" as const,
-  overflow: "hidden",
-  ...extra,
+  backdropFilter: "blur(24px) saturate(1.5)", WebkitBackdropFilter: "blur(24px) saturate(1.5)",
+  border: `1px solid ${V.w2}`, borderRadius: 16,
+  boxShadow: "0 4px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
+  position: "relative" as const, overflow: "hidden", ...extra,
 });
 
+/* ---- Shared components --------------------------------------- */
 function ChartTip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background:V.d3, border:`1px solid ${V.w3}`, borderRadius:10, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.65)" }}>
-      <p style={{ ...mono, fontSize:9, color:V.ink3, marginBottom:3, letterSpacing:"0.06em", textTransform:"uppercase" }}>{label}</p>
+      <p style={{ ...mono, fontSize:9, color:V.ink3, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</p>
       <p style={{ ...mono, fontSize:14, color:V.ink0, fontWeight:500, letterSpacing:"-0.02em" }}>{f$(payload[0].value)}</p>
     </div>
   );
@@ -291,25 +335,9 @@ function TabIcon({ id, size = 20, active }: { id: Tab; size?: number; active: bo
 
 function YahooBtn({ ticker, compact = false }: { ticker: string; compact?: boolean }) {
   return (
-    <a
-      href={`https://finance.yahoo.com/quote/${ticker}`}
-      target="_blank"
-      rel="noopener noreferrer"
+    <a href={`https://finance.yahoo.com/quote/${ticker}`} target="_blank" rel="noopener noreferrer"
       onClick={e => e.stopPropagation()}
-      style={{
-        display:"inline-flex", alignItems:"center", gap: compact ? 3 : 4,
-        padding: compact ? "2px 7px" : "4px 9px",
-        borderRadius: 6,
-        background: "rgba(79,142,247,0.08)",
-        border: "1px solid rgba(79,142,247,0.18)",
-        color: "#7EB6FF",
-        textDecoration: "none",
-        fontSize: compact ? 9 : 10,
-        fontFamily: "'Geist Mono','Courier New',monospace",
-        whiteSpace: "nowrap",
-        transition: "background 0.15s",
-        flexShrink: 0,
-      }}
+      style={{ display:"inline-flex", alignItems:"center", gap: compact ? 3 : 4, padding: compact ? "2px 7px" : "4px 9px", borderRadius:6, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize: compact ? 9 : 10, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", transition:"background 0.15s", flexShrink:0 }}
       onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.16)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.08)"; }}
     >
@@ -320,14 +348,14 @@ function YahooBtn({ ticker, compact = false }: { ticker: string; compact?: boole
 }
 
 function MiniChart({ ticker, isGain }: { ticker: string; isGain: boolean }) {
-  const [bars,  setBars]  = useState<Bar[]>(() => seedBars(MOCK[ticker]?.price ?? 100, 30));
+  const [bars,  setBars]  = useState<Bar[]>(() => seedBars(FALLBACK[ticker]?.price ?? 150, 30));
   const [ready, setReady] = useState(false);
   const color  = isGain ? V.gain : V.loss;
   const gradId = `mc-${ticker}-${isGain ? "g" : "l"}`;
 
   useEffect(() => {
     let cancelled = false;
-    setBars(seedBars(MOCK[ticker]?.price ?? 100, 30));
+    setBars(seedBars(FALLBACK[ticker]?.price ?? 150, 30));
     setReady(false);
     loadBars(ticker).then(data => {
       if (!cancelled) { setBars(data.slice(-30)); setReady(true); }
@@ -346,7 +374,7 @@ function MiniChart({ ticker, isGain }: { ticker: string; isGain: boolean }) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="1 6" stroke="rgba(130,180,255,0.04)" vertical={false} />
-          <Tooltip content={<ChartTip />} cursor={{ stroke: `${color}50`, strokeWidth:1 }} />
+          <Tooltip content={<ChartTip />} cursor={{ stroke:`${color}50`, strokeWidth:1 }} />
           <Area type="monotone" dataKey="close" stroke={color} strokeWidth={1.5}
             fill={`url(#${gradId})`} dot={false} isAnimationActive={false}
             activeDot={{ r:3, fill:color, stroke:V.void, strokeWidth:1.5 }} />
@@ -360,24 +388,19 @@ function SignalCard({
   ticker, name, conf, target, upside, downside, thesis, tags, isGain, rank, go,
 }: {
   ticker: string; name: string; conf: number; target: number;
-  upside?: number; downside?: number;
-  thesis: string; tags: string[]; isGain: boolean; rank: number;
-  go: (t: string) => void;
+  upside?: number; downside?: number; thesis: string; tags: string[];
+  isGain: boolean; rank: number; go: (t: string) => void;
 }) {
   const color = isGain ? V.gain : V.loss;
   const dim   = isGain ? V.gainDim : V.lossDim;
   const wire  = isGain ? V.gainWire : V.lossWire;
-  const priceLine = upside != null
-    ? `+${upside.toFixed(1)}% upside`
-    : `${downside!.toFixed(1)}% downside`;
+  const line  = upside != null ? `+${upside.toFixed(1)}% upside` : `${downside!.toFixed(1)}% downside`;
 
   return (
-    <div
-      style={{ ...glassCard({ padding:18 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s" }}
+    <div style={{ ...glassCard({ padding:18 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s" }}
       onClick={() => go(ticker)}
       onMouseEnter={e => { e.currentTarget.style.borderColor = wire; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = V.w2;  (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}
-    >
+      onMouseLeave={e => { e.currentTarget.style.borderColor = V.w2;  (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
           <span style={{ ...mono, fontSize:10, color:V.ink4, marginTop:3 }}>#{rank}</span>
@@ -392,7 +415,7 @@ function SignalCard({
         <div style={{ textAlign:"right", flexShrink:0 }}>
           <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Target</p>
           <p style={{ ...mono, fontSize:16, fontWeight:500, color, letterSpacing:"-0.02em" }}>{f$(target)}</p>
-          <p style={{ ...mono, fontSize:10, color }}>{priceLine}</p>
+          <p style={{ ...mono, fontSize:10, color }}>{line}</p>
         </div>
       </div>
       <MiniChart ticker={ticker} isGain={isGain} />
@@ -409,13 +432,12 @@ function SignalCard({
   );
 }
 
+/* ---- MarketsPanel -------------------------------------------- */
 interface MarketsPanelProps {
   ticker: string; quote: Quote; bars: Bar[]; loading: boolean;
   up: boolean; lineColor: string; watched: boolean; watchlist: string[];
   livePrices: Record<string, { price: number; changePct: number }>;
-  go: (t: string) => void;
-  toggleWatch: (t: string) => void;
-  refreshMarkets: () => Promise<void>;
+  go: (t: string) => void; toggleWatch: (t: string) => void; refreshMarkets: () => Promise<void>;
 }
 
 const MarketsPanel = memo(function MarketsPanel({
@@ -424,7 +446,6 @@ const MarketsPanel = memo(function MarketsPanel({
 }: MarketsPanelProps) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-
       <div style={{ ...glassCard(), padding:0 }}>
         <div style={{ position:"absolute", top:-60, right:-60, width:240, height:240, borderRadius:"50%", background: up ? V.gainGlow : V.lossGlow, filter:"blur(60px)", pointerEvents:"none", zIndex:0 }} />
         <div style={{ position:"relative", zIndex:1, padding:"20px 20px 0" }}>
@@ -455,7 +476,6 @@ const MarketsPanel = memo(function MarketsPanel({
                 )}
             </div>
           </div>
-
           <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginLeft:-20, marginRight:-20, paddingLeft:20, paddingRight:20, marginTop:16 }}>
             <div style={{ display:"flex", gap:6, minWidth:"max-content", paddingBottom:16 }}>
               {[
@@ -473,11 +493,10 @@ const MarketsPanel = memo(function MarketsPanel({
             </div>
           </div>
         </div>
-
         <div style={{ position:"relative", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", padding:"0 20px 10px", gap:6 }}>
             <div style={{ width:6, height:6, borderRadius:"50%", background:lineColor, animation:"live-pulse 2.5s ease-in-out infinite" }} />
-            <span style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em" }}>90-day  x  Polygon.io</span>
+            <span style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em" }}>90-day chart -- Polygon.io</span>
           </div>
           {loading
             ? <div className="skel" style={{ height:200, margin:"0 16px 16px", borderRadius:10 }} />
@@ -510,10 +529,10 @@ const MarketsPanel = memo(function MarketsPanel({
         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginLeft:-16, marginRight:-16, paddingLeft:16, paddingRight:16 }}>
           <div style={{ display:"flex", gap:6, minWidth:"max-content", paddingBottom:2 }}>
             {TICKERS.map(t => {
-              const live       = livePrices[t];
-              const changePct  = live?.changePct ?? MOCK[t]?.changePct ?? 0;
-              const pos        = changePct >= 0;
-              const active     = t === ticker;
+              const live = livePrices[t];
+              const changePct = live?.changePct ?? FALLBACK[t]?.changePct ?? 0;
+              const pos = changePct >= 0;
+              const active = t === ticker;
               return (
                 <button key={t} onClick={() => go(t)}
                   style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-start", padding:"9px 12px", borderRadius:10, border:"1px solid", cursor:"pointer", minWidth:64, minHeight:48, transition:"all 0.2s",
@@ -537,13 +556,11 @@ const MarketsPanel = memo(function MarketsPanel({
           <span style={{ ...mono, fontSize:10, color:V.ink3 }}>{watchlist.length} tracked</span>
         </div>
         <div style={{ ...glassCard({ overflow:"hidden" }) }}>
-          {watchlist.length === 0 && (
-            <p style={{ color:V.ink3, fontSize:13, textAlign:"center", padding:"24px 20px" }}>Star a ticker to add it here</p>
-          )}
+          {watchlist.length === 0 && <p style={{ color:V.ink3, fontSize:13, textAlign:"center", padding:"24px 20px" }}>Star a ticker to add it here</p>}
           {watchlist.map((t, i) => {
-            const live      = livePrices[t];
-            const price     = live?.price     ?? MOCK[t]?.price     ?? 0;
-            const changePct = live?.changePct ?? MOCK[t]?.changePct ?? 0;
+            const live = livePrices[t];
+            const price = live?.price ?? FALLBACK[t]?.price ?? 0;
+            const changePct = live?.changePct ?? FALLBACK[t]?.changePct ?? 0;
             const pos = changePct >= 0;
             return (
               <button key={t} onClick={() => go(t)}
@@ -551,7 +568,7 @@ const MarketsPanel = memo(function MarketsPanel({
                 className="row-hover">
                 <div>
                   <p style={{ ...mono, fontSize:13, fontWeight:500, color: t === ticker ? "#7EB6FF" : V.ink0 }}>{t}</p>
-                  <p style={{ color:V.ink3, fontSize:11, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"min(180px,40vw)" }}>{MOCK[t]?.name ?? t}</p>
+                  <p style={{ color:V.ink3, fontSize:11, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"min(180px,40vw)" }}>{NAMES[t] ?? t}</p>
                 </div>
                 <div style={{ textAlign:"right", marginLeft:8 }}>
                   <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{price > 0 ? f$(price) : "---"}</p>
@@ -591,10 +608,8 @@ const MarketsPanel = memo(function MarketsPanel({
   );
 });
 
-interface AIPanelProps {
-  go: (t: string) => void;
-  refreshMarkets: () => Promise<void>;
-}
+/* ---- AIPanel ------------------------------------------------- */
+interface AIPanelProps { go: (t: string) => void; refreshMarkets: () => Promise<void>; }
 
 const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
   return (
@@ -608,13 +623,13 @@ const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
               <h2 style={{ fontSize:16, fontWeight:600, color:V.ink0 }}>AI Signals</h2>
-              <span style={{ ...mono, fontSize:9, background:V.ameDim, color:V.ame, border:`1px solid ${V.ameWire}`, borderRadius:99, padding:"2px 9px", textTransform:"uppercase", letterSpacing:"0.1em", whiteSpace:"nowrap" }}>Beta</span>
+              <span style={{ ...mono, fontSize:9, background:V.ameDim, color:V.ame, border:`1px solid ${V.ameWire}`, borderRadius:99, padding:"2px 9px", textTransform:"uppercase", letterSpacing:"0.1em" }}>Beta</span>
             </div>
             <p style={{ color:V.ink2, fontSize:12, lineHeight:1.55 }}>ML signals from price momentum, volume anomalies, earnings revisions, and NLP sentiment.</p>
           </div>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:16 }}>
-          {[{ l:"Accuracy", v:"73.4%", c:"#7EB6FF" }, { l:"Confidence", v:"78.5%", c:V.gain }, { l:"Alpha", v:"+5.9%", c:V.gain }].map(s => (
+          {[{ l:"Accuracy",v:"73.4%",c:"#7EB6FF" },{ l:"Confidence",v:"78.5%",c:V.gain },{ l:"Alpha",v:"+5.9%",c:V.gain }].map(s => (
             <div key={s.l} style={{ background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, borderRadius:9, padding:"10px 12px", textAlign:"center" }}>
               <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{s.l}</p>
               <p style={{ ...mono, fontSize:17, fontWeight:500, color:s.c, letterSpacing:"-0.02em" }}>{s.v}</p>
@@ -626,32 +641,28 @@ const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
       <CountdownBar onRefresh={refreshMarkets} label="Next signal update" />
 
       <div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-          <div style={{ width:24, height:24, borderRadius:6, background:V.gainDim, border:`1px solid ${V.gainWire}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+          <div style={{ width:24, height:24, borderRadius:6, background:V.gainDim, border:`1px solid ${V.gainWire}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <TrendingUp size={13} color={V.gain} />
           </div>
           <span style={{ fontSize:14, fontWeight:600, color:V.ink0 }}>Outperformer Signals</span>
-          <span style={{ ...mono, fontSize:9, background:V.gainDim, color:V.gain, border:`1px solid ${V.gainWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Long</span>
+          <span style={{ ...mono, fontSize:9, background:V.gainDim, color:V.gain, border:`1px solid ${V.gainWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase" }}>Long</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {AI_LONG.map((s, i) => (
-            <SignalCard key={s.ticker} {...s} upside={s.up} isGain rank={i + 1} go={go} />
-          ))}
+          {AI_LONG.map((s, i) => <SignalCard key={s.ticker} {...s} upside={s.up} isGain rank={i + 1} go={go} />)}
         </div>
       </div>
 
       <div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-          <div style={{ width:24, height:24, borderRadius:6, background:V.lossDim, border:`1px solid ${V.lossWire}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+          <div style={{ width:24, height:24, borderRadius:6, background:V.lossDim, border:`1px solid ${V.lossWire}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <TrendingDown size={13} color={V.loss} />
           </div>
           <span style={{ fontSize:14, fontWeight:600, color:V.ink0 }}>Underperformer Signals</span>
-          <span style={{ ...mono, fontSize:9, background:V.lossDim, color:V.loss, border:`1px solid ${V.lossWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase", letterSpacing:"0.08em" }}>Avoid</span>
+          <span style={{ ...mono, fontSize:9, background:V.lossDim, color:V.loss, border:`1px solid ${V.lossWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase" }}>Avoid</span>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {AI_SHORT.map((s, i) => (
-            <SignalCard key={s.ticker} {...s} downside={s.down} isGain={false} rank={i + 1} go={go} />
-          ))}
+          {AI_SHORT.map((s, i) => <SignalCard key={s.ticker} {...s} downside={s.down} isGain={false} rank={i + 1} go={go} />)}
         </div>
       </div>
 
@@ -663,12 +674,11 @@ const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
   );
 });
 
+/* ---- Sidebar -------------------------------------------------- */
 interface SidebarProps {
-  ticker: string;
-  watchlist: string[];
+  ticker: string; watchlist: string[];
   livePrices: Record<string, { price: number; changePct: number }>;
-  go: (t: string) => void;
-  toggleWatch: (t: string) => void;
+  go: (t: string) => void; toggleWatch: (t: string) => void;
   setTab: Dispatch<SetStateAction<Tab>>;
 }
 
@@ -682,9 +692,9 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
           <span style={{ ...mono, fontSize:10, color:V.ink3, marginLeft:"auto" }}>{watchlist.length}</span>
         </div>
         {watchlist.map((t, i) => {
-          const live      = livePrices[t];
-          const price     = live?.price     ?? MOCK[t]?.price     ?? 0;
-          const changePct = live?.changePct ?? MOCK[t]?.changePct ?? 0;
+          const live = livePrices[t];
+          const price = live?.price ?? FALLBACK[t]?.price ?? 0;
+          const changePct = live?.changePct ?? FALLBACK[t]?.changePct ?? 0;
           const pos = changePct >= 0;
           return (
             <button key={t} onClick={() => go(t)}
@@ -692,7 +702,7 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
               className="row-hover">
               <div>
                 <p style={{ ...mono, fontSize:12, fontWeight:500, color: t === ticker ? "#7EB6FF" : V.ink0 }}>{t}</p>
-                <p style={{ color:V.ink3, fontSize:10, marginTop:1, maxWidth:100, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{MOCK[t]?.name ?? t}</p>
+                <p style={{ color:V.ink3, fontSize:10, marginTop:1, maxWidth:100, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{NAMES[t] ?? t}</p>
               </div>
               <div style={{ textAlign:"right" }}>
                 <p style={{ ...mono, fontSize:12, fontWeight:500, color:V.ink0 }}>{price > 0 ? f$(price) : "---"}</p>
@@ -750,10 +760,11 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
   );
 });
 
-export default function VertexTerminal() {
+/* ---- Root ---------------------------------------------------- */
+export default function ArbibX() {
   const [ticker,     setTicker]     = useState("AAPL");
-  const [quote,      setQuote]      = useState<Quote>(MOCK["AAPL"]);
-  const [bars,       setBars]       = useState<Bar[]>(() => seedBars(228.52));
+  const [quote,      setQuote]      = useState<Quote>(MOCK["AAPL"] ?? { ticker:"AAPL", name:"Apple Inc.", price:203, change:-4.7, changePct:-2.3, high:205, low:200, open:207, volume:55_000_000 });
+  const [bars,       setBars]       = useState<Bar[]>(() => seedBars(203));
   const [watchlist,  setWatchlist]  = useState<string[]>(["AAPL","NVDA","MSFT","META"]);
   const [search,     setSearch]     = useState("");
   const [results,    setResults]    = useState<string[]>([]);
@@ -767,11 +778,9 @@ export default function VertexTerminal() {
   const load = useCallback(async (t: string) => {
     setLoading(true);
     const b = await loadBars(t);
-    const realBars = b.length ? b : seedBars(MOCK[t]?.price ?? 100);
+    const realBars = b.length ? b : seedBars(FALLBACK[t]?.price ?? 150);
     const q = await loadQuote(t, realBars);
-    setQuote(q);
-    setBars(realBars);
-    setLoading(false);
+    setQuote(q); setBars(realBars); setLoading(false);
   }, []);
   useEffect(() => { load(ticker); }, [ticker, load]);
 
@@ -781,10 +790,9 @@ export default function VertexTerminal() {
   const refreshMarkets = useCallback(async () => {
     const t = tickerRef.current;
     const b = await loadBars(t);
-    const realBars = b.length ? b : seedBars(MOCK[t]?.price ?? 100);
+    const realBars = b.length ? b : seedBars(FALLBACK[t]?.price ?? 150);
     const q = await loadQuote(t, realBars);
-    setQuote(q);
-    setBars(realBars);
+    setQuote(q); setBars(realBars);
   }, []);
 
   const fetchLivePrices = useCallback(async () => {
@@ -806,29 +814,22 @@ export default function VertexTerminal() {
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setResults([]); setShowSearch(false);
-      }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) { setResults([]); setShowSearch(false); }
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const go = useCallback((t: string) => {
-    setTicker(t); setSearch(""); setResults([]); setShowSearch(false); setTab("markets");
-  }, []);
+  const go = useCallback((t: string) => { setTicker(t); setSearch(""); setResults([]); setShowSearch(false); setTab("markets"); }, []);
+  const toggleWatch = useCallback((t: string) => { setWatchlist(w => w.includes(t) ? w.filter(x => x !== t) : [...w, t]); }, []);
 
-  const toggleWatch = useCallback((t: string) => {
-    setWatchlist(w => w.includes(t) ? w.filter(x => x !== t) : [...w, t]);
-  }, []);
+  const up        = quote.changePct >= 0;
+  const lineColor = up ? V.gain : V.loss;
+  const watched   = watchlist.includes(ticker);
 
   const marketProps = useMemo<MarketsPanelProps>(() => ({
-    ticker, quote, bars, loading,
-    up:        quote.changePct >= 0,
-    lineColor: quote.changePct >= 0 ? V.gain : V.loss,
-    watched:   watchlist.includes(ticker),
-    watchlist, livePrices, go, toggleWatch, refreshMarkets,
-  }), [ticker, quote, bars, loading, watchlist, livePrices, go, toggleWatch, refreshMarkets]);
+    ticker, quote, bars, loading, up, lineColor, watched, watchlist, livePrices, go, toggleWatch, refreshMarkets,
+  }), [ticker, quote, bars, loading, up, lineColor, watched, watchlist, livePrices, go, toggleWatch, refreshMarkets]);
 
   const aiProps   = useMemo<AIPanelProps>(() => ({ go, refreshMarkets }), [go, refreshMarkets]);
   const sideProps = useMemo<SidebarProps>(() => ({ ticker, watchlist, livePrices, go, toggleWatch, setTab }), [ticker, watchlist, livePrices, go, toggleWatch]);
@@ -854,12 +855,13 @@ export default function VertexTerminal() {
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 16px", height:50 }}>
+          {/* ArbibX Logo */}
           <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-            <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px rgba(79,142,247,0.35)" }}>
-              <Zap size={13} color="#fff" strokeWidth={2.5} />
+            <div style={{ width:30, height:30, borderRadius:8, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", background:"linear-gradient(135deg,#4F8EF7,#00C896)", boxShadow:"0 2px 10px rgba(79,142,247,0.35)" }}>
+              <Image src="/logo.png" alt="ArbibX" width={30} height={30} style={{ objectFit:"cover", borderRadius:8 }} priority unoptimized />
             </div>
             <div style={{ lineHeight:1 }}>
-              <div style={{ ...mono, fontSize:11, fontWeight:500, letterSpacing:"0.14em", color:V.ink0 }}>VERTEX</div>
+              <div style={{ ...mono, fontSize:12, fontWeight:700, letterSpacing:"0.08em", color:V.ink0 }}>ArbibX</div>
               <div style={{ ...mono, fontSize:7, color:V.ink4, letterSpacing:"0.18em", marginTop:1 }}>TERMINAL</div>
             </div>
           </div>
@@ -879,7 +881,7 @@ export default function VertexTerminal() {
 
           <div ref={searchRef} style={{ position:"relative", flexShrink:0 }}>
             <button onClick={() => setShowSearch(s => !s)}
-              style={{ background: showSearch ? "rgba(79,142,247,0.10)" : "none", border:`1px solid ${showSearch ? V.arcWire : "transparent"}`, borderRadius:8, cursor:"pointer", color: showSearch ? "#7EB6FF" : V.ink3, padding:"6px 10px", display:"flex", alignItems:"center", gap:5, minHeight:36, minWidth:36, justifyContent:"center", transition:"all 0.2s" }}>
+              style={{ background: showSearch ? "rgba(79,142,247,0.10)" : "none", border:`1px solid ${showSearch ? V.arcWire : "transparent"}`, borderRadius:8, cursor:"pointer", color: showSearch ? "#7EB6FF" : V.ink3, padding:"6px 10px", display:"flex", alignItems:"center", minHeight:36, minWidth:36, justifyContent:"center", transition:"all 0.2s" }}>
               <Search size={16} />
             </button>
             {showSearch && (
@@ -887,19 +889,15 @@ export default function VertexTerminal() {
                 <div style={{ display:"flex", alignItems:"center", gap:8, padding:"11px 14px", borderBottom:`1px solid ${V.w1}` }}>
                   <Search size={13} color={V.ink3} />
                   <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ticker or company..."
-                    style={{ background:"transparent", border:"none", padding:0, borderRadius:0, fontSize:16, flex:1, color:V.ink0, outline:"none", fontFamily:"'Geist Mono',monospace" }} />
-                  {search && (
-                    <button onClick={() => setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:2, display:"flex", minWidth:28, minHeight:28, alignItems:"center", justifyContent:"center" }}>
-                      <X size={13} />
-                    </button>
-                  )}
+                    style={{ background:"transparent", border:"none", padding:0, fontSize:16, flex:1, color:V.ink0, outline:"none", fontFamily:"'Geist Mono',monospace" }} />
+                  {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:2, display:"flex", minWidth:28, minHeight:28, alignItems:"center", justifyContent:"center" }}><X size={13} /></button>}
                 </div>
                 {results.map(t => (
                   <button key={t} onClick={() => go(t)}
                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", padding:"11px 14px", background:"none", border:"none", cursor:"pointer", minHeight:48, textAlign:"left", transition:"background 0.15s" }}
                     className="row-hover">
                     <span style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{t}</span>
-                    <span style={{ fontSize:12, color:V.ink3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{MOCK[t]?.name ?? ""}</span>
+                    <span style={{ fontSize:12, color:V.ink3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{NAMES[t] ?? ""}</span>
                   </button>
                 ))}
                 {results.length === 0 && search.length > 0 && !searching && (

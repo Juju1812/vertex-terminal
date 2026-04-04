@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
-/* -- Types ---------------------------------------------------- */
+/* ---- Types -------------------------------------------------- */
 interface Stock {
   rank: number; ticker: string; name: string; price: number;
   changePct: number; change: number; floor: number; ceiling: number;
@@ -19,17 +19,19 @@ interface Alloc {
   ticker: string; name: string; price: number;
   dollars: number; shares: number; pct: number; note: string;
 }
-interface Top15Props {
-  onSelectTicker?: (ticker: string) => void;
-}
+interface Top15Props { onSelectTicker?: (ticker: string) => void; }
 interface SnapTicker {
-  ticker:  string;
+  ticker: string;
   day:     { c: number; o: number; h: number; l: number; v: number };
   prevDay: { c: number };
 }
 interface AggBar { c: number; o: number; h: number; l: number; v: number; t: number; }
+interface ResolvedPrice {
+  price: number; change: number; changePct: number;
+  high: number; low: number; open: number; volume: number;
+}
 
-/* -- Constants ------------------------------------------------ */
+/* ---- Constants ---------------------------------------------- */
 const KEY  = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE = "https://api.polygon.io";
 
@@ -62,36 +64,34 @@ const SECTOR_HUE: Record<string, string> = {
 };
 
 /*
- * FALLBACK -- approximate prices as of early April 2026.
- * These are shown ONLY when BOTH the snapshot AND bars API calls
- * fail completely (e.g. network down). Under normal conditions,
- * even on weekends, the bars endpoint returns the last close
- * and these are never used.
+ * FALLBACK prices from April 3-4 2026 (Yahoo/Google Finance/Robinhood).
+ * Only used when BOTH the snapshot AND bars API calls fail completely.
+ * Under any normal network conditions, Polygon bars always work.
  */
 const FALLBACK: Record<string, { price: number; changePct: number; volume: number }> = {
-  NVDA: { price:110,   changePct:-1.2,  volume:280_000_000 },
-  MSFT: { price:385,   changePct:-0.8,  volume:22_000_000  },
-  AAPL: { price:203,   changePct:-1.0,  volume:55_000_000  },
-  META: { price:560,   changePct:-1.5,  volume:15_000_000  },
-  GOOGL:{ price:155,   changePct:-1.3,  volume:25_000_000  },
-  AMZN: { price:187,   changePct:-1.8,  volume:35_000_000  },
-  AMD:  { price:97,    changePct:-1.5,  volume:50_000_000  },
-  PLTR: { price:87,    changePct:-2.0,  volume:90_000_000  },
-  JPM:  { price:235,   changePct:-1.0,  volume:11_000_000  },
-  V:    { price:335,   changePct:-0.5,  volume:7_000_000   },
-  UNH:  { price:490,   changePct:-2.5,  volume:4_000_000   },
-  LLY:  { price:780,   changePct:-0.8,  volume:3_000_000   },
-  TSLA: { price:250,   changePct:-3.0,  volume:100_000_000 },
-  ORCL: { price:160,   changePct:-0.5,  volume:7_000_000   },
-  CRWD: { price:340,   changePct:-1.2,  volume:5_000_000   },
-  PANW: { price:165,   changePct:-1.0,  volume:5_000_000   },
-  AVGO: { price:175,   changePct:-1.5,  volume:25_000_000  },
-  CRM:  { price:255,   changePct:-1.0,  volume:6_000_000   },
-  NOW:  { price:750,   changePct:-1.0,  volume:2_000_000   },
-  COIN: { price:170,   changePct:-3.5,  volume:18_000_000  },
+  NVDA: { price: 177,  changePct: -1.1,  volume:150_000_000 },
+  MSFT: { price: 363,  changePct: -1.7,  volume: 22_000_000 },
+  AAPL: { price: 203,  changePct: -2.3,  volume: 55_000_000 },
+  META: { price: 510,  changePct: -2.8,  volume: 18_000_000 },
+  GOOGL:{ price: 155,  changePct: -2.0,  volume: 30_000_000 },
+  AMZN: { price: 185,  changePct: -3.4,  volume: 50_000_000 },
+  AMD:  { price: 95,   changePct: -3.2,  volume: 55_000_000 },
+  PLTR: { price: 149,  changePct: -2.1,  volume: 45_000_000 },
+  JPM:  { price: 235,  changePct: -1.4,  volume: 11_000_000 },
+  V:    { price: 335,  changePct: -0.7,  volume:  7_000_000 },
+  UNH:  { price: 490,  changePct: -2.5,  volume:  4_000_000 },
+  LLY:  { price: 780,  changePct: -1.1,  volume:  3_000_000 },
+  TSLA: { price: 252,  changePct: -4.9,  volume:120_000_000 },
+  ORCL: { price: 160,  changePct: -1.3,  volume:  7_000_000 },
+  CRWD: { price: 340,  changePct: -1.8,  volume:  5_000_000 },
+  PANW: { price: 165,  changePct: -1.5,  volume:  5_000_000 },
+  AVGO: { price: 294,  changePct: -2.4,  volume: 25_000_000 },
+  CRM:  { price: 255,  changePct: -1.6,  volume:  6_000_000 },
+  NOW:  { price: 750,  changePct: -1.9,  volume:  2_000_000 },
+  COIN: { price: 170,  changePct: -5.2,  volume: 18_000_000 },
 };
 
-/* -- Scoring -------------------------------------------------- */
+/* ---- Scoring ------------------------------------------------ */
 const calcConf = (chg: number, vol: number): number => {
   let c = 60;
   if (chg > 3) c += 18; else if (chg > 1) c += 10; else if (chg < -2) c -= 12;
@@ -105,28 +105,20 @@ const calcLevels = (price: number, chg: number) => ({
   ceiling: +(price * (1 + (chg > 2 ? 0.14 : chg > 0 ? 0.10 : 0.08))).toFixed(2),
 });
 
-/* -- Fetch helper --------------------------------------------- */
+/* ---- API helpers -------------------------------------------- */
 async function polyFetch<T>(path: string): Promise<T | null> {
   try {
     const sep = path.includes("?") ? "&" : "?";
     const r = await fetch(`${BASE}${path}${sep}apiKey=${KEY}`);
     return r.ok ? (r.json() as Promise<T>) : null;
-  } catch {
-    return null;
-  }
-}
-
-/* -- Price type used internally ------------------------------- */
-interface ResolvedPrice {
-  price: number; change: number; changePct: number;
-  high: number; low: number; open: number; volume: number;
+  } catch { return null; }
 }
 
 /*
- * getBarsPrice -- fetch daily bars for a single ticker.
- * Uses a 60-day window and returns the last 2 bars.
- * This is the RELIABLE path: the /v2/aggs endpoint always has
- * historical closes regardless of whether the market is open.
+ * getBarsPrice -- BARS-FIRST price resolution.
+ * The /v2/aggs endpoint always returns historical closes regardless of
+ * whether the market is open, closed, or it's a weekend/holiday.
+ * Uses a 60-day window to guarantee at least 2 trading days.
  */
 async function getBarsPrice(ticker: string): Promise<ResolvedPrice | null> {
   const to   = new Date().toISOString().split("T")[0];
@@ -143,92 +135,71 @@ async function getBarsPrice(ticker: string): Promise<ResolvedPrice | null> {
     price:     last.c,
     change:    +chg.toFixed(2),
     changePct: +((chg / prev.c) * 100).toFixed(2),
-    high:      last.h,
-    low:       last.l,
-    open:      last.o,
-    volume:    last.v,
+    high:      last.h, low: last.l, open: last.o, volume: last.v,
   };
 }
 
 /*
- * fetchAllPrices -- resolves prices for all UNI tickers.
+ * fetchAllPrices -- resolves live prices for all UNI tickers.
  *
- * Strategy (in priority order):
- *   1. Bulk snapshot  -- live intraday price during market hours.
- *      Accepted only when day.c > 0 AND prevDay.c > 0.
- *   2. Daily bars     -- last official close, always available.
- *      Fetched in parallel batches of 4 to respect rate limits.
- *   3. FALLBACK table -- approximate prices from April 2026.
- *      Used only when the network is completely unreachable.
+ * Strategy:
+ *  1. Bulk snapshot  -- one request, live price if market is open.
+ *  2. Bars fallback  -- for any ticker where snapshot has day.c = 0.
+ *     Fetched in batches of 4 to avoid rate-limiting.
+ *  3. FALLBACK table -- April 2026 approximations. Only if network is down.
  */
 async function fetchAllPrices(): Promise<Record<string, ResolvedPrice>> {
   const tickers = UNI.map(u => u.t);
   const result: Record<string, ResolvedPrice> = {};
 
-  /* ---- Step 1: bulk snapshot (one request, works live) ---- */
+  /* Step 1: bulk snapshot */
   const snap = await polyFetch<{ tickers?: SnapTicker[] }>(
     `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickers.join(",")}`
   );
   const snapMap: Record<string, SnapTicker> = {};
-  if (snap?.tickers) {
-    for (const s of snap.tickers) snapMap[s.ticker] = s;
-  }
+  if (snap?.tickers) { for (const s of snap.tickers) snapMap[s.ticker] = s; }
 
   const needBars: string[] = [];
   for (const t of tickers) {
     const s = snapMap[t];
     if (s && s.day?.c > 0 && s.prevDay?.c > 0) {
-      const price = s.day.c;
-      const prev  = s.prevDay.c;
-      const chg   = price - prev;
+      const price = s.day.c, prev = s.prevDay.c, chg = price - prev;
       result[t] = {
-        price,
-        change:    +chg.toFixed(2),
+        price, change: +chg.toFixed(2),
         changePct: +((chg / prev) * 100).toFixed(2),
-        high:      s.day.h || price,
-        low:       s.day.l || price,
-        open:      s.day.o || price,
-        volume:    s.day.v || 0,
+        high: s.day.h || price, low: s.day.l || price,
+        open: s.day.o || price, volume: s.day.v || 0,
       };
     } else {
       needBars.push(t);
     }
   }
 
-  /* ---- Step 2: bars for everything snapshot missed -------- */
-  /* Batch size 4 to avoid rate-limiting on the free tier */
+  /* Step 2: bars for everything snapshot missed */
   const BATCH = 4;
   for (let i = 0; i < needBars.length; i += BATCH) {
     const batch = needBars.slice(i, i + BATCH);
-    const prices = await Promise.all(batch.map(t => getBarsPrice(t).then(p => ({ t, p }))));
-    for (const { t, p } of prices) {
+    const barData = await Promise.all(batch.map(t => getBarsPrice(t).then(p => ({ t, p }))));
+    for (const { t, p } of barData) {
       if (p && p.price > 0) result[t] = p;
     }
-    /* Small delay between batches so we don't hammer the API */
-    if (i + BATCH < needBars.length) {
-      await new Promise(res => setTimeout(res, 300));
-    }
+    if (i + BATCH < needBars.length) await new Promise(res => setTimeout(res, 250));
   }
 
-  /* ---- Step 3: hardcoded fallback for anything still missing */
+  /* Step 3: FALLBACK for any still missing */
   for (const t of tickers) {
     if (!result[t]) {
       const fb = FALLBACK[t];
       if (fb) {
         const chg = +(fb.price * fb.changePct / 100).toFixed(2);
         result[t] = {
-          price:     fb.price,
-          change:    chg,
-          changePct: fb.changePct,
-          high:      +(fb.price * 1.005).toFixed(2),
-          low:       +(fb.price * 0.995).toFixed(2),
-          open:      +(fb.price - chg).toFixed(2),
-          volume:    fb.volume,
+          price: fb.price, change: chg, changePct: fb.changePct,
+          high: +(fb.price * 1.005).toFixed(2), low: +(fb.price * 0.995).toFixed(2),
+          open: +(fb.price - chg).toFixed(2), volume: fb.volume,
         };
       }
     }
   }
-
   return result;
 }
 
@@ -243,8 +214,7 @@ async function fetchTop15(): Promise<Stock[]> {
       rank: 0, ticker: u.t, name: u.n, sector: u.s,
       price: lp.price, change: lp.change, changePct: lp.changePct,
       high: lp.high, low: lp.low, open: lp.open, volume: lp.volume,
-      floor, ceiling, conf,
-      score: calcScore(lp.changePct, lp.volume, conf),
+      floor, ceiling, conf, score: calcScore(lp.changePct, lp.volume, conf),
     };
   }).filter((r): r is Stock => r !== null);
 
@@ -253,29 +223,28 @@ async function fetchTop15(): Promise<Stock[]> {
   return rows.slice(0, 15);
 }
 
-/* -- Portfolio simulator -------------------------------------- */
+/* ---- Portfolio simulator ------------------------------------ */
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const picks = stocks.slice(0, 8);
   const tw = picks.reduce((s, p) => s + p.conf * Math.max(p.score + 60, 1), 0);
   return picks.map(p => {
-    const w       = (p.conf * Math.max(p.score + 60, 1)) / tw;
+    const w = (p.conf * Math.max(p.score + 60, 1)) / tw;
     const dollars = Math.round(cash * w * 100) / 100;
     const upside  = (((p.ceiling - p.price) / p.price) * 100).toFixed(1);
     return {
       ticker: p.ticker, name: p.name, price: p.price,
       dollars, shares: Math.floor(dollars / p.price),
       pct: +(w * 100).toFixed(1),
-      note: `${(w * 100).toFixed(1)}% x +${upside}% target x ${p.conf}% conf`,
+      note: `${(w * 100).toFixed(1)}% -- +${upside}% target -- ${p.conf}% conf`,
     };
   }).sort((a, b) => b.dollars - a.dollars);
 }
 
-/* -- Formatters ----------------------------------------------- */
+/* ---- Format & design ---------------------------------------- */
 const f$ = (n: number, d = 2) =>
   new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
-/* -- Design tokens -------------------------------------------- */
 const V = {
   d0:"#050810", dh:"rgba(30,45,64,0.85)",
   w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)",
@@ -286,20 +255,15 @@ const V = {
   gold:"#E8A030", ame:"#9B72F5",
 };
 const mono: React.CSSProperties = { fontFamily:"'Geist Mono','Courier New',monospace" };
-
 const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
   background: "linear-gradient(145deg,rgba(255,255,255,0.030) 0%,rgba(255,255,255,0.012) 100%)",
-  backdropFilter: "blur(24px) saturate(1.5)",
-  WebkitBackdropFilter: "blur(24px) saturate(1.5)",
-  border: `1px solid ${V.w2}`,
-  borderRadius: 14,
+  backdropFilter: "blur(24px) saturate(1.5)", WebkitBackdropFilter: "blur(24px) saturate(1.5)",
+  border: `1px solid ${V.w2}`, borderRadius: 14,
   boxShadow: "0 4px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
-  position: "relative" as const,
-  overflow: "hidden",
-  ...ex,
+  position: "relative" as const, overflow: "hidden", ...ex,
 });
 
-/* -- Sub-components ------------------------------------------- */
+/* ---- Sub-components ----------------------------------------- */
 function ConfBar({ pct }: { pct: number }) {
   const color = pct >= 80 ? V.gain : pct >= 65 ? V.gold : V.loss;
   return (
@@ -314,33 +278,27 @@ function ConfBar({ pct }: { pct: number }) {
 
 function YahooBtn({ ticker }: { ticker: string }) {
   return (
-    <a
-      href={`https://finance.yahoo.com/quote/${ticker}`}
-      target="_blank"
-      rel="noopener noreferrer"
+    <a href={`https://finance.yahoo.com/quote/${ticker}`} target="_blank" rel="noopener noreferrer"
       onClick={e => e.stopPropagation()}
-      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono','Courier New',monospace", whiteSpace:"nowrap", transition:"background 0.15s", flexShrink:0 }}
+      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", transition:"background 0.15s", flexShrink:0 }}
       onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.16)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.08)"; }}
     >
-      <ExternalLink size={8} />
-      Yahoo
+      <ExternalLink size={8} /> Yahoo
     </a>
   );
 }
 
-/* -- Simulator modal ------------------------------------------ */
+/* ---- Simulator modal ---------------------------------------- */
 function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void }) {
   const [cash, setCash] = useState("50000");
-  const num    = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
+  const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   const allocs = simulate(stocks, num);
   const total  = allocs.reduce((s, a) => s + a.dollars, 0);
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}
-    >
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"flex-end", justifyContent:"center", backdropFilter:"blur(4px)" }}>
       <div style={{ ...glass({ borderRadius:"18px 18px 0 0", boxShadow:"0 -20px 60px rgba(0,0,0,0.6)" }), width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -380,7 +338,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{f$(a.dollars)}</p>
-                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh / {a.pct}%</p>
+                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh -- {a.pct}%</p>
               </div>
             </div>
           ))}
@@ -411,15 +369,13 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
   const loadData = useCallback(async () => {
     const d = await fetchTop15();
-    setStocks(d);
-    setLoading(false);
+    setStocks(d); setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   const sorted = [...stocks].sort((a, b) => {
-    const av = a[sortCol] as number;
-    const bv = b[sortCol] as number;
+    const av = a[sortCol] as number, bv = b[sortCol] as number;
     return sortDir === "asc" ? av - bv : bv - av;
   });
 
@@ -438,10 +394,8 @@ export default function Top15({ onSelectTicker }: Top15Props) {
   );
 
   const ColH = ({ label, col, right }: { label: string; col: keyof Stock; right?: boolean }) => (
-    <th
-      onClick={() => toggle(col)}
-      style={{ ...mono, fontSize:9, color: sortCol === col ? "#7EB6FF" : V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", cursor:"pointer", userSelect:"none", textAlign: right ? "right" : "left", fontWeight: sortCol === col ? 500 : 400, whiteSpace:"nowrap", background:"rgba(5,8,16,0.75)" }}
-    >
+    <th onClick={() => toggle(col)}
+      style={{ ...mono, fontSize:9, color: sortCol === col ? "#7EB6FF" : V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", cursor:"pointer", userSelect:"none", textAlign: right ? "right" : "left", fontWeight: sortCol === col ? 500 : 400, whiteSpace:"nowrap", background:"rgba(5,8,16,0.75)" }}>
       <span style={{ display:"inline-flex", alignItems:"center", gap:3 }}>
         {label}
         {sortCol === col
@@ -462,7 +416,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
           <div>
             <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0, letterSpacing:"-0.01em" }}>Top 15 Stocks</h2>
             <p style={{ ...mono, color:V.ink4, fontSize:9, margin:0, marginTop:2, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Live prices from Polygon.io -- Click any row for full details
+              Real prices from Polygon.io -- Click any row for full details
             </p>
           </div>
         </div>
@@ -479,9 +433,9 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
         {[
           { icon:<TrendingUp size={13} color={V.gain} />,  label:"Bullish",        val:`${stocks.filter(s => s.changePct > 0).length}/${stocks.length}` },
-          { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${Math.round(stocks.reduce((s, x) => s + x.conf, 0) / (stocks.length || 1))}%` },
-          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Upside",     val:`+${(stocks.reduce((s, x) => s + ((x.ceiling - x.price) / x.price) * 100, 0) / (stocks.length || 1)).toFixed(1)}%` },
-          { icon:<Zap       size={13} color={V.ame} />,    label:"Sectors",        val:`${[...new Set(stocks.map(s => s.sector))].length} covered` },
+          { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${Math.round(stocks.reduce((s,x) => s+x.conf,0)/(stocks.length||1))}%` },
+          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Upside",     val:`+${(stocks.reduce((s,x) => s+((x.ceiling-x.price)/x.price)*100,0)/(stocks.length||1)).toFixed(1)}%` },
+          { icon:<Zap       size={13} color={V.ame} />,    label:"Sectors",        val:`${[...new Set(stocks.map(s=>s.sector))].length} covered` },
         ].map(s => (
           <div key={s.label} style={{ ...glass({ padding:"11px 14px", display:"flex", alignItems:"center", gap:10 }) }}>
             <div style={{ width:28, height:28, borderRadius:7, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{s.icon}</div>
@@ -511,18 +465,15 @@ export default function Top15({ onSelectTicker }: Top15Props) {
             </thead>
             <tbody>
               {sorted.map((s, idx) => {
-                const up      = s.changePct >= 0;
-                const sc      = SECTOR_HUE[s.sector] ?? "#7A9CBF";
-                const isH     = hovRow === s.ticker;
-                const clickable = !!onSelectTicker;
+                const up = s.changePct >= 0;
+                const sc = SECTOR_HUE[s.sector] ?? "#7A9CBF";
+                const isH = hovRow === s.ticker;
                 return (
-                  <tr
-                    key={s.ticker}
+                  <tr key={s.ticker}
                     onClick={() => onSelectTicker?.(s.ticker)}
                     onMouseEnter={() => setHovRow(s.ticker)}
                     onMouseLeave={() => setHovRow(null)}
-                    style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor: clickable ? "pointer" : "default" }}
-                  >
+                    style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor: onSelectTicker ? "pointer" : "default" }}>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <span style={{ ...mono, fontSize:12, color: idx < 3 ? V.gold : V.ink4, fontWeight:500 }}>
                         {idx === 0 ? "1st" : idx === 1 ? "2nd" : idx === 2 ? "3rd" : `#${s.rank}`}
@@ -534,7 +485,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                           <p style={{ ...mono, fontSize:13, fontWeight:500, color: isH ? "#93C5FD" : "#7EB6FF", letterSpacing:"-0.01em" }}>{s.ticker}</p>
                           <span style={{ ...mono, fontSize:8, padding:"1px 5px", borderRadius:4, background:`${sc}15`, color:sc, border:`1px solid ${sc}22` }}>{s.sector}</span>
                         </div>
-                        {isH && clickable && <ArrowRight size={13} color="#7EB6FF" style={{ flexShrink:0 }} />}
+                        {isH && onSelectTicker && <ArrowRight size={13} color="#7EB6FF" style={{ flexShrink:0 }} />}
                       </div>
                     </td>
                     <td style={{ padding:"13px 10px", fontSize:12, color:V.ink2, maxWidth:150 }}>
@@ -553,7 +504,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <p style={{ ...mono, fontSize:12, color:V.gain, fontWeight:500 }}>{f$(s.ceiling)}</p>
-                      <p style={{ ...mono, fontSize:9, color:V.ink4 }}>+{(((s.ceiling - s.price) / s.price) * 100).toFixed(1)}%</p>
+                      <p style={{ ...mono, fontSize:9, color:V.ink4 }}>+{(((s.ceiling-s.price)/s.price)*100).toFixed(1)}%</p>
                     </td>
                     <td style={{ padding:"13px 14px 13px 10px", minWidth:110 }}>
                       <ConfBar pct={s.conf} />
@@ -567,7 +518,6 @@ export default function Top15({ onSelectTicker }: Top15Props) {
             </tbody>
           </table>
         </div>
-
         {onSelectTicker && (
           <div style={{ padding:"10px 16px", borderTop:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:6 }}>
             <ArrowRight size={11} color={V.ink4} />
