@@ -105,15 +105,17 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Grain overlay — essential for the frosted glass illusion */
+/* Grain overlay — only on high-power devices */
+@media (min-width: 769px) and (prefers-reduced-motion: no-preference) {
 body::after {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.022;
+  opacity: 0.015;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
 }
 
 /* Radial vignette — adds depth */
@@ -426,3 +428,62 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
   }
   .vx-sidebar-show { display: block !important; }
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PERFORMANCE — disable heavy effects on low-power devices
+   Targets: MacBooks on battery, iPhones, older hardware
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Respect user's reduce-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Low-power / mobile devices — kill backdrop-filter blur entirely.
+   This is the #1 cause of low FPS on MacBooks and phones. */
+@media (max-width: 768px),
+       (prefers-reduced-motion: reduce) {
+  * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Replace glass backgrounds with solid equivalents */
+  [style*="backdrop-filter"],
+  [style*="WebkitBackdropFilter"] {
+    background: rgba(8, 13, 24, 0.97) !important;
+  }
+
+  /* Kill the grain overlay — it causes constant GPU repaints */
+  body::after { display: none !important; }
+
+  /* Simplify box shadows */
+  * { box-shadow: none !important; }
+}
+
+/* Also kill blur on any device that signals low power */
+@media (update: slow) {
+  * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Promote composited layers for smoother scrolling */
+.vx-main {
+  will-change: scroll-position;
+  transform: translateZ(0);
+}
+
+/* Contain repaints to individual cards */
+[style*="borderRadius: 16"],
+[style*="borderRadius: 14"] {
+  contain: layout style;
+}
+

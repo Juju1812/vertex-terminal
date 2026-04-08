@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 
@@ -14,6 +14,7 @@ interface AggBar {
 }
 
 interface StockAnalysis {
+  rank: number;
   ticker: string;
   name: string;
   sector: string;
@@ -24,17 +25,14 @@ interface StockAnalysis {
   high: number;
   low: number;
   open: number;
-  // Technical indicators
   rsi: number;
   sma20: number;
   sma50: number;
-  volumeAvg20: number;
   volumeRatio: number;
   momentum5d: number;
   momentum20d: number;
   support: number;
   resistance: number;
-  // AI output
   signal: "STRONG BUY" | "BUY" | "HOLD" | "SELL" | "STRONG SELL";
   confidence: number;
   targetPrice: number;
@@ -340,13 +338,14 @@ export async function POST(req: NextRequest) {
       };
     }).filter(s => s.price > 0);
 
-    // Step 4: Run Claude AI analysis in two batches of 10
-    const half = Math.ceil(techData.length / 2);
-    const [aiResults1, aiResults2] = await Promise.all([
-      runClaudeAnalysis(techData.slice(0, half)),
-      runClaudeAnalysis(techData.slice(half)),
+    // Step 4: Run Claude AI analysis in 3 parallel batches
+    const third = Math.ceil(techData.length / 3);
+    const [aiResults1, aiResults2, aiResults3] = await Promise.all([
+      runClaudeAnalysis(techData.slice(0, third)),
+      runClaudeAnalysis(techData.slice(third, third * 2)),
+      runClaudeAnalysis(techData.slice(third * 2)),
     ]);
-    const aiResults = { ...aiResults1, ...aiResults2 };
+    const aiResults = { ...aiResults1, ...aiResults2, ...aiResults3 };
 
     // Step 5: Build final stock objects
     const stocks: StockAnalysis[] = techData.map(s => {
@@ -365,6 +364,7 @@ export async function POST(req: NextRequest) {
 
       return {
         ...s,
+        rank: 0,
         signal, confidence, targetPrice, thesis, risks, tags,
         score, floor, ceiling,
       };
@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
 
     // Step 6: Sort by score descending, add rank
     stocks.sort((a, b) => b.score - a.score);
-    stocks.forEach((s, i) => { s.rank = i + 1; (s as StockAnalysis & { rank: number }).rank = i + 1; });
+    stocks.forEach((s, i) => { s.rank = i + 1; });
 
     return NextResponse.json({ stocks: stocks.slice(0, 15), analyzedAt: new Date().toISOString() });
 
@@ -380,9 +380,4 @@ export async function POST(req: NextRequest) {
     console.error("Analyze error:", err);
     return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
   }
-}
-
-// Add rank to StockAnalysis
-declare module "./route" {
-  interface StockAnalysis { rank: number; }
 }

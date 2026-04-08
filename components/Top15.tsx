@@ -30,28 +30,78 @@ interface Alloc {
 
 interface Top15Props { onSelectTicker?: (ticker: string) => void; }
 
-/* ---- Universe ---------------------------------------------- */
+/* ---- Universe of 60 stocks --------------------------------- */
+/* Includes large-cap NYSE/NASDAQ, popular OTC, ADRs, mid-caps  */
 const UNI = [
-  { t:"NVDA",  n:"NVIDIA Corp.",         s:"Technology" },
-  { t:"MSFT",  n:"Microsoft Corp.",       s:"Technology" },
-  { t:"AAPL",  n:"Apple Inc.",            s:"Technology" },
-  { t:"META",  n:"Meta Platforms",        s:"Technology" },
-  { t:"GOOGL", n:"Alphabet Inc.",         s:"Technology" },
-  { t:"AMZN",  n:"Amazon.com",            s:"Consumer"   },
-  { t:"AMD",   n:"Advanced Micro Dev.",   s:"Technology" },
-  { t:"PLTR",  n:"Palantir Tech.",        s:"Technology" },
-  { t:"JPM",   n:"JPMorgan Chase",        s:"Financials" },
-  { t:"V",     n:"Visa Inc.",             s:"Financials" },
-  { t:"UNH",   n:"UnitedHealth Group",    s:"Healthcare" },
-  { t:"LLY",   n:"Eli Lilly & Co.",       s:"Healthcare" },
-  { t:"TSLA",  n:"Tesla Inc.",            s:"Consumer"   },
-  { t:"ORCL",  n:"Oracle Corp.",          s:"Technology" },
-  { t:"CRWD",  n:"CrowdStrike",           s:"Technology" },
-  { t:"PANW",  n:"Palo Alto Networks",    s:"Technology" },
-  { t:"AVGO",  n:"Broadcom Inc.",         s:"Technology" },
-  { t:"CRM",   n:"Salesforce Inc.",       s:"Technology" },
-  { t:"NOW",   n:"ServiceNow Inc.",       s:"Technology" },
-  { t:"COIN",  n:"Coinbase Global",       s:"Financials" },
+  /* ---- Large Cap Tech ---- */
+  { t:"NVDA",  n:"NVIDIA Corp.",           s:"Technology"  },
+  { t:"MSFT",  n:"MICROSOFT Corp.",         s:"Technology"  },
+  { t:"AAPL",  n:"Apple Inc.",              s:"Technology"  },
+  { t:"META",  n:"Meta Platforms",          s:"Technology"  },
+  { t:"GOOGL", n:"Alphabet Inc.",           s:"Technology"  },
+  { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
+  { t:"AMD",   n:"Advanced Micro Dev.",     s:"Technology"  },
+  { t:"AVGO",  n:"Broadcom Inc.",           s:"Technology"  },
+  { t:"ORCL",  n:"Oracle Corp.",            s:"Technology"  },
+  { t:"CRM",   n:"Salesforce Inc.",         s:"Technology"  },
+  { t:"NOW",   n:"ServiceNow Inc.",         s:"Technology"  },
+  { t:"ADBE",  n:"Adobe Inc.",              s:"Technology"  },
+  { t:"INTC",  n:"Intel Corp.",             s:"Technology"  },
+  { t:"QCOM",  n:"Qualcomm Inc.",           s:"Technology"  },
+  /* ---- Financials ---- */
+  { t:"JPM",   n:"JPMorgan Chase",          s:"Financials"  },
+  { t:"V",     n:"Visa Inc.",               s:"Financials"  },
+  { t:"MA",    n:"Mastercard Inc.",         s:"Financials"  },
+  { t:"BAC",   n:"Bank of America",         s:"Financials"  },
+  { t:"GS",    n:"Goldman Sachs",           s:"Financials"  },
+  { t:"COIN",  n:"Coinbase Global",         s:"Financials"  },
+  /* ---- Consumer / EV ---- */
+  { t:"TSLA",  n:"Tesla Inc.",              s:"Consumer"    },
+  { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
+  { t:"NKE",   n:"Nike Inc.",               s:"Consumer"    },
+  { t:"SBUX",  n:"Starbucks Corp.",         s:"Consumer"    },
+  { t:"RIVN",  n:"Rivian Automotive",       s:"Consumer"    },
+  { t:"LCID",  n:"Lucid Group",             s:"Consumer"    },
+  /* ---- Healthcare / Biotech ---- */
+  { t:"UNH",   n:"UnitedHealth Group",      s:"Healthcare"  },
+  { t:"LLY",   n:"Eli Lilly & Co.",         s:"Healthcare"  },
+  { t:"PFE",   n:"Pfizer Inc.",             s:"Healthcare"  },
+  { t:"MRNA",  n:"Moderna Inc.",            s:"Healthcare"  },
+  { t:"ABBV",  n:"AbbVie Inc.",             s:"Healthcare"  },
+  { t:"NVO",   n:"Novo Nordisk (ADR)",      s:"Healthcare"  },
+  /* ---- Cybersecurity / AI ---- */
+  { t:"PLTR",  n:"Palantir Tech.",          s:"Technology"  },
+  { t:"CRWD",  n:"CrowdStrike",             s:"Technology"  },
+  { t:"PANW",  n:"Palo Alto Networks",      s:"Technology"  },
+  { t:"S",     n:"SentinelOne",             s:"Technology"  },
+  { t:"NET",   n:"Cloudflare Inc.",         s:"Technology"  },
+  { t:"SNOW",  n:"Snowflake Inc.",          s:"Technology"  },
+  /* ---- Energy ---- */
+  { t:"XOM",   n:"ExxonMobil Corp.",        s:"Energy"      },
+  { t:"CVX",   n:"Chevron Corp.",           s:"Energy"      },
+  { t:"OXY",   n:"Occidental Petroleum",    s:"Energy"      },
+  /* ---- International ADRs (OTC) ---- */
+  { t:"TCEHY", n:"Tencent Holdings (ADR)",  s:"Technology"  },
+  { t:"BABA",  n:"Alibaba Group (ADR)",     s:"Consumer"    },
+  { t:"BIDU",  n:"Baidu Inc. (ADR)",        s:"Technology"  },
+  { t:"TSM",   n:"Taiwan Semi (ADR)",       s:"Technology"  },
+  { t:"ASML",  n:"ASML Holding (ADR)",      s:"Technology"  },
+  { t:"SAP",   n:"SAP SE (ADR)",            s:"Technology"  },
+  { t:"SONY",  n:"Sony Group (ADR)",        s:"Consumer"    },
+  { t:"TM",    n:"Toyota Motor (ADR)",      s:"Consumer"    },
+  { t:"NSRGY", n:"Nestle SA (ADR)",         s:"Consumer"    },
+  { t:"RHHBY", n:"Roche Holding (ADR)",     s:"Healthcare"  },
+  /* ---- Popular OTC / Penny / Speculative ---- */
+  { t:"ACMIF", n:"Allied Critical Metals",  s:"Materials"   },
+  { t:"BTQQF", n:"BTQ Technologies",        s:"Technology"  },
+  { t:"CRCUF", n:"Calibre Mining",          s:"Materials"   },
+  { t:"GBTC",  n:"Grayscale Bitcoin Trust", s:"Financials"  },
+  { t:"ETHE",  n:"Grayscale Ethereum Tr.",  s:"Financials"  },
+  { t:"MSTR",  n:"MicroStrategy Inc.",      s:"Technology"  },
+  { t:"SIRI",  n:"Sirius XM Holdings",      s:"Consumer"    },
+  { t:"CTRM",  n:"Castor Maritime",         s:"Industrials" },
+  { t:"IDEX",  n:"Ideanomics Inc.",         s:"Consumer"    },
+  { t:"NKLA",  n:"Nikola Corp.",            s:"Consumer"    },
 ];
 
 const SECTOR_HUE: Record<string, string> = {
@@ -457,7 +507,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         <Brain size={22} color="#9B72F5" />
         <div>
           <p style={{ color:"#F2F6FF", fontWeight:600, fontSize:14, margin:0 }}>AI is analyzing {UNI.length} stocks...</p>
-          <p style={{ color:"#3D5A7A", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~15 seconds.</p>
+          <p style={{ color:"#3D5A7A", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~20-30 seconds.</p>
         </div>
       </div>
       {[200, 60, 60, 60, 60, 60].map((h, i) => (
