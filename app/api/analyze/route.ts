@@ -107,20 +107,6 @@ async function fetchNews(ticker: string): Promise<string[]> {
   } catch { return []; }
 }
 
-async function fetchSnapshot(ticker: string): Promise<{ price: number; change: number; changePct: number; high: number; low: number; open: number; volume: number } | null> {
-  try {
-    const r = await fetch(
-      `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}?apiKey=${POLYGON_KEY}`
-    );
-    if (!r.ok) return null;
-    const d = await r.json() as { ticker?: { day: { c: number; h: number; l: number; o: number; v: number }; prevDay: { c: number } } };
-    const t = d.ticker;
-    if (!t || !t.day?.c || !t.prevDay?.c) return null;
-    const price = t.day.c, prev = t.prevDay.c, chg = price - prev;
-    return { price, change: +chg.toFixed(2), changePct: +((chg / prev) * 100).toFixed(2), high: t.day.h, low: t.day.l, open: t.day.o, volume: t.day.v };
-  } catch { return null; }
-}
-
 /* ---- Run Claude AI analysis -------------------------------- */
 async function runClaudeAnalysis(stocks: {
   ticker: string; name: string; sector: string;
@@ -282,44 +268,65 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
     }
 
-    // Step 1: Fetch all price data in parallel (batched)
-    const BATCH = 4;
-    const allBars: Record<string, AggBar[]> = {};
-    const allSnapshots: Record<string, { price: number; change: number; changePct: number; high: number; low: number; open: number; volume: number } | null> = {};
+    const tickerList = tickers.map(t => t.t);
 
-    for (let i = 0; i < tickers.length; i += BATCH) {
-      const batch = tickers.slice(i, i + BATCH);
-      const results = await Promise.all(
-        batch.map(async ({ t }) => ({
-          ticker: t,
-          bars: await fetchBars(t, 90),
-          snapshot: await fetchSnapshot(t),
-        }))
+    // Step 1: Bulk snapshot for ALL tickers in ONE request (fast)
+    let snapMap: Record<string, { price: number; change: number; changePct: number; high: number; low: number; open: number; volume: number }> = {};
+    try {
+      const snapRes = await fetch(
+        `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickerList.join(",")}&apiKey=${POLYGON_KEY}`
       );
-      for (const r of results) {
-        allBars[r.ticker] = r.bars;
-        allSnapshots[r.ticker] = r.snapshot;
+      if (snapRes.ok) {
+        const snapData = await snapRes.json() as { tickers?: Array<{ ticker: string; day: { c: number; h: number; l: number; o: number; v: number }; prevDay: { c: number } }> };
+        for (const s of snapData.tickers ?? []) {
+          if (s.day?.c > 0 && s.prevDay?.c > 0) {
+            const chg = s.day.c - s.prevDay.c;
+            snapMap[s.ticker] = {
+              price: s.day.c, change: +chg.toFixed(2),
+              changePct: +((chg / s.prevDay.c) * 100).toFixed(2),
+              high: s.day.h, low: s.day.l, open: s.day.o, volume: s.day.v,
+            };
+          }
+        }
       }
-      if (i + BATCH < tickers.length) await new Promise(res => setTimeout(res, 300));
+    } catch { /* ignore */ }
+
+    // Step 2: For tickers missing from snapshot, fetch bars in parallel (no delays)
+    const needBars = tickerList.filter(t => !snapMap[t]);
+    const allBars: Record<string, AggBar[]> = {};
+
+    if (needBars.length > 0) {
+      const barResults = await Promise.all(
+        needBars.map(t => fetchBars(t, 90).then(bars => ({ t, bars })))
+      );
+      for (const { t, bars } of barResults) {
+        allBars[t] = bars;
+      }
     }
 
-    // Step 2: Fetch news in parallel
+    // Step 3: Only fetch news for tickers that have price data
+    const hasPrice = tickerList.filter(t => {
+      if (snapMap[t]) return true;
+      const bars = allBars[t] ?? [];
+      return bars.length >= 1;
+    });
+
+    // Fetch news in parallel for all priced stocks
     const newsResults = await Promise.all(
-      tickers.map(async ({ t }) => ({ ticker: t, news: await fetchNews(t) }))
+      hasPrice.map(t => fetchNews(t).then(news => ({ t, news })))
     );
     const allNews: Record<string, string[]> = {};
-    for (const n of newsResults) allNews[n.ticker] = n.news;
+    for (const { t, news } of newsResults) allNews[t] = news;
 
-    // Step 3: Calculate technical indicators for each stock
+    // Step 4: Calculate technical indicators
     const techData = tickers.map(({ t, n, s }) => {
-      const bars    = allBars[t] ?? [];
-      const snap    = allSnapshots[t];
-      const closes  = bars.map(b => b.c);
+      const snap   = snapMap[t];
+      const bars   = allBars[t] ?? [];
+      const closes = bars.map(b => b.c);
       const volumes = bars.map(b => b.v);
 
-      // Price from snapshot (live) or last bar
       let price = 0, change = 0, changePct = 0, high = 0, low = 0, open = 0, volume = 0;
-      if (snap && snap.price > 0) {
+      if (snap) {
         ({ price, change, changePct, high, low, open, volume } = snap);
       } else if (bars.length >= 1) {
         const last = bars[bars.length - 1];
@@ -349,7 +356,9 @@ export async function POST(req: NextRequest) {
       };
     }).filter(s => s.price > 0);
 
-    // Step 4: Run Claude AI analysis in 3 parallel batches
+    console.log(`Analyzing ${techData.length} stocks with price data`);
+
+    // Step 5: Run Claude AI analysis in 3 parallel batches
     const third = Math.ceil(techData.length / 3);
     const [aiResults1, aiResults2, aiResults3] = await Promise.all([
       runClaudeAnalysis(techData.slice(0, third)),
@@ -358,7 +367,7 @@ export async function POST(req: NextRequest) {
     ]);
     const aiResults = { ...aiResults1, ...aiResults2, ...aiResults3 };
 
-    // Step 5: Build final stock objects
+    // Step 6: Build final stock objects
     const stocks: StockAnalysis[] = techData.map(s => {
       const ai = aiResults[s.ticker];
       const signal    = (ai?.signal as StockAnalysis["signal"]) ?? "HOLD";
@@ -368,10 +377,8 @@ export async function POST(req: NextRequest) {
       const risks     = ai?.risks ?? "Market risk and macro uncertainty.";
       const tags      = ai?.tags ?? [];
       const score     = calcScore(s.rsi, s.momentum5d, s.momentum20d, s.volumeRatio, signal, confidence);
-
-      // Floor/ceiling based on support/resistance + AI target
-      const floor   = +(Math.min(s.support, s.price * 0.94)).toFixed(2);
-      const ceiling = +(Math.max(s.resistance, targetPrice)).toFixed(2);
+      const floor     = +(Math.min(s.support > 0 ? s.support : s.price * 0.94, s.price * 0.94)).toFixed(2);
+      const ceiling   = +(Math.max(s.resistance > 0 ? s.resistance : s.price * 1.08, targetPrice)).toFixed(2);
 
       return {
         ...s,
@@ -381,7 +388,6 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Step 6: Sort by score descending, add rank
     stocks.sort((a, b) => b.score - a.score);
     stocks.forEach((s, i) => { s.rank = i + 1; });
 

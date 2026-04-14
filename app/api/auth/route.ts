@@ -11,6 +11,10 @@ function hash(pw: string, salt: string) {
 
 async function findUser(email: string) {
   const r = await fetch(`${URL_}/rest/v1/portfolios?email=eq.${encodeURIComponent(email)}&select=*`, { headers: HDR });
+  if (!r.ok) {
+    console.error("findUser failed:", r.status, await r.text());
+    return null;
+  }
   const d = await r.json() as Record<string, unknown>[];
   return d?.[0] ?? null;
 }
@@ -21,6 +25,9 @@ async function createUser(email: string, passwordHash: string, token: string) {
     headers: { ...HDR, "Prefer": "return=representation" },
     body: JSON.stringify({ email, password_hash: passwordHash, token, holdings: [] }),
   });
+  if (!r.ok) {
+    console.error("createUser failed:", r.status, await r.text());
+  }
   return r.ok;
 }
 
