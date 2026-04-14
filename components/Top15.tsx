@@ -138,7 +138,10 @@ function nextMarketOpen(): string {
 
 /* ---- Portfolio simulator ----------------------------------- */
 function simulate(stocks: Stock[], cash: number): Alloc[] {
-  const buys = stocks.filter(s => s.signal === "STRONG BUY" || s.signal === "BUY").slice(0, 8);
+  const buys = stocks.filter(s =>
+    (s.signal === "STRONG BUY" || s.signal === "BUY") &&
+    s.price > 0 && s.targetPrice > 0 && !isNaN(s.targetPrice)
+  ).slice(0, 8);
   if (!buys.length) return [];
   const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
   return buys.map(p => {
@@ -234,8 +237,8 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
             {[
               { l:"Price",     v:f$(stock.price),       c:V.ink0  },
-              { l:"Target",    v:f$(stock.targetPrice),  c:sig.color },
-              { l:"Upside",    v:fp(((stock.targetPrice - stock.price) / stock.price) * 100), c: stock.targetPrice > stock.price ? V.gain : V.loss },
+              { l:"Target",    v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? f$(stock.targetPrice) : "--", c:sig.color },
+              { l:"Upside",    v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? fp(((stock.targetPrice - stock.price) / stock.price) * 100) : "--", c: stock.targetPrice > stock.price ? V.gain : V.loss },
             ].map(s => (
               <div key={s.l} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"12px 14px" }}>
                 <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{s.l}</p>
@@ -626,7 +629,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                 const isH = hovRow === s.ticker;
                 return (
                   <tr key={s.ticker}
-                    onClick={() => setSelected(s)}
+                    onClick={() => onSelectTicker ? onSelectTicker(s.ticker) : setSelected(s)}
                     onMouseEnter={() => setHovRow(s.ticker)}
                     onMouseLeave={() => setHovRow(null)}
                     style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor:"pointer" }}>
@@ -657,8 +660,14 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                       <span style={{ ...mono, fontSize:11, color: up ? V.gain : V.loss }}>{fp(s.changePct)}</span>
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
-                      <p style={{ ...mono, fontSize:12, color: s.targetPrice > s.price ? V.gain : V.loss, fontWeight:500 }}>{f$(s.targetPrice)}</p>
-                      <p style={{ ...mono, fontSize:9, color:V.ink4 }}>{fp(((s.targetPrice - s.price) / s.price) * 100)}</p>
+                      {s.targetPrice > 0 && !isNaN(s.targetPrice) ? (
+                        <>
+                          <p style={{ ...mono, fontSize:12, color: s.targetPrice > s.price ? V.gain : V.loss, fontWeight:500 }}>{f$(s.targetPrice)}</p>
+                          <p style={{ ...mono, fontSize:9, color:V.ink4 }}>{fp(((s.targetPrice - s.price) / s.price) * 100)}</p>
+                        </>
+                      ) : (
+                        <p style={{ ...mono, fontSize:11, color:V.ink4 }}>--</p>
+                      )}
                     </td>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <span style={{ ...mono, fontSize:11, color: s.rsi < 30 ? V.gain : s.rsi > 70 ? V.loss : V.ink2 }}>{s.rsi}</span>
@@ -667,7 +676,15 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                       <ConfBar pct={s.confidence} color={sig.color} />
                     </td>
                     <td style={{ padding:"8px 10px", textAlign:"center" }}>
-                      <YahooBtn ticker={s.ticker} />
+                      <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"center" }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setSelected(s); }}
+                          title="View AI Analysis"
+                          style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(155,114,245,0.08)", border:"1px solid rgba(155,114,245,0.18)", color:"#9B72F5", fontSize:9, fontFamily:"'Geist Mono',monospace", cursor:"pointer", whiteSpace:"nowrap" }}>
+                          <Brain size={8} /> AI
+                        </button>
+                        <YahooBtn ticker={s.ticker} />
+                      </div>
                     </td>
                   </tr>
                 );

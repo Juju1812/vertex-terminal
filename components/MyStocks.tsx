@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
@@ -318,6 +318,7 @@ export default function MyStocks() {
   const [shares,  setShares] = useState("");
   const [bp,      setBp]     = useState("");
   const [err,     setErr]    = useState("");
+  const loadedRef = useRef(false);
 
   /* Load auth on mount */
   useEffect(() => {
@@ -328,29 +329,44 @@ export default function MyStocks() {
         setUser(u);
         fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`)
           .then(r => r.json())
-          .then((d: { holdings?: H[] }) => { if (d.holdings) setH(d.holdings); })
-          .catch(() => { /**/ });
+          .then((d: { holdings?: H[]; error?: string }) => {
+            if (d.holdings) {
+              setH(d.holdings);
+            } else {
+              console.error("Portfolio load error:", d.error);
+            }
+            loadedRef.current = true;
+          })
+          .catch((e) => {
+            console.error("Portfolio fetch failed:", e);
+            loadedRef.current = true;
+          });
       } else {
         const s = localStorage.getItem(SK);
         if (s) setH(JSON.parse(s));
+        loadedRef.current = true;
       }
-    } catch { /**/ }
+    } catch {
+      loadedRef.current = true;
+    }
   }, []);
 
-  /* Save holdings */
+  /* Save holdings - only after initial load to prevent overwriting with empty array */
   const saveCloudHoldings = useCallback(async (u: AuthUser, h: H[]) => {
     setSyncing(true);
     try {
-      await fetch("/api/portfolio", {
+      const r = await fetch("/api/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: u.email, token: u.token, holdings: h }),
       });
-    } catch { /**/ }
+      if (!r.ok) console.error("Save failed:", r.status, await r.text());
+    } catch (e) { console.error("Save error:", e); }
     setSyncing(false);
   }, []);
 
   useEffect(() => {
+    if (!loadedRef.current) return; // Don't save before initial load completes
     if (user) {
       saveCloudHoldings(user, holdings);
     } else {

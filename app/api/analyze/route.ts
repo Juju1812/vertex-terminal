@@ -372,9 +372,10 @@ export async function POST(req: NextRequest) {
     // Step 6: Build final stock objects
     const stocks: StockAnalysis[] = techData.map(s => {
       const ai = aiResults[s.ticker];
-      const signal    = (ai?.signal as StockAnalysis["signal"]) ?? "HOLD";
+      const signal     = (ai?.signal as StockAnalysis["signal"]) ?? "HOLD";
       const confidence = ai?.confidence ?? 50;
-      const targetPrice = ai?.targetPrice ?? +(s.price * 1.05).toFixed(2);
+      const rawTarget  = ai?.targetPrice ?? 0;
+      const targetPrice = rawTarget > 0 ? rawTarget : +(s.price * 1.05).toFixed(2);
       const thesis    = ai?.thesis ?? "Insufficient data for analysis.";
       const risks     = ai?.risks ?? "Market risk and macro uncertainty.";
       const tags      = ai?.tags ?? [];
