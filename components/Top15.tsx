@@ -140,7 +140,7 @@ function nextMarketOpen(): string {
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const buys = stocks.filter(s =>
     (s.signal === "STRONG BUY" || s.signal === "BUY") &&
-    s.price > 0 && s.targetPrice > 0 && !isNaN(s.targetPrice) && !isNaN(s.price)
+    s.price > 0 && !isNaN(s.price)
   ).slice(0, 8);
   if (!buys.length) return [];
   const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
@@ -153,7 +153,7 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
       ticker: p.ticker, name: p.name, price: p.price,
       dollars, shares,
       pct: +(w * 100).toFixed(1),
-      note: `${(w * 100).toFixed(1)}% -- target $${p.targetPrice.toFixed(0)} -- ${p.confidence}% conf`,
+      note: `${(w * 100).toFixed(1)}% — ${p.targetPrice > 0 && !isNaN(p.targetPrice) ? "target $" + p.targetPrice.toFixed(0) : "no target"} — ${p.confidence}% conf`,
     };
   }).sort((a, b) => b.dollars - a.dollars);
 }

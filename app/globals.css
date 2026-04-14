@@ -460,10 +460,6 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
     border-radius: 16px 16px 0 0 !important;
   }
 
-  /* Modal overlay ??? align to bottom on mobile ?????? */
-  [style*="alignItems:\"center\""][style*="position:\"fixed\""] {
-    align-items: flex-end !important;
-  }
 
   /* ?????? Cards ??? reduce padding ?????? */
   [style*="padding: 24px"],
