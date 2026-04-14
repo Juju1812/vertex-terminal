@@ -31,15 +31,13 @@ interface Alloc {
 interface Top15Props { onSelectTicker?: (ticker: string) => void; }
 
 /* ---- Universe of 60 stocks --------------------------------- */
-/* Includes large-cap NYSE/NASDAQ, popular OTC, ADRs, mid-caps  */
 const UNI = [
   /* ---- Large Cap Tech ---- */
   { t:"NVDA",  n:"NVIDIA Corp.",           s:"Technology"  },
-  { t:"MSFT",  n:"MICROSOFT Corp.",         s:"Technology"  },
+  { t:"MSFT",  n:"Microsoft Corp.",         s:"Technology"  },
   { t:"AAPL",  n:"Apple Inc.",              s:"Technology"  },
   { t:"META",  n:"Meta Platforms",          s:"Technology"  },
   { t:"GOOGL", n:"Alphabet Inc.",           s:"Technology"  },
-  { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
   { t:"AMD",   n:"Advanced Micro Dev.",     s:"Technology"  },
   { t:"AVGO",  n:"Broadcom Inc.",           s:"Technology"  },
   { t:"ORCL",  n:"Oracle Corp.",            s:"Technology"  },
@@ -56,8 +54,8 @@ const UNI = [
   { t:"GS",    n:"Goldman Sachs",           s:"Financials"  },
   { t:"COIN",  n:"Coinbase Global",         s:"Financials"  },
   /* ---- Consumer / EV ---- */
-  { t:"TSLA",  n:"Tesla Inc.",              s:"Consumer"    },
   { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
+  { t:"TSLA",  n:"Tesla Inc.",              s:"Consumer"    },
   { t:"NKE",   n:"Nike Inc.",               s:"Consumer"    },
   { t:"SBUX",  n:"Starbucks Corp.",         s:"Consumer"    },
   { t:"RIVN",  n:"Rivian Automotive",       s:"Consumer"    },
@@ -91,16 +89,13 @@ const UNI = [
   { t:"TM",    n:"Toyota Motor (ADR)",      s:"Consumer"    },
   { t:"NSRGY", n:"Nestle SA (ADR)",         s:"Consumer"    },
   { t:"RHHBY", n:"Roche Holding (ADR)",     s:"Healthcare"  },
-  /* ---- Popular OTC / Penny / Speculative ---- */
+  /* ---- OTC / Speculative ---- */
   { t:"ACMIF", n:"Allied Critical Metals",  s:"Materials"   },
   { t:"BTQQF", n:"BTQ Technologies",        s:"Technology"  },
   { t:"CRCUF", n:"Calibre Mining",          s:"Materials"   },
   { t:"GBTC",  n:"Grayscale Bitcoin Trust", s:"Financials"  },
-  { t:"ETHE",  n:"Grayscale Ethereum Tr.",  s:"Financials"  },
   { t:"MSTR",  n:"MicroStrategy Inc.",      s:"Technology"  },
   { t:"SIRI",  n:"Sirius XM Holdings",      s:"Consumer"    },
-  { t:"CTRM",  n:"Castor Maritime",         s:"Industrials" },
-  { t:"IDEX",  n:"Ideanomics Inc.",         s:"Consumer"    },
   { t:"NKLA",  n:"Nikola Corp.",            s:"Consumer"    },
 ];
 
@@ -529,7 +524,12 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
   const buyCount      = stocks.filter(s => s.signal === "STRONG BUY" || s.signal === "BUY").length;
   const avgConf       = Math.round(stocks.reduce((s, x) => s + x.confidence, 0) / (stocks.length || 1));
-  const avgUpside     = (stocks.filter(s => s.signal === "BUY" || s.signal === "STRONG BUY").reduce((s, x) => s + ((x.targetPrice - x.price) / x.price) * 100, 0) / (buyCount || 1)).toFixed(1);
+  const avgUpside = buyCount > 0 ? (() => {
+    const buyStocks = stocks.filter(s => (s.signal === "BUY" || s.signal === "STRONG BUY") && s.price > 0 && s.targetPrice > 0);
+    if (!buyStocks.length) return null;
+    const avg = buyStocks.reduce((sum, x) => sum + ((x.targetPrice - x.price) / x.price) * 100, 0) / buyStocks.length;
+    return isNaN(avg) ? null : avg.toFixed(1);
+  })() : null;
 
   return (
     <div style={{ padding:"20px 16px", maxWidth:1280, margin:"0 auto" }}>
@@ -587,7 +587,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         {[
           { icon:<TrendingUp size={13} color={V.gain} />,  label:"Buy Signals",    val:`${buyCount}/${stocks.length}` },
           { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${avgConf}%` },
-          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Buy Upside", val:`+${avgUpside}%` },
+          { icon:<Target    size={13} color={V.gold} />,   label:"Avg Buy Upside", val: avgUpside ? `+${avgUpside}%` : "N/A" },
           { icon:<Brain     size={13} color={V.ame} />,    label:"AI Model",       val:"Claude Opus" },
         ].map(s => (
           <div key={s.label} style={{ ...glass({ padding:"11px 14px", display:"flex", alignItems:"center", gap:10 }) }}>

@@ -73,13 +73,15 @@ function calcMomentum(closes: number[], days: number): number {
 }
 
 function calcSupport(bars: AggBar[]): number {
-  const lows = bars.slice(-20).map(b => b.l);
-  return +Math.min(...lows).toFixed(2);
+  if (!bars.length) return 0;
+  const lows = bars.slice(-20).map(b => b.l).filter(v => v > 0);
+  return lows.length ? +Math.min(...lows).toFixed(2) : 0;
 }
 
 function calcResistance(bars: AggBar[]): number {
-  const highs = bars.slice(-20).map(b => b.h);
-  return +Math.max(...highs).toFixed(2);
+  if (!bars.length) return 0;
+  const highs = bars.slice(-20).map(b => b.h).filter(v => v > 0);
+  return highs.length ? +Math.max(...highs).toFixed(2) : 0;
 }
 
 /* ---- Polygon helpers --------------------------------------- */
