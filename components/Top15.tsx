@@ -179,7 +179,7 @@ const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
   backdropFilter: "blur(24px) saturate(1.5)", WebkitBackdropFilter: "blur(24px) saturate(1.5)",
   border: `1px solid ${V.w2}`, borderRadius: 14,
   boxShadow: "0 4px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
-  position: "relative" as const, overflow: "hidden", ...ex,
+  ...ex, position: "relative" as const,
 });
 
 /* ---- ConfBar ----------------------------------------------- */
@@ -215,7 +215,7 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
-      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
+      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto", display:"flex", flexDirection:"column" }}>
 
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -319,7 +319,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
-      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
+      <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto", display:"flex", flexDirection:"column" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -589,7 +589,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       </div>
 
       {/* Stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
+      <div className="top15-stats" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
         {[
           { icon:<TrendingUp size={13} color={V.gain} />,  label:"Buy Signals",    val:`${buyCount}/${stocks.length}` },
           { icon:<Shield    size={13} color="#7EB6FF" />,  label:"Avg Confidence", val:`${avgConf}%` },
@@ -608,8 +608,8 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
       {/* Table */}
       <div style={{ ...glass({ overflow:"hidden" }) }}>
-        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:720 }}>
+        <div className="top15-table-wrap" style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
             <thead>
               <tr style={{ borderBottom:`1px solid ${V.w1}` }}>
                 <ColH label="Rank"       col="rank" />
