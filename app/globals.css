@@ -452,24 +452,9 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
     grid-template-columns: 1fr 1fr !important;
   }
 
-  /* ?????? Modals ??? full screen on mobile ?????? */
-  [style*="maxWidth: 680"],
-  [style*="maxWidth:680"] {
-    max-width: 100% !important;
-    margin: 0 !important;
-    border-radius: 16px 16px 0 0 !important;
-  }
 
 
   /* ?????? Cards ??? reduce padding ?????? */
-  [style*="padding: 24px"],
-  [style*="padding:24px"] {
-    padding: 14px !important;
-  }
-  [style*="padding: 20px"],
-  [style*="padding:20px"] {
-    padding: 12px !important;
-  }
 
   /* ?????? Typography ?????? */
   h2 { font-size: 16px !important; }
