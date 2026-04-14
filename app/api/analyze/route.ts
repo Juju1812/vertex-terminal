@@ -184,9 +184,18 @@ Guidelines:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-haiku-4-5",
         max_tokens: 8000,
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          },
+          {
+            role: "assistant",
+            content: '{"analyses":['
+          }
+        ],
       }),
     });
 
@@ -203,24 +212,25 @@ Guidelines:
       return {};
     }
 
-    const text = data.content?.find(c => c.type === "text")?.text ?? "";
-    console.log("Claude response preview:", text.slice(0, 200));
+    const rawText = data.content?.find(c => c.type === "text")?.text ?? "";
+    // We prefilled with {"analyses":[ so prepend it back
+    const fullText = '{"analyses":[' + rawText;
+    console.log("Claude response preview:", fullText.slice(0, 300));
 
-    // Try to extract JSON - handle markdown code blocks too
-    let jsonStr = text;
-    const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlock) jsonStr = codeBlock[1];
-    else {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) jsonStr = jsonMatch[0];
+    // Parse the JSON
+    let parsed: { analyses: Array<{ ticker: string; signal: string; confidence: number; targetPrice: number; thesis: string; risks: string; tags: string[] }> };
+    try {
+      parsed = JSON.parse(fullText);
+    } catch {
+      // Try to fix truncated JSON by closing it
+      const fixed = fullText.replace(/,\s*$/, "") + "]}";
+      try {
+        parsed = JSON.parse(fixed);
+      } catch {
+        console.error("JSON parse failed even after fix. Preview:", fullText.slice(0, 500));
+        return {};
+      }
     }
-
-    const parsed = JSON.parse(jsonStr) as {
-      analyses: Array<{
-        ticker: string; signal: string; confidence: number;
-        targetPrice: number; thesis: string; risks: string; tags: string[];
-      }>
-    };
 
     console.log("Parsed analyses count:", parsed.analyses?.length);
 
@@ -282,7 +292,7 @@ export async function POST(req: NextRequest) {
       const results = await Promise.all(
         batch.map(async ({ t }) => ({
           ticker: t,
-          bars: await fetchBars(t, 60),
+          bars: await fetchBars(t, 90),
           snapshot: await fetchSnapshot(t),
         }))
       );
@@ -311,11 +321,12 @@ export async function POST(req: NextRequest) {
       let price = 0, change = 0, changePct = 0, high = 0, low = 0, open = 0, volume = 0;
       if (snap && snap.price > 0) {
         ({ price, change, changePct, high, low, open, volume } = snap);
-      } else if (bars.length >= 2) {
+      } else if (bars.length >= 1) {
         const last = bars[bars.length - 1];
-        const prev = bars[bars.length - 2];
-        price = last.c; change = +(last.c - prev.c).toFixed(2);
-        changePct = +((change / prev.c) * 100).toFixed(2);
+        const prev = bars.length >= 2 ? bars[bars.length - 2] : null;
+        price = last.c;
+        change = prev ? +(last.c - prev.c).toFixed(2) : 0;
+        changePct = prev && prev.c > 0 ? +((change / prev.c) * 100).toFixed(2) : 0;
         high = last.h; low = last.l; open = last.o; volume = last.v;
       }
 
