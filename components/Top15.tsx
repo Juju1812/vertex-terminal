@@ -140,16 +140,18 @@ function nextMarketOpen(): string {
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const buys = stocks.filter(s =>
     (s.signal === "STRONG BUY" || s.signal === "BUY") &&
-    s.price > 0 && s.targetPrice > 0 && !isNaN(s.targetPrice)
+    s.price > 0 && s.targetPrice > 0 && !isNaN(s.targetPrice) && !isNaN(s.price)
   ).slice(0, 8);
   if (!buys.length) return [];
   const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
+  if (!tw || isNaN(tw)) return [];
   return buys.map(p => {
     const w = (p.confidence * Math.max(p.score, 1)) / tw;
     const dollars = Math.round(cash * w * 100) / 100;
+    const shares = p.price > 0 ? Math.floor(dollars / p.price) : 0;
     return {
       ticker: p.ticker, name: p.name, price: p.price,
-      dollars, shares: Math.floor(dollars / p.price),
+      dollars, shares,
       pct: +(w * 100).toFixed(1),
       note: `${(w * 100).toFixed(1)}% -- target $${p.targetPrice.toFixed(0)} -- ${p.confidence}% conf`,
     };
@@ -212,7 +214,7 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:"20px 16px" }}>
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
       <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
 
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
@@ -309,13 +311,14 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
 /* ---- Simulator Modal --------------------------------------- */
 function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void }) {
   const [cash, setCash] = useState("50000");
-  const num    = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
-  const allocs = simulate(stocks, num);
-  const total  = allocs.reduce((s, a) => s + a.dollars, 0);
+  const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
+  let allocs: Alloc[] = [];
+  try { allocs = simulate(stocks, num); } catch { allocs = []; }
+  const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)", padding:"20px 16px" }}>
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
       <div style={{ ...glass({ borderRadius:18 }), width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
