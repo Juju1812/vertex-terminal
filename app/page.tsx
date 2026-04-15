@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import {
   Search, TrendingUp, TrendingDown, Brain, Star, StarOff,
-  Zap, AlertTriangle, Trophy, BookOpen, X, Calendar, Newspaper, SlidersHorizontal,
+  Zap, AlertTriangle, Trophy, BookOpen, X, Calendar, Newspaper, SlidersHorizontal, BarChart2,
   LayoutDashboard, ChevronRight, ExternalLink, Eye, EyeOff,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
@@ -21,7 +21,8 @@ const Top15    = dynamic(() => import("@/components/Top15"),            { ssr: f
 const MyStocks = dynamic(() => import("@/components/MyStocks"),          { ssr: false, loading: () => <PanelSkeleton /> });
 const EarningsCal  = dynamic<{ onSelectTicker?: (t: string) => void }>(() => import("@/components/EarningsCalendar"), { ssr: false, loading: () => <PanelSkeleton /> });
 const NewsFeed     = dynamic<{ onSelectTicker?: (t: string) => void }>(() => import("@/components/NewsFeed"),          { ssr: false, loading: () => <PanelSkeleton /> });
-const StockScreener = dynamic<{ onSelectTicker?: (t: string) => void }>(() => import("@/components/StockScreener"),   { ssr: false, loading: () => <PanelSkeleton /> });
+const StockScreener    = dynamic<{ onSelectTicker?: (t: string) => void }>(() => import("@/components/StockScreener"),     { ssr: false, loading: () => <PanelSkeleton /> });
+const PortfolioAnalytics = dynamic<{ onSelectTicker?: (t: string) => void; onGoPortfolio?: () => void }>(() => import("@/components/PortfolioAnalytics"), { ssr: false, loading: () => <PanelSkeleton /> });
 
 function PanelSkeleton() {
   return (
@@ -39,7 +40,7 @@ interface Quote {
   changePct: number; high: number; low: number; open: number; volume: number;
 }
 interface Bar { date: string; close: number; }
-type Tab = "markets" | "top15" | "portfolio" | "earnings" | "news" | "screener";
+type Tab = "markets" | "top15" | "portfolio" | "earnings" | "news" | "screener" | "analytics";
 
 /* ---- Constants ------------------------------------------------ */
 const API_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
@@ -97,6 +98,7 @@ const TABS: { id: Tab; label: string; short: string }[] = [
   { id:"earnings",  label:"Earnings",  short:"Earnings" },
   { id:"news",      label:"News",      short:"News"     },
   { id:"screener",  label:"Screener",  short:"Screen"   },
+  { id:"analytics", label:"Analytics", short:"Analytics"},
   { id:"portfolio", label:"Portfolio", short:"Portfolio"},
 ];
 
@@ -377,6 +379,7 @@ function TabIcon({ id, size = 20, active }: { id: Tab; size?: number; active: bo
   if (id === "earnings")  return <Calendar           size={size} strokeWidth={sw} />;
   if (id === "news")      return <Newspaper          size={size} strokeWidth={sw} />;
   if (id === "screener")  return <SlidersHorizontal  size={size} strokeWidth={sw} />;
+  if (id === "analytics") return <BarChart2          size={size} strokeWidth={sw} />;
   return null;
 }
 
@@ -675,11 +678,12 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
         <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Explore</p>
         <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
           {([
-            { id:"top15"     as Tab, label:"Top 15 Stocks", color:V.gold,    dimBg:V.goldDim, dimWire:"rgba(232,160,48,0.2)" },
-            { id:"earnings"  as Tab, label:"Earnings Cal.",  color:V.arc,     dimBg:V.arcDim,  dimWire:V.arcWire },
-            { id:"news"      as Tab, label:"News Feed",      color:V.gain,    dimBg:V.gainDim, dimWire:V.gainWire },
-            { id:"screener"  as Tab, label:"Stock Screener", color:V.ame,     dimBg:V.ameDim,  dimWire:V.ameWire },
-            { id:"portfolio" as Tab, label:"My Portfolio",   color:"#9B72F5", dimBg:V.ameDim,  dimWire:V.ameWire },
+            { id:"top15"     as Tab, label:"Top 15 Stocks",   color:V.gold,    dimBg:V.goldDim, dimWire:"rgba(232,160,48,0.2)" },
+            { id:"earnings"  as Tab, label:"Earnings Cal.",    color:V.arc,     dimBg:V.arcDim,  dimWire:V.arcWire },
+            { id:"news"      as Tab, label:"News Feed",        color:V.gain,    dimBg:V.gainDim, dimWire:V.gainWire },
+            { id:"screener"  as Tab, label:"Stock Screener",   color:V.ame,     dimBg:V.ameDim,  dimWire:V.ameWire },
+            { id:"analytics" as Tab, label:"Portfolio Analytics", color:"#7EB6FF", dimBg:V.arcDim, dimWire:V.arcWire },
+            { id:"portfolio" as Tab, label:"My Portfolio",     color:"#9B72F5", dimBg:V.ameDim,  dimWire:V.ameWire },
           ] as const).map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
               style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:item.dimBg, border:`1px solid ${item.dimWire}`, borderRadius:9, color:item.color, padding:"9px 12px", cursor:"pointer", fontSize:12, fontWeight:500, minHeight:40, transition:"opacity 0.15s" }}
@@ -1095,6 +1099,7 @@ export default function ArbibX() {
         {tab === "earnings"  && <EarningsCal onSelectTicker={go} />}
         {tab === "news"      && <NewsFeed onSelectTicker={go} />}
         {tab === "screener"  && <StockScreener onSelectTicker={go} />}
+        {tab === "analytics" && <PortfolioAnalytics onSelectTicker={go} onGoPortfolio={() => setTab("portfolio")} />}
         {tab === "portfolio" && <MyStocks onSignIn={() => setShowAuthModal(true)} />}
         {tab === "markets" && (
           <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
