@@ -383,7 +383,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
    ============================================================ */
 const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
 const CACHE_KEY = "arbibx-top15-cache";
-const CACHE_VERSION = "v6"; // bump this whenever fixing signal/analysis bugs
+const CACHE_VERSION = "v7"; // bump this whenever fixing signal/analysis bugs
 
 interface CachedData {
   stocks: Stock[];
@@ -403,6 +403,9 @@ function loadCache(): { stocks: Stock[]; lastUpdate: Date } | null {
     // Validate the data actually has real signals, not all HOLDs with 50% confidence
     const hasRealSignals = stocks.some(s => s.signal !== "HOLD" || s.confidence !== 50);
     if (!hasRealSignals) return null;
+    // Also validate at least some stocks have real prices
+    const hasPrices = stocks.filter(s => s.price > 0).length >= 5;
+    if (!hasPrices) return null;
     return { stocks, lastUpdate: new Date(analyzedAt) };
   } catch { return null; }
 }

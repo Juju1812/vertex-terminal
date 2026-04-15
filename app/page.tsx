@@ -36,7 +36,7 @@ interface Quote {
   changePct: number; high: number; low: number; open: number; volume: number;
 }
 interface Bar { date: string; close: number; }
-type Tab = "markets" | "ai" | "top15" | "portfolio";
+type Tab = "markets" | "top15" | "portfolio";
 
 /* ---- Constants ------------------------------------------------ */
 const API_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
@@ -79,16 +79,6 @@ const MOCK: Record<string, Quote> = Object.fromEntries(
   }])
 );
 
-const AI_LONG = [
-  { ticker:"NVDA", name:"NVIDIA Corp.",   conf:91, target:210, up:18.6, thesis:"AI infrastructure capex surging. Blackwell GPU demand exceeds supply 3x. Data center revenue +120% YoY.", tags:["Blackwell","Azure Win","Q4 Beat"] },
-  { ticker:"META", name:"Meta Platforms", conf:84, target:600, up:17.6, thesis:"Llama monetisation accelerating. Reels ad revenue +40% QoQ. Sustained cost discipline expanding margins.", tags:["Llama 4","Ad Beat","Cost Cuts"] },
-  { ticker:"AMD",  name:"AMD",            conf:78, target:130, up:36.8, thesis:"MI300X gaining enterprise GPU traction. Data center +80% YoY. TSMC capacity locked through 2025.", tags:["MI400","Design Wins","CPU Share"] },
-];
-const AI_SHORT = [
-  { ticker:"TSLA", name:"Tesla Inc.",  conf:76, target:180, down:-28.6, thesis:"EV demand soft. Brutal price war in China. Cybertruck ramp costlier than expected.", tags:["China","Margins","Competition"] },
-  { ticker:"AMZN", name:"Amazon.com", conf:61, target:155, down:-16.2, thesis:"AWS growth decelerating vs peers. Retail margins thin. Advertising CPM pressure rising.", tags:["AWS Slowdown","Ad CPMs","FTC"] },
-];
-
 const INDICES = [
   { n:"S&P 500", v:"5,396",  d:"-4.8%", up:false },
   { n:"NASDAQ",  v:"16,550", d:"-5.7%", up:false },
@@ -102,7 +92,6 @@ const TABS: { id: Tab; label: string; short: string }[] = [
   { id:"markets",   label:"Markets",    short:"Markets"   },
   { id:"top15",     label:"Top 15",     short:"Top 15"    },
   { id:"portfolio", label:"Portfolio",  short:"Portfolio" },
-  { id:"ai",        label:"AI Signals", short:"AI"        },
 ];
 
 /* ---- Polygon response types ----------------------------------- */
@@ -379,7 +368,6 @@ function TabIcon({ id, size = 20, active }: { id: Tab; size?: number; active: bo
   if (id === "markets")   return <LayoutDashboard size={size} strokeWidth={sw} />;
   if (id === "top15")     return <Trophy          size={size} strokeWidth={sw} />;
   if (id === "portfolio") return <BookOpen        size={size} strokeWidth={sw} />;
-  if (id === "ai")        return <Brain           size={size} strokeWidth={sw} />;
   return null;
 }
 
@@ -430,54 +418,6 @@ function MiniChart({ ticker, isGain }: { ticker: string; isGain: boolean }) {
             activeDot={{ r:3, fill:color, stroke:V.void, strokeWidth:1.5 }} />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-function SignalCard({
-  ticker, name, conf, target, upside, downside, thesis, tags, isGain, rank, go,
-}: {
-  ticker: string; name: string; conf: number; target: number;
-  upside?: number; downside?: number; thesis: string; tags: string[];
-  isGain: boolean; rank: number; go: (t: string) => void;
-}) {
-  const color = isGain ? V.gain : V.loss;
-  const dim   = isGain ? V.gainDim : V.lossDim;
-  const wire  = isGain ? V.gainWire : V.lossWire;
-  const line  = upside != null ? `+${upside.toFixed(1)}% upside` : `${downside!.toFixed(1)}% downside`;
-
-  return (
-    <div style={{ ...glassCard({ padding:18 }), cursor:"pointer", transition:"border-color 0.25s, transform 0.2s" }}
-      onClick={() => go(ticker)}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = wire; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = V.w2;  (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-          <span style={{ ...mono, fontSize:10, color:V.ink4, marginTop:3 }}>#{rank}</span>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
-              <p style={{ ...mono, fontSize:15, fontWeight:500, color:"#7EB6FF", letterSpacing:"-0.02em" }}>{ticker}</p>
-              <YahooBtn ticker={ticker} compact />
-            </div>
-            <p style={{ color:V.ink2, fontSize:11, marginTop:1 }}>{name}</p>
-          </div>
-        </div>
-        <div style={{ textAlign:"right", flexShrink:0 }}>
-          <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:2 }}>Target</p>
-          <p style={{ ...mono, fontSize:16, fontWeight:500, color, letterSpacing:"-0.02em" }}>{f$(target)}</p>
-          <p style={{ ...mono, fontSize:10, color }}>{line}</p>
-        </div>
-      </div>
-      <MiniChart ticker={ticker} isGain={isGain} />
-      <ConfBar pct={conf} color={color} />
-      <p style={{ color:V.ink2, fontSize:12, lineHeight:1.65, margin:"12px 0 10px" }}>{thesis}</p>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-        {tags.map(t => (
-          <span key={t} style={{ ...mono, fontSize:9, padding:"3px 9px", borderRadius:99, background:dim, color, border:`1px solid ${wire}`, display:"inline-flex", alignItems:"center", gap:3 }}>
-            {!isGain && <AlertTriangle size={8} style={{ display:"inline", verticalAlign:"middle", marginRight:2 }} />}{t}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
@@ -658,72 +598,6 @@ const MarketsPanel = memo(function MarketsPanel({
   );
 });
 
-/* ---- AIPanel ------------------------------------------------- */
-interface AIPanelProps { go: (t: string) => void; refreshMarkets: () => Promise<void>; }
-
-const AIPanel = memo(function AIPanel({ go, refreshMarkets }: AIPanelProps) {
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-      <div style={{ ...glassCard({ padding:20 }) }}>
-        <div style={{ position:"absolute", top:-40, right:-40, width:200, height:200, borderRadius:"50%", background:"rgba(155,114,245,0.06)", filter:"blur(50px)", pointerEvents:"none" }} />
-        <div style={{ position:"relative", display:"flex", alignItems:"flex-start", gap:12 }}>
-          <div style={{ width:42, height:42, borderRadius:11, background:"rgba(155,114,245,0.12)", border:`1px solid ${V.ameWire}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-            <Brain size={20} color={V.ame} />
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
-              <h2 style={{ fontSize:16, fontWeight:600, color:V.ink0 }}>AI Signals</h2>
-              <span style={{ ...mono, fontSize:9, background:V.ameDim, color:V.ame, border:`1px solid ${V.ameWire}`, borderRadius:99, padding:"2px 9px", textTransform:"uppercase", letterSpacing:"0.1em" }}>Beta</span>
-            </div>
-            <p style={{ color:V.ink2, fontSize:12, lineHeight:1.55 }}>ML signals from price momentum, volume anomalies, earnings revisions, and NLP sentiment.</p>
-          </div>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:16 }}>
-          {[{ l:"Accuracy",v:"73.4%",c:"#7EB6FF" },{ l:"Confidence",v:"78.5%",c:V.gain },{ l:"Alpha",v:"+5.9%",c:V.gain }].map(s => (
-            <div key={s.l} style={{ background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w1}`, borderRadius:9, padding:"10px 12px", textAlign:"center" }}>
-              <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{s.l}</p>
-              <p style={{ ...mono, fontSize:17, fontWeight:500, color:s.c, letterSpacing:"-0.02em" }}>{s.v}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <CountdownBar onRefresh={refreshMarkets} label="Next signal update" />
-
-      <div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-          <div style={{ width:24, height:24, borderRadius:6, background:V.gainDim, border:`1px solid ${V.gainWire}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <TrendingUp size={13} color={V.gain} />
-          </div>
-          <span style={{ fontSize:14, fontWeight:600, color:V.ink0 }}>Outperformer Signals</span>
-          <span style={{ ...mono, fontSize:9, background:V.gainDim, color:V.gain, border:`1px solid ${V.gainWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase" }}>Long</span>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {AI_LONG.map((s, i) => <SignalCard key={s.ticker} {...s} upside={s.up} isGain rank={i + 1} go={go} />)}
-        </div>
-      </div>
-
-      <div>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-          <div style={{ width:24, height:24, borderRadius:6, background:V.lossDim, border:`1px solid ${V.lossWire}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <TrendingDown size={13} color={V.loss} />
-          </div>
-          <span style={{ fontSize:14, fontWeight:600, color:V.ink0 }}>Underperformer Signals</span>
-          <span style={{ ...mono, fontSize:9, background:V.lossDim, color:V.loss, border:`1px solid ${V.lossWire}`, borderRadius:5, padding:"2px 8px", textTransform:"uppercase" }}>Avoid</span>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {AI_SHORT.map((s, i) => <SignalCard key={s.ticker} {...s} downside={s.down} isGain={false} rank={i + 1} go={go} />)}
-        </div>
-      </div>
-
-      <div style={{ display:"flex", gap:10, padding:"12px 16px", borderRadius:12, background:V.goldDim, border:"1px solid rgba(232,160,48,0.18)" }}>
-        <AlertTriangle size={13} color={V.gold} style={{ marginTop:1, flexShrink:0 }} />
-        <p style={{ color:V.ink2, fontSize:11, lineHeight:1.65 }}>For informational purposes only. Not investment advice. Past performance does not guarantee future results.</p>
-      </div>
-    </div>
-  );
-});
-
 /* ---- Sidebar -------------------------------------------------- */
 interface SidebarProps {
   ticker: string; watchlist: string[];
@@ -794,7 +668,6 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
           {([
             { id:"top15"     as Tab, label:"Top 15 Stocks", color:V.gold,    dimBg:V.goldDim, dimWire:"rgba(232,160,48,0.2)" },
             { id:"portfolio" as Tab, label:"My Portfolio",  color:V.ame,     dimBg:V.ameDim,  dimWire:V.ameWire },
-            { id:"ai"        as Tab, label:"AI Signals",    color:"#7EB6FF", dimBg:V.arcDim,  dimWire:V.arcWire },
           ] as const).map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
               style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:item.dimBg, border:`1px solid ${item.dimWire}`, borderRadius:9, color:item.color, padding:"9px 12px", cursor:"pointer", fontSize:12, fontWeight:500, minHeight:40, transition:"opacity 0.15s" }}
@@ -972,7 +845,6 @@ export default function ArbibX() {
     ticker, quote, bars, loading, up, lineColor, watched, watchlist, livePrices, go, toggleWatch, refreshMarkets,
   }), [ticker, quote, bars, loading, up, lineColor, watched, watchlist, livePrices, go, toggleWatch, refreshMarkets]);
 
-  const aiProps   = useMemo<AIPanelProps>(() => ({ go, refreshMarkets }), [go, refreshMarkets]);
   const sideProps = useMemo<SidebarProps>(() => ({ ticker, watchlist, livePrices, go, toggleWatch, setTab }), [ticker, watchlist, livePrices, go, toggleWatch]);
 
   return (
@@ -1033,7 +905,7 @@ export default function ArbibX() {
             <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center", marginBottom:52, animation:"fadeUp 0.6s 0.3s ease both", opacity:0 }}>
               {[
                 { icon:"⚡", label:"Live Prices" },
-                { icon:"🧠", label:"Claude AI Signals" },
+                { icon:"🧠", label:"Claude AI Top 15" },
                 { icon:"📊", label:"57 Stocks Tracked" },
                 { icon:"💼", label:"Portfolio Manager" },
                 { icon:"🎯", label:"Price Targets" },
@@ -1209,12 +1081,11 @@ export default function ArbibX() {
       <main className="vx-main" style={{ position:"relative", zIndex:1 }}>
         {tab === "top15"     && <Top15 onSelectTicker={go} />}
         {tab === "portfolio" && <MyStocks onSignIn={() => setShowAuthModal(true)} />}
-        {(tab === "markets" || tab === "ai") && (
+        {tab === "markets" && (
           <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
             <div className="vx-two-col" style={{ display:"flex", flexDirection:"column", gap:20 }}>
               <div style={{ minWidth:0 }}>
-                {tab === "markets" && <MarketsPanel {...marketProps} />}
-                {tab === "ai"      && <AIPanel      {...aiProps} />}
+                <MarketsPanel {...marketProps} />
               </div>
               <div id="vx-sidebar" style={{ display:"none" }}>
                 <Sidebar {...sideProps} />
