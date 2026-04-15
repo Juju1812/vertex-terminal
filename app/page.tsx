@@ -823,7 +823,16 @@ export default function ArbibX() {
   const [searching,  setSearching]  = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [livePrices, setLivePrices] = useState<Record<string, { price: number; changePct: number }>>({});
+  const [showLanding, setShowLanding] = useState(() => {
+    try { return !localStorage.getItem("arbibx-visited"); } catch { return true; }
+  });
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const enterApp = (asGuest = true) => {
+    try { localStorage.setItem("arbibx-visited", "1"); } catch { /**/ }
+    setShowLanding(false);
+    if (!asGuest) setTab("portfolio");
+  };
 
   const load = useCallback(async (t: string) => {
     setLoading(true);
@@ -886,6 +895,120 @@ export default function ArbibX() {
 
   return (
     <div style={{ minHeight:"100vh", background:V.d0, color:V.ink1, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
+
+      {/* ── LANDING PAGE ── */}
+      {showLanding && (
+        <div style={{ position:"fixed", inset:0, zIndex:10000, background:"#030508", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+          {/* Animated background */}
+          <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none" }}>
+            <div style={{ position:"absolute", top:"-20%", left:"60%", width:700, height:700, borderRadius:"50%", background:"radial-gradient(circle, rgba(79,142,247,0.08) 0%, transparent 70%)", animation:"drift1 8s ease-in-out infinite" }} />
+            <div style={{ position:"absolute", bottom:"-10%", left:"10%", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle, rgba(0,200,150,0.06) 0%, transparent 70%)", animation:"drift2 10s ease-in-out infinite" }} />
+            <div style={{ position:"absolute", top:"40%", left:"40%", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle, rgba(155,114,245,0.05) 0%, transparent 70%)", animation:"drift3 12s ease-in-out infinite" }} />
+            {/* Grid lines */}
+            <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(130,180,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(130,180,255,0.03) 1px, transparent 1px)", backgroundSize:"60px 60px" }} />
+          </div>
+
+          {/* Header */}
+          <div style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 32px", borderBottom:"1px solid rgba(130,180,255,0.06)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:34, height:34, borderRadius:9, overflow:"hidden", background:"linear-gradient(135deg,#4F8EF7,#00C896)", boxShadow:"0 0 20px rgba(79,142,247,0.4)" }}>
+                <Image src="/logo.png" alt="ArbibX" width={34} height={34} style={{ objectFit:"cover" }} unoptimized />
+              </div>
+              <div>
+                <div style={{ fontFamily:"'Geist Mono',monospace", fontSize:13, fontWeight:700, letterSpacing:"0.12em", color:"#F2F6FF" }}>ArbibX</div>
+                <div style={{ fontFamily:"'Geist Mono',monospace", fontSize:7, color:"#1F3550", letterSpacing:"0.22em" }}>TERMINAL</div>
+              </div>
+            </div>
+            <button onClick={() => enterApp(false)}
+              style={{ fontFamily:"'Geist Mono',monospace", fontSize:11, color:"#7A9CBF", background:"none", border:"1px solid rgba(130,180,255,0.12)", borderRadius:8, padding:"7px 16px", cursor:"pointer", letterSpacing:"0.06em" }}>
+              Sign In
+            </button>
+          </div>
+
+          {/* Hero content */}
+          <div style={{ position:"relative", flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", textAlign:"center" }}>
+
+            {/* Badge */}
+            <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 14px", borderRadius:99, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", marginBottom:32, animation:"fadeUp 0.6s ease both" }}>
+              <div style={{ width:6, height:6, borderRadius:"50%", background:"#00C896", animation:"live-pulse 2s ease-in-out infinite" }} />
+              <span style={{ fontFamily:"'Geist Mono',monospace", fontSize:10, color:"#7EB6FF", letterSpacing:"0.1em", textTransform:"uppercase" }}>AI-Powered Stock Intelligence</span>
+            </div>
+
+            {/* Main heading */}
+            <h1 style={{ fontSize:"clamp(38px,7vw,80px)", fontWeight:700, lineHeight:1.05, letterSpacing:"-0.03em", color:"#F2F6FF", margin:"0 0 20px", animation:"fadeUp 0.6s 0.1s ease both", opacity:0 }}>
+              Welcome to<br />
+              <span style={{ background:"linear-gradient(135deg, #4F8EF7 0%, #00C896 50%, #9B72F5 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>ArbibX</span>
+            </h1>
+
+            {/* Subtitle */}
+            <p style={{ fontSize:"clamp(14px,2vw,18px)", color:"#7A9CBF", maxWidth:520, lineHeight:1.7, margin:"0 0 48px", animation:"fadeUp 0.6s 0.2s ease both", opacity:0 }}>
+              Real-time market data, Claude AI analysis, and portfolio tracking — all in one professional terminal.
+            </p>
+
+            {/* Feature pills */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center", marginBottom:52, animation:"fadeUp 0.6s 0.3s ease both", opacity:0 }}>
+              {[
+                { icon:"⚡", label:"Live Prices" },
+                { icon:"🧠", label:"Claude AI Signals" },
+                { icon:"📊", label:"57 Stocks Tracked" },
+                { icon:"💼", label:"Portfolio Manager" },
+                { icon:"🎯", label:"Price Targets" },
+              ].map(f => (
+                <div key={f.label} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:99, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(130,180,255,0.09)", fontSize:12, color:"#C8D5E8" }}>
+                  <span>{f.icon}</span>
+                  <span style={{ fontFamily:"'Geist Mono',monospace", fontSize:10, letterSpacing:"0.04em" }}>{f.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA buttons */}
+            <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.6s 0.4s ease both", opacity:0 }}>
+              <button onClick={() => enterApp(false)}
+                style={{ display:"flex", alignItems:"center", gap:8, padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#4F8EF7,#2D6FDB)", border:"none", color:"#fff", fontSize:15, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", cursor:"pointer", boxShadow:"0 4px 24px rgba(79,142,247,0.35)", transition:"all 0.2s", letterSpacing:"-0.01em" }}
+                onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-2px)", e.currentTarget.style.boxShadow = "0 8px 32px rgba(79,142,247,0.45)")}
+                onMouseLeave={e => (e.currentTarget.style.transform = "", e.currentTarget.style.boxShadow = "0 4px 24px rgba(79,142,247,0.35)")}>
+                Sign In / Create Account
+                <ChevronRight size={16} />
+              </button>
+              <button onClick={() => enterApp(true)}
+                style={{ display:"flex", alignItems:"center", gap:8, padding:"14px 32px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(130,180,255,0.15)", color:"#C8D5E8", fontSize:15, fontWeight:500, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", cursor:"pointer", transition:"all 0.2s", letterSpacing:"-0.01em" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.07)", e.currentTarget.style.borderColor = "rgba(130,180,255,0.25)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)", e.currentTarget.style.borderColor = "rgba(130,180,255,0.15)")}>
+                Continue as Guest
+              </button>
+            </div>
+
+            {/* Disclaimer */}
+            <p style={{ fontFamily:"'Geist Mono',monospace", fontSize:10, color:"#1F3550", marginTop:40, letterSpacing:"0.04em", animation:"fadeUp 0.6s 0.5s ease both", opacity:0 }}>
+              Not financial advice. For informational purposes only.
+            </p>
+          </div>
+
+          {/* Bottom stats bar */}
+          <div style={{ position:"relative", display:"flex", justifyContent:"center", gap:"clamp(24px,5vw,64px)", padding:"18px 32px", borderTop:"1px solid rgba(130,180,255,0.06)", flexWrap:"wrap" }}>
+            {[
+              { val:"57", label:"Stocks Tracked" },
+              { val:"Claude Opus", label:"AI Model" },
+              { val:"Real-Time", label:"Market Data" },
+              { val:"Free", label:"To Use" },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign:"center" }}>
+                <div style={{ fontFamily:"'Geist Mono',monospace", fontSize:14, fontWeight:600, color:"#F2F6FF", letterSpacing:"-0.02em" }}>{s.val}</div>
+                <div style={{ fontFamily:"'Geist Mono',monospace", fontSize:9, color:"#1F3550", letterSpacing:"0.1em", textTransform:"uppercase", marginTop:2 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <style>{`
+            @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,20px)} }
+            @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-30px)} }
+            @keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,25px)} }
+            @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+            @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+          `}</style>
+        </div>
+      )}
 
       <header style={{ position:"sticky", top:0, zIndex:100, background:"rgba(5,8,16,0.94)", backdropFilter:"blur(40px) saturate(2.5)", WebkitBackdropFilter:"blur(40px) saturate(2.5)", borderBottom:`1px solid ${V.w2}` }}>
         <div style={{ display:"flex", alignItems:"center", padding:"0 16px", height:32, borderBottom:`1px solid ${V.w1}`, overflow:"hidden" }}>
