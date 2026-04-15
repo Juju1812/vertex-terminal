@@ -3,10 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
-
 const POLYGON_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const POLYGON_BASE = "https://api.polygon.io";
+
+/* ---- Server-side cache (shared across all devices) ---------- */
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+let serverCache: { stocks: unknown[]; analyzedAt: string; expiresAt: number } | null = null;
+
+function getCached() {
+  if (!serverCache) return null;
+  if (Date.now() > serverCache.expiresAt) { serverCache = null; return null; }
+  return serverCache;
+}
+
+function setCache(stocks: unknown[], analyzedAt: string) {
+  serverCache = { stocks, analyzedAt, expiresAt: Date.now() + CACHE_TTL };
+}
 
 /* ---- Types -------------------------------------------------- */
 interface AggBar {
@@ -264,10 +277,19 @@ function calcScore(
 /* ---- Main API handler -------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
-    const { tickers } = await req.json() as { tickers: { t: string; n: string; s: string }[] };
+    const { tickers, force } = await req.json() as { tickers: { t: string; n: string; s: string }[]; force?: boolean };
 
     if (!ANTHROPIC_KEY) {
       return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
+    }
+
+    // Return cached result if available and not forced refresh
+    if (!force) {
+      const cached = getCached();
+      if (cached) {
+        console.log("Returning server-cached analysis from", cached.analyzedAt);
+        return NextResponse.json({ stocks: cached.stocks, analyzedAt: cached.analyzedAt, fromCache: true });
+      }
     }
 
     const tickerList = tickers.map(t => t.t);
@@ -394,7 +416,10 @@ export async function POST(req: NextRequest) {
     stocks.sort((a, b) => b.score - a.score);
     stocks.forEach((s, i) => { s.rank = i + 1; });
 
-    return NextResponse.json({ stocks: stocks.slice(0, 15), analyzedAt: new Date().toISOString() });
+    const finalStocks = stocks.slice(0, 15);
+    const analyzedAt = new Date().toISOString();
+    setCache(finalStocks, analyzedAt);
+    return NextResponse.json({ stocks: finalStocks, analyzedAt });
 
   } catch (err) {
     console.error("Analyze error:", err);

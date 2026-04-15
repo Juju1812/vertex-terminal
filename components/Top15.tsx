@@ -383,7 +383,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
    ============================================================ */
 const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
 const CACHE_KEY = "arbibx-top15-cache";
-const CACHE_VERSION = "v7"; // bump this whenever fixing signal/analysis bugs
+const CACHE_VERSION = "v8"; // bump this whenever fixing signal/analysis bugs
 
 interface CachedData {
   stocks: Stock[];
@@ -432,22 +432,22 @@ export default function Top15({ onSelectTicker }: Top15Props) {
   const [timeLeft,   setTimeLeft]   = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const runAnalysis = useCallback(async () => {
+  const runAnalysis = useCallback(async (force = false) => {
     setAnalyzing(true);
     try {
       const r = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickers: UNI }),
+        body: JSON.stringify({ tickers: UNI, force }),
       });
       if (!r.ok) throw new Error("Analysis failed");
-      const d = await r.json() as { stocks: Stock[]; analyzedAt: string };
+      const d = await r.json() as { stocks: Stock[]; analyzedAt: string; fromCache?: boolean };
       if (d.stocks?.length) {
         setStocks(d.stocks);
         saveCache(d.stocks, d.analyzedAt);
-        const now = new Date();
-        setLastUpdate(now);
-        setNextUpdate(new Date(now.getTime() + REFRESH_INTERVAL));
+        const updateTime = new Date(d.analyzedAt);
+        setLastUpdate(updateTime);
+        setNextUpdate(new Date(updateTime.getTime() + REFRESH_INTERVAL));
       }
     } catch (err) {
       console.error("Analysis error:", err);
