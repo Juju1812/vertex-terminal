@@ -293,9 +293,26 @@ export default function PortfolioAnalytics({ onSelectTicker, onGoPortfolio }: Pr
     .sort((a, b) => b.currentValue - a.currentValue)
     .map(h => ({ name: h.ticker, value: +(h.currentValue / totalValue * 100).toFixed(1), pnl: h.pnlPct }));
 
+  /* ---- Grade — same algorithm as Portfolio tab -------------- */
+  let gradeScore = 50;
+  const n = enriched.length;
+  if (n >= 8) gradeScore += 15;
+  else if (n >= 5) gradeScore += 8;
+  else gradeScore -= 10;
+
+  if (maxWeight > 40) gradeScore -= 12;
+  else if (maxWeight < 25) gradeScore += 8;
+
+  const wr = winners / (n || 1);
+  if (wr >= 0.7) gradeScore += 12;
+  else if (wr < 0.4) gradeScore -= 8;
+
+  gradeScore = Math.min(100, Math.max(0, Math.round(gradeScore)));
+  const grade = gradeScore >= 95 ? "A+" : gradeScore >= 90 ? "A" : gradeScore >= 85 ? "A-" : gradeScore >= 80 ? "B+" : gradeScore >= 75 ? "B" : gradeScore >= 70 ? "B-" : gradeScore >= 65 ? "C+" : gradeScore >= 60 ? "C" : gradeScore >= 55 ? "C-" : gradeScore >= 50 ? "D+" : gradeScore >= 45 ? "D" : "F";
+  const gradeColor = grade.startsWith("A") ? V.gain : grade.startsWith("B") ? V.arc : grade.startsWith("C") ? V.gold : V.loss;
+
   /* ---- Radar / health data ---------------------------------- */
-  const diversificationScore = Math.min(100, (enriched.length / 10) * 40 + (maxWeight < 30 ? 40 : maxWeight < 50 ? 20 : 0) + 20);
-  const momentumScore = Math.min(100, 50 + winRate / 2);
+  const diversificationScore = Math.min(100, (n / 10) * 40 + (maxWeight < 30 ? 40 : maxWeight < 50 ? 20 : 0) + 20);
   const riskScore = Math.max(0, 100 - maxWeight);
   const performanceScore = Math.min(100, 50 + Math.max(-50, Math.min(50, totalPnlPct)));
   const balanceScore = Math.min(100, 100 - Math.max(0, maxWeight - 20) * 2);
@@ -307,10 +324,6 @@ export default function PortfolioAnalytics({ onSelectTicker, onGoPortfolio }: Pr
     { subject:"Balance",      A: Math.round(balanceScore) },
     { subject:"Risk Mgmt",    A: Math.round(riskScore) },
   ];
-
-  const overallScore = Math.round((diversificationScore + momentumScore + riskScore + performanceScore + balanceScore) / 5);
-  const grade = overallScore >= 85 ? "A" : overallScore >= 75 ? "B" : overallScore >= 65 ? "C" : overallScore >= 55 ? "D" : "F";
-  const gradeColor = grade === "A" ? V.gain : grade === "B" ? V.arc : grade === "C" ? V.gold : V.loss;
 
   return (
     <div style={{ padding:"20px 16px", maxWidth:1280, margin:"0 auto" }}>
@@ -339,7 +352,7 @@ export default function PortfolioAnalytics({ onSelectTicker, onGoPortfolio }: Pr
         <StatCard icon={<TrendingUp size={16} color={totalPnl >= 0 ? V.gain : V.loss} />} label="Total Value" value={f$(totalValue)} sub={`${fp(totalPnlPct)} all time`} color={V.ink0} />
         <StatCard icon={<Activity size={16} color={dayPnl >= 0 ? V.gain : V.loss} />} label="Today's P&L" value={f$(dayPnl)} sub={`${dayPnl >= 0 ? "+" : ""}${(dayPnl / totalValue * 100).toFixed(2)}% today`} color={dayPnl >= 0 ? V.gain : V.loss} />
         <StatCard icon={<Target size={16} color={V.gold} />} label="Total P&L" value={f$(totalPnl)} sub={`${winners}/${enriched.length} positions winning`} color={totalPnl >= 0 ? V.gain : V.loss} />
-        <StatCard icon={<Award size={16} color={gradeColor} />} label="Portfolio Grade" value={grade} sub={`Score: ${overallScore}/100`} color={gradeColor} />
+        <StatCard icon={<Award size={16} color={gradeColor} />} label="Portfolio Grade" value={grade} sub={`Score: ${gradeScore}/100`} color={gradeColor} />
       </div>
 
       {/* Charts row */}
@@ -383,7 +396,7 @@ export default function PortfolioAnalytics({ onSelectTicker, onGoPortfolio }: Pr
             </RadarChart>
           </ResponsiveContainer>
           <div style={{ textAlign:"center", marginTop:4 }}>
-            <span style={{ ...mono, fontSize:11, color:gradeColor }}>Grade {grade} · {overallScore}/100</span>
+            <span style={{ ...mono, fontSize:11, color:gradeColor }}>Grade {grade} · {gradeScore}/100</span>
           </div>
         </div>
 
