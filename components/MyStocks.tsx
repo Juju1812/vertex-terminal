@@ -306,9 +306,8 @@ function EmailAlerts({ userEmail }: { userEmail?: string }) {
 /* ============================================================
    MAIN COMPONENT
    ============================================================ */
-export default function MyStocks() {
+export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
   const [user,    setUser]   = useState<AuthUser | null>(null);
-  const [skipAuth, setSkipAuth] = useState(false);
   const [holdings, setH]     = useState<H[]>([]);
   const [prices,  setP]      = useState<Record<string, { p: number; d: number; n: string }>>({});
   const [loading, setL]      = useState(false);
@@ -320,35 +319,47 @@ export default function MyStocks() {
   const [err,     setErr]    = useState("");
   const loadedRef = useRef(false);
 
-  /* Load auth on mount */
+  /* Load auth on mount + listen for login from global modal */
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(AU);
-      if (stored) {
-        const u = JSON.parse(stored) as AuthUser;
-        setUser(u);
-        fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`)
-          .then(r => r.json())
-          .then((d: { holdings?: H[]; error?: string }) => {
-            if (d.holdings) {
-              setH(d.holdings);
-            } else {
-              console.error("Portfolio load error:", d.error);
-            }
-            loadedRef.current = true;
-          })
-          .catch((e) => {
-            console.error("Portfolio fetch failed:", e);
-            loadedRef.current = true;
-          });
-      } else {
-        const s = localStorage.getItem(SK);
-        if (s) setH(JSON.parse(s));
-        loadedRef.current = true;
-      }
-    } catch {
-      loadedRef.current = true;
-    }
+    const loadAuth = () => {
+      try {
+        const stored = localStorage.getItem(AU);
+        if (stored) {
+          const u = JSON.parse(stored) as AuthUser;
+          setUser(u);
+          loadedRef.current = false; // reset so we can load fresh
+          fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`)
+            .then(r => r.json())
+            .then((d: { holdings?: H[]; error?: string }) => {
+              if (d.holdings) setH(d.holdings);
+              else console.error("Portfolio load error:", d.error);
+              loadedRef.current = true;
+            })
+            .catch((e) => { console.error("Portfolio fetch failed:", e); loadedRef.current = true; });
+        } else {
+          const s = localStorage.getItem(SK);
+          if (s) setH(JSON.parse(s));
+          loadedRef.current = true;
+        }
+      } catch { loadedRef.current = true; }
+    };
+
+    loadAuth();
+
+    // Listen for login from global modal (fires when localStorage changes in same tab)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === AU) loadAuth();
+    };
+    window.addEventListener("storage", onStorage);
+
+    // Also listen for custom event for same-tab login
+    const onLogin = () => loadAuth();
+    window.addEventListener("arbibx-login", onLogin);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("arbibx-login", onLogin);
+    };
   }, []);
 
   /* Save holdings - only after initial load to prevent overwriting with empty array */
@@ -447,32 +458,24 @@ export default function MyStocks() {
       </div>
 
       {/* Auth section */}
-      {!user && !skipAuth && (
-        <div style={{ marginBottom:24 }}>
-          <div style={{ ...glass({ padding:"16px 20px", marginBottom:16 }) }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:V.gold, flexShrink:0 }} />
-                <span style={{ fontSize:13, color:V.gold, fontWeight:500 }}>Sign in to save your portfolio across devices</span>
-              </div>
-              <button onClick={() => setSkipAuth(true)}
-                style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, display:"flex", alignItems:"center", padding:4, borderRadius:6, flexShrink:0 }}
-                title="Continue without signing in">
-                <X size={16} />
-              </button>
+      {!user && (
+        <div style={{ ...glass({ padding:"20px 24px", marginBottom:24 }) }}>
+          <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+            <div style={{ width:44, height:44, borderRadius:12, background:"rgba(79,142,247,0.10)", border:"1px solid rgba(79,142,247,0.20)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <BookOpen size={20} color="#7EB6FF" />
             </div>
+            <div style={{ flex:1, minWidth:200 }}>
+              <p style={{ fontSize:14, fontWeight:600, color:V.ink0, margin:"0 0 3px" }}>Save your portfolio across devices</p>
+              <p style={{ fontSize:12, color:V.ink3, margin:0, lineHeight:1.5 }}>Sign in or create a free account to sync your holdings anywhere.</p>
+            </div>
+            <button onClick={() => onSignIn?.()}
+              style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:"linear-gradient(135deg,#4F8EF7,#2D6FDB)", border:"none", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0, whiteSpace:"nowrap" }}>
+              Sign In / Sign Up
+            </button>
           </div>
-          <AuthModal onAuth={handleAuth} />
-        </div>
-      )}
-
-      {!user && skipAuth && (
-        <div style={{ ...glass({ padding:"12px 16px", marginBottom:20 }), display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:12, color:V.ink3 }}>Signed out -- portfolio saves locally only</span>
-          <button onClick={() => setSkipAuth(false)}
-            style={{ ...mono, fontSize:11, color:"#7EB6FF", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:7, padding:"4px 10px", cursor:"pointer" }}>
-            Sign in
-          </button>
+          <p style={{ ...mono, fontSize:10, color:V.ink4, margin:"12px 0 0", lineHeight:1.6 }}>
+            Portfolio saves locally until you sign in. Your data won't be lost.
+          </p>
         </div>
       )}
 

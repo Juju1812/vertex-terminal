@@ -383,26 +383,33 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
    ============================================================ */
 const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
 const CACHE_KEY = "arbibx-top15-cache";
+const CACHE_VERSION = "v6"; // bump this whenever fixing signal/analysis bugs
 
 interface CachedData {
   stocks: Stock[];
   analyzedAt: string;
+  version?: string;
 }
 
 function loadCache(): { stocks: Stock[]; lastUpdate: Date } | null {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const { stocks, analyzedAt } = JSON.parse(raw) as CachedData;
+    const { stocks, analyzedAt, version } = JSON.parse(raw) as CachedData;
+    // Invalidate if wrong version or expired
+    if (version !== CACHE_VERSION) return null;
     const age = Date.now() - new Date(analyzedAt).getTime();
-    if (age > REFRESH_INTERVAL) return null; // cache expired
+    if (age > REFRESH_INTERVAL) return null;
+    // Validate the data actually has real signals, not all HOLDs with 50% confidence
+    const hasRealSignals = stocks.some(s => s.signal !== "HOLD" || s.confidence !== 50);
+    if (!hasRealSignals) return null;
     return { stocks, lastUpdate: new Date(analyzedAt) };
   } catch { return null; }
 }
 
 function saveCache(stocks: Stock[], analyzedAt: string) {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ stocks, analyzedAt }));
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ stocks, analyzedAt, version: CACHE_VERSION }));
   } catch { /* ignore */ }
 }
 

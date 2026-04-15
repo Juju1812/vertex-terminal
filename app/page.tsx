@@ -13,7 +13,7 @@ import {
 import {
   Search, TrendingUp, TrendingDown, Brain, Star, StarOff,
   Zap, AlertTriangle, Trophy, BookOpen, X,
-  LayoutDashboard, ChevronRight, ExternalLink,
+  LayoutDashboard, ChevronRight, ExternalLink, Eye, EyeOff,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
@@ -810,6 +810,84 @@ const Sidebar = memo(function Sidebar({ ticker, watchlist, livePrices, go, toggl
   );
 });
 
+/* ---- GlobalAuthForm ----------------------------------------- */
+function GlobalAuthForm({ onSuccess }: { onSuccess: () => void }) {
+  const [mode,     setMode]     = useState<"login" | "signup">("login");
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+
+  const V2 = { ink0:"#F2F6FF", ink3:"#3D5A7A", ink4:"#1F3550", w2:"rgba(130,180,255,0.10)", ame:"#9B72F5", ameWire:"rgba(155,114,245,0.22)", loss:"#E8445A", lossWire:"rgba(232,68,90,0.20)", gain:"#00C896", gainWire:"rgba(0,200,150,0.20)" };
+  const mono = { fontFamily:"'Geist Mono','Courier New',monospace" } as React.CSSProperties;
+
+  const submit = async () => {
+    if (!email || !password) { setError("Please fill in all fields."); return; }
+    setLoading(true); setError("");
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: mode, email, password }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string; user?: { email: string; token: string }; holdings?: unknown[] };
+      if (d.success && d.user) {
+        try { 
+          localStorage.setItem("arbibx-auth-user", JSON.stringify(d.user));
+          window.dispatchEvent(new Event("arbibx-login"));
+        } catch { /**/ }
+        onSuccess();
+      } else {
+        setError(d.error ?? "Something went wrong.");
+      }
+    } catch { setError("Network error — please try again."); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div>
+        <label style={{ ...mono, fontSize:9, color:V2.ink4, textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 }}>Email</label>
+        <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(""); }}
+          onKeyDown={e => e.key === "Enter" && submit()} placeholder="your@email.com"
+          style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${V2.w2}`, borderRadius:9, color:V2.ink0, ...mono, fontSize:14, padding:"11px 14px", outline:"none", boxSizing:"border-box" as const }} />
+      </div>
+      <div>
+        <label style={{ ...mono, fontSize:9, color:V2.ink4, textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 }}>Password</label>
+        <div style={{ position:"relative" }}>
+          <input type={showPw ? "text" : "password"} value={password}
+            onChange={e => { setPassword(e.target.value); setError(""); }}
+            onKeyDown={e => e.key === "Enter" && submit()}
+            placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+            style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${V2.w2}`, borderRadius:9, color:V2.ink0, ...mono, fontSize:14, padding:"11px 40px 11px 14px", outline:"none", boxSizing:"border-box" as const }} />
+          <button onClick={() => setShowPw(s => !s)}
+            style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:V2.ink3, display:"flex", alignItems:"center" }}>
+            {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:8, background:"rgba(232,68,90,0.07)", border:`1px solid ${V2.lossWire}` }}>
+          <AlertTriangle size={13} color={V2.loss} />
+          <span style={{ fontSize:12, color:V2.loss }}>{error}</span>
+        </div>
+      )}
+      <button onClick={submit} disabled={loading}
+        style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"13px 20px", borderRadius:10, background:"linear-gradient(135deg,#4F8EF7,#2D6FDB)", border:"none", color:"#fff", cursor: loading ? "not-allowed" : "pointer", fontSize:14, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", opacity: loading ? 0.7 : 1, marginTop:2 }}>
+        {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
+      </button>
+      <p style={{ textAlign:"center", fontSize:13, color:V2.ink3, margin:0 }}>
+        {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+        <button onClick={() => { setMode(m => m === "login" ? "signup" : "login"); setError(""); }}
+          style={{ background:"none", border:"none", color:"#7EB6FF", cursor:"pointer", fontSize:13, fontWeight:500, padding:0 }}>
+          {mode === "login" ? "Sign up free" : "Sign in"}
+        </button>
+      </p>
+    </div>
+  );
+}
+
 /* ---- Root ---------------------------------------------------- */
 export default function ArbibX() {
   const [ticker,     setTicker]     = useState("AAPL");
@@ -823,6 +901,10 @@ export default function ArbibX() {
   const [searching,  setSearching]  = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [livePrices, setLivePrices] = useState<Record<string, { price: number; changePct: number }>>({});
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try { return !!localStorage.getItem("arbibx-auth-user"); } catch { return false; }
+  });
   const [showLanding, setShowLanding] = useState(() => {
     try { return !localStorage.getItem("arbibx-visited"); } catch { return true; }
   });
@@ -831,7 +913,7 @@ export default function ArbibX() {
   const enterApp = (asGuest = true) => {
     try { localStorage.setItem("arbibx-visited", "1"); } catch { /**/ }
     setShowLanding(false);
-    if (!asGuest) setTab("portfolio");
+    if (!asGuest) { setShowAuthModal(true); setTab("portfolio"); }
   };
 
   const load = useCallback(async (t: string) => {
@@ -898,7 +980,8 @@ export default function ArbibX() {
 
       {/* ── LANDING PAGE ── */}
       {showLanding && (
-        <div style={{ position:"fixed", inset:0, zIndex:10000, background:"#030508", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        <div style={{ position:"fixed", inset:0, zIndex:10000, background:"#030508", display:"flex", flexDirection:"column", overflow:"auto", overscrollBehavior:"none" }}>
+          <style>{`body { overflow: hidden !important; position: fixed; width: 100%; }`}</style>
 
           {/* Animated background */}
           <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none" }}>
@@ -927,7 +1010,7 @@ export default function ArbibX() {
           </div>
 
           {/* Hero content */}
-          <div style={{ position:"relative", flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", textAlign:"center" }}>
+          <div style={{ position:"relative", flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 24px", textAlign:"center", overflowY:"auto", overscrollBehavior:"contain" }}>
 
             {/* Badge */}
             <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 14px", borderRadius:99, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", marginBottom:32, animation:"fadeUp 0.6s ease both" }}>
@@ -1010,6 +1093,35 @@ export default function ArbibX() {
         </div>
       )}
 
+      {/* ── GLOBAL AUTH MODAL ── */}
+      {showAuthModal && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
+          <div style={{ background:"rgba(8,13,24,0.98)", border:"1px solid rgba(130,180,255,0.12)", borderRadius:20, width:"100%", maxWidth:420, overflow:"hidden", position:"relative" }}>
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px", borderBottom:"1px solid rgba(130,180,255,0.07)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <Image src="/logo.png" alt="ArbibX" width={36} height={36} style={{ objectFit:"cover", borderRadius:10 }} unoptimized />
+                </div>
+                <div>
+                  <p style={{ fontFamily:"'Geist Mono',monospace", fontWeight:700, fontSize:14, color:"#F2F6FF", margin:0 }}>Sign in to ArbibX</p>
+                  <p style={{ fontFamily:"'Geist Mono',monospace", fontSize:9, color:"#1F3550", margin:0, letterSpacing:"0.1em", textTransform:"uppercase" }}>Save portfolio across devices</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAuthModal(false)}
+                style={{ background:"none", border:"none", cursor:"pointer", color:"#3D5A7A", padding:6, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <X size={16} />
+              </button>
+            </div>
+            {/* Embed MyStocks auth directly */}
+            <div style={{ padding:"24px" }}>
+              <GlobalAuthForm onSuccess={() => { setShowAuthModal(false); setIsLoggedIn(true); setTab("portfolio"); }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <header style={{ position:"sticky", top:0, zIndex:100, background:"rgba(5,8,16,0.94)", backdropFilter:"blur(40px) saturate(2.5)", WebkitBackdropFilter:"blur(40px) saturate(2.5)", borderBottom:`1px solid ${V.w2}` }}>
         <div style={{ display:"flex", alignItems:"center", padding:"0 16px", height:32, borderBottom:`1px solid ${V.w1}`, overflow:"hidden" }}>
           <div className="vx-strip" style={{ flex:1, display:"flex", alignItems:"center", gap:14, overflowX:"auto" }}>
@@ -1052,7 +1164,19 @@ export default function ArbibX() {
             })}
           </div>
 
-          <div ref={searchRef} style={{ position:"relative", flexShrink:0 }}>
+          <div ref={searchRef} style={{ position:"relative", flexShrink:0, display:"flex", alignItems:"center", gap:8 }}>
+            {!isLoggedIn && (
+              <button onClick={() => setShowAuthModal(true)}
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:8, background:"rgba(79,142,247,0.08)", border:`1px solid rgba(79,142,247,0.18)`, color:"#7EB6FF", cursor:"pointer", fontSize:11, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", whiteSpace:"nowrap", height:36 }}>
+                Sign In
+              </button>
+            )}
+            {isLoggedIn && (
+              <div style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, background:"rgba(0,200,150,0.06)", border:"1px solid rgba(0,200,150,0.15)" }}>
+                <div style={{ width:6, height:6, borderRadius:"50%", background:"#00C896" }} />
+                <span style={{ fontFamily:"'Geist Mono',monospace", fontSize:9, color:"#00C896", letterSpacing:"0.06em" }}>SIGNED IN</span>
+              </div>
+            )}
             <button onClick={() => setShowSearch(s => !s)}
               style={{ background: showSearch ? "rgba(79,142,247,0.10)" : "none", border:`1px solid ${showSearch ? V.arcWire : "transparent"}`, borderRadius:8, cursor:"pointer", color: showSearch ? "#7EB6FF" : V.ink3, padding:"6px 10px", display:"flex", alignItems:"center", minHeight:36, minWidth:36, justifyContent:"center", transition:"all 0.2s" }}>
               <Search size={16} />
@@ -1084,7 +1208,7 @@ export default function ArbibX() {
 
       <main className="vx-main" style={{ position:"relative", zIndex:1 }}>
         {tab === "top15"     && <Top15 onSelectTicker={go} />}
-        {tab === "portfolio" && <MyStocks />}
+        {tab === "portfolio" && <MyStocks onSignIn={() => setShowAuthModal(true)} />}
         {(tab === "markets" || tab === "ai") && (
           <div style={{ maxWidth:1200, margin:"0 auto", padding:"20px 16px" }}>
             <div className="vx-two-col" style={{ display:"flex", flexDirection:"column", gap:20 }}>
