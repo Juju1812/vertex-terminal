@@ -117,105 +117,6 @@ const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
 });
 
 /* ============================================================
-   AUTH MODAL
-   ============================================================ */
-function AuthModal({ onAuth }: { onAuth: (user: AuthUser, holdings: H[]) => void }) {
-  const [mode,     setMode]     = useState<"login" | "signup">("login");
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw,   setShowPw]   = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
-
-  const submit = async () => {
-    if (!email || !password) { setError("Please fill in all fields."); return; }
-    setLoading(true); setError("");
-    try {
-      const r = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: mode, email, password }),
-      });
-      const d = await r.json() as { success?: boolean; error?: string; user?: AuthUser; holdings?: H[] };
-      if (d.success && d.user) {
-        onAuth(d.user, d.holdings ?? []);
-      } else {
-        setError(d.error ?? "Something went wrong.");
-      }
-    } catch {
-      setError("Network error -- please try again.");
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ ...glass({ padding:0 }), maxWidth:440, margin:"0 auto" }}>
-      <div style={{ padding:"28px 28px 0" }}>
-        <div style={{ width:46, height:46, borderRadius:12, background:"rgba(155,114,245,0.12)", border:`1px solid ${V.ameWire}`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}>
-          {mode === "login" ? <LogIn size={21} color={V.ame} /> : <UserPlus size={21} color={V.ame} />}
-        </div>
-        <h2 style={{ fontSize:20, fontWeight:700, color:V.ink0, margin:"0 0 6px" }}>
-          {mode === "login" ? "Welcome back" : "Create your account"}
-        </h2>
-        <p style={{ color:V.ink3, fontSize:13, margin:"0 0 22px", lineHeight:1.6 }}>
-          {mode === "login"
-            ? "Sign in to access your saved portfolio from any device."
-            : "Sign up free to save your portfolio and get AI alerts."}
-        </p>
-      </div>
-
-      <div style={{ padding:"0 28px 28px", display:"flex", flexDirection:"column", gap:12 }}>
-        <div>
-          <label style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 }}>Email</label>
-          <input type="email" value={email}
-            onChange={e => { setEmail(e.target.value); setError(""); }}
-            onKeyDown={e => e.key === "Enter" && submit()}
-            placeholder="your@email.com"
-            style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w2}`, borderRadius:9, color:V.ink0, fontFamily:"'Geist Mono',monospace", fontSize:14, padding:"11px 14px", outline:"none", boxSizing:"border-box" }}
-          />
-        </div>
-
-        <div>
-          <label style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 }}>Password</label>
-          <div style={{ position:"relative" }}>
-            <input type={showPw ? "text" : "password"} value={password}
-              onChange={e => { setPassword(e.target.value); setError(""); }}
-              onKeyDown={e => e.key === "Enter" && submit()}
-              placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-              style={{ width:"100%", background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w2}`, borderRadius:9, color:V.ink0, fontFamily:"'Geist Mono',monospace", fontSize:14, padding:"11px 40px 11px 14px", outline:"none", boxSizing:"border-box" }}
-            />
-            <button onClick={() => setShowPw(s => !s)}
-              style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:V.ink3, display:"flex", alignItems:"center" }}>
-              {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:8, background:"rgba(232,68,90,0.07)", border:`1px solid ${V.lossWire}` }}>
-            <XCircle size={14} color={V.loss} style={{ flexShrink:0 }} />
-            <span style={{ fontSize:12, color:V.loss }}>{error}</span>
-          </div>
-        )}
-
-        <button onClick={submit} disabled={loading}
-          style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px 20px", borderRadius:10, background:"linear-gradient(135deg,rgba(155,114,245,0.25),rgba(155,114,245,0.12))", border:`1px solid ${V.ameWire}`, color:V.ame, cursor: loading ? "not-allowed" : "pointer", fontSize:14, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", opacity: loading ? 0.7 : 1, transition:"all 0.2s", marginTop:4 }}>
-          {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
-        </button>
-
-        <p style={{ textAlign:"center", fontSize:13, color:V.ink3, margin:0 }}>
-          {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-          <button onClick={() => { setMode(m => m === "login" ? "signup" : "login"); setError(""); }}
-            style={{ background:"none", border:"none", color:"#7EB6FF", cursor:"pointer", fontSize:13, fontWeight:500, padding:0 }}>
-            {mode === "login" ? "Sign up free" : "Sign in"}
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
    EMAIL ALERTS
    ============================================================ */
 function EmailAlerts({ userEmail }: { userEmail?: string }) {
@@ -317,52 +218,90 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
   const [shares,  setShares] = useState("");
   const [bp,      setBp]     = useState("");
   const [err,     setErr]    = useState("");
-  const loadedRef = useRef(false);
 
-  /* Load auth on mount + listen for login from global modal */
+  // loadedRef: true once the INITIAL load from Supabase or localStorage is complete
+  // isFetchingRef: true while actively fetching from Supabase (prevents save during fetch)
+  const loadedRef    = useRef(false);
+  const isFetchingRef = useRef(false);
+
+  /* ---- Load holdings from Supabase or localStorage ----------- */
+  const loadHoldings = useCallback(async (u: AuthUser) => {
+    isFetchingRef.current = true;
+    try {
+      const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
+      const d = await r.json() as { holdings?: H[]; error?: string };
+      if (d.holdings) {
+        setH(d.holdings);
+        // Also sync to localStorage as backup
+        try { localStorage.setItem(SK, JSON.stringify(d.holdings)); } catch { /**/ }
+      } else {
+        console.error("Portfolio load error:", d.error);
+        // Fall back to localStorage if Supabase fails
+        try {
+          const local = localStorage.getItem(SK);
+          if (local) setH(JSON.parse(local));
+        } catch { /**/ }
+      }
+    } catch (e) {
+      console.error("Portfolio fetch failed:", e);
+      // Fall back to localStorage
+      try {
+        const local = localStorage.getItem(SK);
+        if (local) setH(JSON.parse(local));
+      } catch { /**/ }
+    } finally {
+      isFetchingRef.current = false;
+      loadedRef.current = true;
+    }
+  }, []);
+
+  /* ---- Load auth on mount + listen for login events ---------- */
   useEffect(() => {
-    const loadAuth = () => {
+    const initAuth = async () => {
       try {
         const stored = localStorage.getItem(AU);
         if (stored) {
           const u = JSON.parse(stored) as AuthUser;
           setUser(u);
-          loadedRef.current = false; // reset so we can load fresh
-          fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`)
-            .then(r => r.json())
-            .then((d: { holdings?: H[]; error?: string }) => {
-              if (d.holdings) setH(d.holdings);
-              else console.error("Portfolio load error:", d.error);
-              loadedRef.current = true;
-            })
-            .catch((e) => { console.error("Portfolio fetch failed:", e); loadedRef.current = true; });
+          await loadHoldings(u);
         } else {
-          const s = localStorage.getItem(SK);
-          if (s) setH(JSON.parse(s));
+          // Not logged in — load from localStorage
+          try {
+            const s = localStorage.getItem(SK);
+            if (s) setH(JSON.parse(s));
+          } catch { /**/ }
           loadedRef.current = true;
         }
-      } catch { loadedRef.current = true; }
+      } catch {
+        loadedRef.current = true;
+      }
     };
 
-    loadAuth();
+    initAuth();
 
-    // Listen for login from global modal (fires when localStorage changes in same tab)
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === AU) loadAuth();
+    // Listen for login from global modal
+    const onLogin = async () => {
+      try {
+        const stored = localStorage.getItem(AU);
+        if (stored) {
+          const u = JSON.parse(stored) as AuthUser;
+          setUser(u);
+          await loadHoldings(u);
+        }
+      } catch { /**/ }
     };
-    window.addEventListener("storage", onStorage);
 
-    // Also listen for custom event for same-tab login
-    const onLogin = () => loadAuth();
     window.addEventListener("arbibx-login", onLogin);
+    window.addEventListener("storage", (e: StorageEvent) => {
+      if (e.key === AU) onLogin();
+    });
 
     return () => {
-      window.removeEventListener("storage", onStorage);
       window.removeEventListener("arbibx-login", onLogin);
     };
-  }, []);
+  }, [loadHoldings]);
 
-  /* Save holdings - only after initial load to prevent overwriting with empty array */
+  /* ---- Save holdings — only after load, never during fetch --- */
   const saveCloudHoldings = useCallback(async (u: AuthUser, h: H[]) => {
     setSyncing(true);
     try {
@@ -372,12 +311,20 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
         body: JSON.stringify({ email: u.email, token: u.token, holdings: h }),
       });
       if (!r.ok) console.error("Save failed:", r.status, await r.text());
+      else {
+        // Keep localStorage in sync as backup
+        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+      }
     } catch (e) { console.error("Save error:", e); }
     setSyncing(false);
   }, []);
 
   useEffect(() => {
-    if (!loadedRef.current) return; // Don't save before initial load completes
+    // Don't save if:
+    // 1. Initial load hasn't completed
+    // 2. We're actively fetching from Supabase (would overwrite with stale local data)
+    if (!loadedRef.current || isFetchingRef.current) return;
+
     if (user) {
       saveCloudHoldings(user, holdings);
     } else {
@@ -388,10 +335,12 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
   const handleAuth = (u: AuthUser, h: H[]) => {
     setUser(u); setH(h);
     try { localStorage.setItem(AU, JSON.stringify(u)); } catch { /**/ }
+    loadedRef.current = true;
   };
 
   const logout = () => {
     setUser(null); setH([]);
+    loadedRef.current = true;
     try { localStorage.removeItem(AU); localStorage.removeItem(SK); } catch { /**/ }
   };
 

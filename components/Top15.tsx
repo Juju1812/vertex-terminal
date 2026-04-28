@@ -32,7 +32,6 @@ interface Top15Props { onSelectTicker?: (ticker: string) => void; }
 
 /* ---- Universe of 60 stocks --------------------------------- */
 const UNI = [
-  /* ---- Large Cap Tech ---- */
   { t:"NVDA",  n:"NVIDIA Corp.",           s:"Technology"  },
   { t:"MSFT",  n:"Microsoft Corp.",         s:"Technology"  },
   { t:"AAPL",  n:"Apple Inc.",              s:"Technology"  },
@@ -46,39 +45,33 @@ const UNI = [
   { t:"ADBE",  n:"Adobe Inc.",              s:"Technology"  },
   { t:"INTC",  n:"Intel Corp.",             s:"Technology"  },
   { t:"QCOM",  n:"Qualcomm Inc.",           s:"Technology"  },
-  /* ---- Financials ---- */
   { t:"JPM",   n:"JPMorgan Chase",          s:"Financials"  },
   { t:"V",     n:"Visa Inc.",               s:"Financials"  },
   { t:"MA",    n:"Mastercard Inc.",         s:"Financials"  },
   { t:"BAC",   n:"Bank of America",         s:"Financials"  },
   { t:"GS",    n:"Goldman Sachs",           s:"Financials"  },
   { t:"COIN",  n:"Coinbase Global",         s:"Financials"  },
-  /* ---- Consumer / EV ---- */
   { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
   { t:"TSLA",  n:"Tesla Inc.",              s:"Consumer"    },
   { t:"NKE",   n:"Nike Inc.",               s:"Consumer"    },
   { t:"SBUX",  n:"Starbucks Corp.",         s:"Consumer"    },
   { t:"RIVN",  n:"Rivian Automotive",       s:"Consumer"    },
   { t:"LCID",  n:"Lucid Group",             s:"Consumer"    },
-  /* ---- Healthcare / Biotech ---- */
   { t:"UNH",   n:"UnitedHealth Group",      s:"Healthcare"  },
   { t:"LLY",   n:"Eli Lilly & Co.",         s:"Healthcare"  },
   { t:"PFE",   n:"Pfizer Inc.",             s:"Healthcare"  },
   { t:"MRNA",  n:"Moderna Inc.",            s:"Healthcare"  },
   { t:"ABBV",  n:"AbbVie Inc.",             s:"Healthcare"  },
   { t:"NVO",   n:"Novo Nordisk (ADR)",      s:"Healthcare"  },
-  /* ---- Cybersecurity / AI ---- */
   { t:"PLTR",  n:"Palantir Tech.",          s:"Technology"  },
   { t:"CRWD",  n:"CrowdStrike",             s:"Technology"  },
   { t:"PANW",  n:"Palo Alto Networks",      s:"Technology"  },
   { t:"S",     n:"SentinelOne",             s:"Technology"  },
   { t:"NET",   n:"Cloudflare Inc.",         s:"Technology"  },
   { t:"SNOW",  n:"Snowflake Inc.",          s:"Technology"  },
-  /* ---- Energy ---- */
   { t:"XOM",   n:"ExxonMobil Corp.",        s:"Energy"      },
   { t:"CVX",   n:"Chevron Corp.",           s:"Energy"      },
   { t:"OXY",   n:"Occidental Petroleum",    s:"Energy"      },
-  /* ---- International ADRs (OTC) ---- */
   { t:"TCEHY", n:"Tencent Holdings (ADR)",  s:"Technology"  },
   { t:"BABA",  n:"Alibaba Group (ADR)",     s:"Consumer"    },
   { t:"BIDU",  n:"Baidu Inc. (ADR)",        s:"Technology"  },
@@ -89,7 +82,6 @@ const UNI = [
   { t:"TM",    n:"Toyota Motor (ADR)",      s:"Consumer"    },
   { t:"NSRGY", n:"Nestle SA (ADR)",         s:"Consumer"    },
   { t:"RHHBY", n:"Roche Holding (ADR)",     s:"Healthcare"  },
-  /* ---- OTC / Speculative ---- */
   { t:"ACMIF", n:"Allied Critical Metals",  s:"Materials"   },
   { t:"BTQQF", n:"BTQ Technologies",        s:"Technology"  },
   { t:"CRCUF", n:"Calibre Mining",          s:"Materials"   },
@@ -120,7 +112,6 @@ function isMarketHours(): boolean {
   const hour = et.getHours();
   const min  = et.getMinutes();
   const mins = hour * 60 + min;
-  // Mon-Fri, 9:30am - 4:00pm ET
   return day >= 1 && day <= 5 && mins >= 570 && mins < 960;
 }
 
@@ -138,10 +129,10 @@ function nextMarketOpen(): string {
 
 /* ---- Portfolio simulator ----------------------------------- */
 function simulate(stocks: Stock[], cash: number): Alloc[] {
-  const buys = stocks.filter(s =>
-    (s.signal === "STRONG BUY" || s.signal === "BUY") &&
-    s.price > 0 && !isNaN(s.price)
-  ).slice(0, 8);
+  const buys = stocks.filter(s => {
+    const sig = (s.signal ?? "").toString().trim().toUpperCase();
+    return (sig === "STRONG BUY" || sig === "BUY") && s.price > 0 && !isNaN(s.price);
+  }).slice(0, 8);
   if (!buys.length) return [];
   const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
   if (!tw || isNaN(tw)) return [];
@@ -210,7 +201,6 @@ function YahooBtn({ ticker }: { ticker: string }) {
 /* ---- Stock Detail Modal ------------------------------------ */
 function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
   const sig = SIGNAL_CONFIG[stock.signal] ?? SIGNAL_CONFIG["HOLD"];
-  const up  = stock.changePct >= 0;
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -234,13 +224,11 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
         </div>
 
         <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:16 }}>
-
-          {/* Price + target */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
             {[
-              { l:"Price",     v:f$(stock.price),       c:V.ink0  },
-              { l:"Target",    v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? f$(stock.targetPrice) : "--", c:sig.color },
-              { l:"Upside",    v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? fp(((stock.targetPrice - stock.price) / stock.price) * 100) : "--", c: stock.targetPrice > stock.price ? V.gain : V.loss },
+              { l:"Price",  v:f$(stock.price), c:V.ink0 },
+              { l:"Target", v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? f$(stock.targetPrice) : "--", c:sig.color },
+              { l:"Upside", v: stock.targetPrice > 0 && !isNaN(stock.targetPrice) ? fp(((stock.targetPrice - stock.price) / stock.price) * 100) : "--", c: stock.targetPrice > stock.price ? V.gain : V.loss },
             ].map(s => (
               <div key={s.l} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"12px 14px" }}>
                 <p style={{ ...mono, fontSize:8, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{s.l}</p>
@@ -249,25 +237,23 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
             ))}
           </div>
 
-          {/* Confidence */}
           <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"14px 16px" }}>
             <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>AI Confidence</p>
             <ConfBar pct={stock.confidence} color={sig.color} />
           </div>
 
-          {/* Technical indicators */}
           <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${V.w1}`, borderRadius:10, padding:"14px 16px" }}>
             <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>Technical Indicators</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
               {[
-                { l:"RSI(14)",        v:stock.rsi.toString(), c: stock.rsi < 30 ? V.gain : stock.rsi > 70 ? V.loss : V.ink0 },
-                { l:"SMA 20",         v:f$(stock.sma20),       c: stock.price > stock.sma20 ? V.gain : V.loss },
-                { l:"SMA 50",         v:f$(stock.sma50),       c: stock.price > stock.sma50 ? V.gain : V.loss },
-                { l:"Volume Ratio",   v:`${stock.volumeRatio}x`, c: stock.volumeRatio > 1.5 ? "#7EB6FF" : V.ink2 },
-                { l:"5d Momentum",    v:fp(stock.momentum5d),  c: stock.momentum5d >= 0 ? V.gain : V.loss },
-                { l:"20d Momentum",   v:fp(stock.momentum20d), c: stock.momentum20d >= 0 ? V.gain : V.loss },
-                { l:"Support",        v:f$(stock.support),     c:V.loss },
-                { l:"Resistance",     v:f$(stock.resistance),  c:V.gain },
+                { l:"RSI(14)",      v:stock.rsi.toString(), c: stock.rsi < 30 ? V.gain : stock.rsi > 70 ? V.loss : V.ink0 },
+                { l:"SMA 20",       v:f$(stock.sma20),       c: stock.price > stock.sma20 ? V.gain : V.loss },
+                { l:"SMA 50",       v:f$(stock.sma50),       c: stock.price > stock.sma50 ? V.gain : V.loss },
+                { l:"Volume Ratio", v:`${stock.volumeRatio}x`, c: stock.volumeRatio > 1.5 ? "#7EB6FF" : V.ink2 },
+                { l:"5d Momentum",  v:fp(stock.momentum5d),  c: stock.momentum5d >= 0 ? V.gain : V.loss },
+                { l:"20d Momentum", v:fp(stock.momentum20d), c: stock.momentum20d >= 0 ? V.gain : V.loss },
+                { l:"Support",      v:f$(stock.support),     c:V.loss },
+                { l:"Resistance",   v:f$(stock.resistance),  c:V.gain },
               ].map(s => (
                 <div key={s.l} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <span style={{ ...mono, fontSize:10, color:V.ink4 }}>{s.l}</span>
@@ -277,7 +263,6 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
             </div>
           </div>
 
-          {/* AI Thesis */}
           <div style={{ background:"rgba(79,142,247,0.05)", border:`1px solid rgba(79,142,247,0.15)`, borderRadius:10, padding:"16px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
               <Brain size={14} color="#7EB6FF" />
@@ -290,7 +275,6 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
             </div>
           </div>
 
-          {/* Tags */}
           {stock.tags.length > 0 && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
               {stock.tags.map(t => (
@@ -311,15 +295,53 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
 /* ---- Simulator Modal --------------------------------------- */
 function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void }) {
   const [cash, setCash] = useState("50000");
+  const [added, setAdded] = useState(false);
+  const [replaced, setReplaced] = useState(false);
   const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   let allocs: Alloc[] = [];
   try { allocs = simulate(stocks, num); } catch { allocs = []; }
   const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
+  const buildHoldings = () => allocs
+    .filter(a => a.shares > 0)
+    .map(a => ({
+      id: `sim-${Date.now()}-${a.ticker}-${Math.random()}`,
+      ticker: a.ticker,
+      shares: a.shares,
+      buyPrice: +a.price.toFixed(2),
+    }));
+
+  const addToPortfolio = () => {
+    try {
+      const newHoldings = buildHoldings();
+      if (!newHoldings.length) return;
+      const existing = JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as { id: string; ticker: string; shares: number; buyPrice: number }[];
+      const existingTickers = new Set(existing.map((h: { ticker: string }) => h.ticker));
+      const toAdd = newHoldings.filter(h => !existingTickers.has(h.ticker));
+      const merged = [...existing, ...toAdd];
+      localStorage.setItem("arbibx-holdings-local", JSON.stringify(merged));
+      window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2500);
+    } catch { /**/ }
+  };
+
+  const replacePortfolio = () => {
+    try {
+      const newHoldings = buildHoldings();
+      if (!newHoldings.length) return;
+      localStorage.setItem("arbibx-holdings-local", JSON.stringify(newHoldings));
+      window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
+      setReplaced(true);
+      setTimeout(() => setReplaced(false), 2500);
+    } catch { /**/ }
+  };
+
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
       <div style={{ background:"rgba(8,13,24,0.97)", border:"1px solid rgba(130,180,255,0.10)", borderRadius:18, width:"100%", maxWidth:680, maxHeight:"85vh", overflow:"auto", display:"flex", flexDirection:"column", position:"relative", zIndex:9999 }}>
+
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:`1px solid ${V.w1}`, position:"sticky", top:0, background:"rgba(8,13,24,0.97)", backdropFilter:"blur(20px)", zIndex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,#4F8EF7,#00C896)", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -360,19 +382,34 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <p style={{ ...mono, fontSize:13, fontWeight:500, color:V.ink0 }}>{f$(a.dollars)}</p>
-                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh</p>
+                <p style={{ ...mono, fontSize:9, color:V.ink3 }}>{a.shares} sh @ {f$(a.price)}</p>
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ padding:"12px 20px", borderTop:`1px solid ${V.w1}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, background:"rgba(5,8,16,0.8)" }}>
-          <p style={{ fontSize:11, color:V.ink3, maxWidth:280 }}>Only allocates to BUY/STRONG BUY signals. Not financial advice.</p>
-          <div style={{ textAlign:"right" }}>
-            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase" }}>Deployed</p>
+        <div style={{ padding:"12px 20px", borderTop:`1px solid ${V.w1}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, background:"rgba(5,8,16,0.8)" }}>
+          <div style={{ textAlign:"left" }}>
+            <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", marginBottom:2 }}>Deployed</p>
             <p style={{ ...mono, fontSize:20, fontWeight:500, color:V.gain }}>{f$(total)}</p>
           </div>
+          {allocs.length > 0 && (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <button onClick={addToPortfolio}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"#00C896", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                {added ? "✓ Added!" : "+ Add to Portfolio"}
+              </button>
+              <button onClick={replacePortfolio}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"#7EB6FF", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                {replaced ? "✓ Replaced!" : "⟳ Replace Portfolio"}
+              </button>
+            </div>
+          )}
         </div>
+
+        <p style={{ ...mono, fontSize:9, color:V.ink4, textAlign:"center", padding:"8px 20px 12px", margin:0 }}>
+          Only allocates to BUY/STRONG BUY signals. Not financial advice.
+        </p>
       </div>
     </div>
   );
@@ -381,9 +418,9 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
 /* ============================================================
    MAIN EXPORT
    ============================================================ */
-const REFRESH_INTERVAL = 60 * 60 * 1000; // 60 minutes
+const REFRESH_INTERVAL = 60 * 60 * 1000;
 const CACHE_KEY = "arbibx-top15-cache";
-const CACHE_VERSION = "v8"; // bump this whenever fixing signal/analysis bugs
+const CACHE_VERSION = "v9";
 
 interface CachedData {
   stocks: Stock[];
@@ -396,14 +433,11 @@ function loadCache(): { stocks: Stock[]; lastUpdate: Date } | null {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const { stocks, analyzedAt, version } = JSON.parse(raw) as CachedData;
-    // Invalidate if wrong version or expired
     if (version !== CACHE_VERSION) return null;
     const age = Date.now() - new Date(analyzedAt).getTime();
     if (age > REFRESH_INTERVAL) return null;
-    // Validate the data actually has real signals, not all HOLDs with 50% confidence
     const hasRealSignals = stocks.some(s => s.signal !== "HOLD" || s.confidence !== 50);
     if (!hasRealSignals) return null;
-    // Also validate at least some stocks have real prices
     const hasPrices = stocks.filter(s => s.price > 0).length >= 5;
     if (!hasPrices) return null;
     return { stocks, lastUpdate: new Date(analyzedAt) };
@@ -413,23 +447,23 @@ function loadCache(): { stocks: Stock[]; lastUpdate: Date } | null {
 function saveCache(stocks: Stock[], analyzedAt: string) {
   try {
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({ stocks, analyzedAt, version: CACHE_VERSION }));
-  } catch { /* ignore */ }
+  } catch { /**/ }
 }
 
 export default function Top15({ onSelectTicker }: Top15Props) {
   const cached = loadCache();
-  const [stocks,     setStocks]     = useState<Stock[]>(cached?.stocks ?? []);
-  const [loading,    setLoading]    = useState(!cached);
-  const [analyzing,  setAnalyzing]  = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(cached?.lastUpdate ?? null);
-  const [nextUpdate, setNextUpdate] = useState<Date | null>(cached ? new Date(cached.lastUpdate.getTime() + REFRESH_INTERVAL) : null);
-  const [marketOpen, setMarketOpen] = useState(false);
-  const [showSim,    setShowSim]    = useState(false);
-  const [selected,   setSelected]   = useState<Stock | null>(null);
-  const [sortCol,    setSortCol]    = useState<keyof Stock>("rank");
-  const [sortDir,    setSortDir]    = useState<"asc" | "desc">("asc");
-  const [hovRow,     setHovRow]     = useState<string | null>(null);
-  const [timeLeft,   setTimeLeft]   = useState("");
+  const [stocks,    setStocks]    = useState<Stock[]>(cached?.stocks ?? []);
+  const [loading,   setLoading]   = useState(!cached);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [lastUpdate,setLastUpdate]= useState<Date | null>(cached?.lastUpdate ?? null);
+  const [nextUpdate,setNextUpdate]= useState<Date | null>(cached ? new Date(cached.lastUpdate.getTime() + REFRESH_INTERVAL) : null);
+  const [marketOpen,setMarketOpen]= useState(false);
+  const [showSim,   setShowSim]   = useState(false);
+  const [selected,  setSelected]  = useState<Stock | null>(null);
+  const [sortCol,   setSortCol]   = useState<keyof Stock>("rank");
+  const [sortDir,   setSortDir]   = useState<"asc" | "desc">("asc");
+  const [hovRow,    setHovRow]    = useState<string | null>(null);
+  const [timeLeft,  setTimeLeft]  = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const runAnalysis = useCallback(async (force = false) => {
@@ -456,37 +490,18 @@ export default function Top15({ onSelectTicker }: Top15Props) {
     setAnalyzing(false);
   }, []);
 
-  // Initial load + auto-refresh during market hours
   useEffect(() => {
-    const check = () => {
-      const open = isMarketHours();
-      setMarketOpen(open);
-      return open;
-    };
-
-    // Only run analysis if no valid cache exists
-    if (!loadCache()) {
-      runAnalysis();
-    }
-
-    // Set up auto-refresh every hour during market hours
-    timerRef.current = setInterval(() => {
-      if (check()) {
-        runAnalysis();
-      }
-    }, REFRESH_INTERVAL);
-
-    // Update market open status every minute
+    const check = () => { const open = isMarketHours(); setMarketOpen(open); return open; };
+    if (!loadCache()) { runAnalysis(); }
+    timerRef.current = setInterval(() => { if (check()) runAnalysis(); }, REFRESH_INTERVAL);
     const statusTimer = setInterval(check, 60_000);
     check();
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       clearInterval(statusTimer);
     };
   }, [runAnalysis]);
 
-  // Countdown timer display
   useEffect(() => {
     if (!nextUpdate) return;
     const tick = () => {
@@ -511,7 +526,6 @@ export default function Top15({ onSelectTicker }: Top15Props) {
     else { setSortCol(col); setSortDir("desc"); }
   };
 
-  /* Loading skeleton */
   if (loading) return (
     <div style={{ padding:24, display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ ...glass({ padding:20, display:"flex", alignItems:"center", gap:14 }) }}>
@@ -538,10 +552,11 @@ export default function Top15({ onSelectTicker }: Top15Props) {
     </th>
   );
 
-  const buyCount      = stocks.filter(s => s.signal === "STRONG BUY" || s.signal === "BUY").length;
-  const avgConf       = Math.round(stocks.reduce((s, x) => s + x.confidence, 0) / (stocks.length || 1));
+  const isBuy = (s: Stock) => { const sig = (s.signal ?? "").toString().trim().toUpperCase(); return sig === "STRONG BUY" || sig === "BUY"; };
+  const buyCount = stocks.filter(isBuy).length;
+  const avgConf  = Math.round(stocks.reduce((s, x) => s + x.confidence, 0) / (stocks.length || 1));
   const avgUpside = buyCount > 0 ? (() => {
-    const buyStocks = stocks.filter(s => (s.signal === "BUY" || s.signal === "STRONG BUY") && s.price > 0 && s.targetPrice > 0);
+    const buyStocks = stocks.filter(s => isBuy(s) && s.price > 0 && s.targetPrice > 0);
     if (!buyStocks.length) return null;
     const avg = buyStocks.reduce((sum, x) => sum + ((x.targetPrice - x.price) / x.price) * 100, 0) / buyStocks.length;
     return isNaN(avg) ? null : avg.toFixed(1);
@@ -550,7 +565,6 @@ export default function Top15({ onSelectTicker }: Top15Props) {
   return (
     <div style={{ padding:"20px 16px", maxWidth:1280, margin:"0 auto" }}>
 
-      {/* Header */}
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:18, gap:12, flexWrap:"wrap" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:11, background:"linear-gradient(135deg,rgba(232,160,48,0.15),rgba(232,160,48,0.06))", border:"1px solid rgba(232,160,48,0.25)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -559,7 +573,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
           <div>
             <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0 }}>AI Top 15</h2>
             <p style={{ ...mono, color:V.ink4, fontSize:9, margin:0, marginTop:2, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Claude AI + Polygon.io -- Real data analysis
+              Claude AI + Polygon.io · Real data analysis
             </p>
           </div>
         </div>
@@ -569,12 +583,11 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         </button>
       </div>
 
-      {/* Status bar */}
       <div style={{ ...glass({ padding:"12px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }) }}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <div style={{ width:7, height:7, borderRadius:"50%", background: marketOpen ? V.gain : V.gold, animation: marketOpen ? "live-pulse 2s ease-in-out infinite" : "none" }} />
           <span style={{ ...mono, fontSize:10, color: marketOpen ? V.gain : V.gold }}>
-            {marketOpen ? "Market Open -- Auto-refreshing every hour" : `Market Closed -- Next open: ${nextMarketOpen()}`}
+            {marketOpen ? "Market Open · Auto-refreshing every hour" : `Market Closed · Next open: ${nextMarketOpen()}`}
           </span>
         </div>
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
@@ -584,11 +597,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
               <span style={{ ...mono, fontSize:9, color:"#9B72F5" }}>Analyzing...</span>
             </div>
           )}
-          {lastUpdate && (
-            <span style={{ ...mono, fontSize:9, color:V.ink4 }}>
-              Updated {lastUpdate.toLocaleTimeString()}
-            </span>
-          )}
+          {lastUpdate && <span style={{ ...mono, fontSize:9, color:V.ink4 }}>Updated {lastUpdate.toLocaleTimeString()}</span>}
           {nextUpdate && marketOpen && timeLeft && (
             <div style={{ display:"flex", alignItems:"center", gap:5 }}>
               <Clock size={10} color={V.ink4} />
@@ -598,7 +607,6 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="top15-stats" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:16 }}>
         {[
           { icon:<TrendingUp size={13} color={V.gain} />,  label:"Buy Signals",    val:`${buyCount}/${stocks.length}` },
@@ -616,21 +624,20 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         ))}
       </div>
 
-      {/* Table */}
       <div style={{ ...glass({ overflow:"hidden" }) }}>
         <div className="top15-table-wrap" style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
             <thead>
               <tr style={{ borderBottom:`1px solid ${V.w1}` }}>
-                <ColH label="Rank"       col="rank" />
+                <ColH label="Rank"      col="rank" />
                 <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"left", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Ticker</th>
                 <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"left", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap", minWidth:100 }}>Company</th>
-                <ColH label="Signal"     col="signal"     right />
-                <ColH label="Price"      col="price"      right />
-                <ColH label="Today"      col="changePct"  right />
-                <ColH label="Target"     col="targetPrice" right />
-                <ColH label="RSI"        col="rsi"        right />
-                <ColH label="Conf."      col="confidence" right />
+                <ColH label="Signal"    col="signal"     right />
+                <ColH label="Price"     col="price"      right />
+                <ColH label="Today"     col="changePct"  right />
+                <ColH label="Target"    col="targetPrice" right />
+                <ColH label="RSI"       col="rsi"        right />
+                <ColH label="Conf."     col="confidence" right />
                 <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"center", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Info</th>
               </tr>
             </thead>
@@ -692,7 +699,6 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                       <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"center" }}>
                         <button
                           onClick={e => { e.stopPropagation(); setSelected(s); }}
-                          title="View AI Analysis"
                           style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(155,114,245,0.08)", border:"1px solid rgba(155,114,245,0.18)", color:"#9B72F5", fontSize:9, fontFamily:"'Geist Mono',monospace", cursor:"pointer", whiteSpace:"nowrap" }}>
                           <Brain size={8} /> AI
                         </button>
@@ -708,13 +714,13 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         <div style={{ padding:"10px 16px", borderTop:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:6 }}>
           <Brain size={11} color={V.ink4} />
           <span style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-            Click any row for full AI analysis -- Auto-refreshes every hour during market hours
+            Click any row for full AI analysis · Auto-refreshes every hour during market hours
           </span>
         </div>
       </div>
 
       <p style={{ ...mono, color:V.ink4, fontSize:9, marginTop:10, lineHeight:1.6 }}>
-        AI analysis by Claude Opus using RSI, SMA, momentum, volume, and live news. Not financial advice. Past performance does not guarantee future results.
+        AI analysis by Claude Opus using RSI, SMA, momentum, volume, and live news. Not financial advice.
       </p>
 
       {selected && <StockModal stock={selected} onClose={() => setSelected(null)} />}
