@@ -388,6 +388,20 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
 
     window.addEventListener("arbibx-login", onLogin);
 
+    // Re-fetch from Supabase when user returns to the tab/app on any device
+    // This ensures cross-device sync without needing to sign out and back in
+    const onVisibility = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const stored = localStorage.getItem(AU);
+        if (!stored) return;
+        const u = JSON.parse(stored) as AuthUser;
+        await loadFromCloud(u);
+      } catch { /**/ }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+
     // Also pick up localStorage changes (e.g. from SimModal Add/Replace)
     const onStorage = (e: StorageEvent) => {
       if (e.key === SK && !isFetchingRef.current) {
@@ -407,6 +421,7 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
     return () => {
       window.removeEventListener("arbibx-login", onLogin);
       window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loadFromCloud]);
 
