@@ -335,6 +335,73 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
   const gainers = watchlist.filter(t=>(prices[t]?.changePct??0)>0).length;
   const losers  = watchlist.filter(t=>(prices[t]?.changePct??0)<0).length;
 
+  /* ---- Push notification state ---------------------------- */
+  const [pushEnabled,  setPushEnabled]  = useState(false);
+  const [pushLoading,  setPushLoading]  = useState(false);
+  const [pushSupported,setPushSupported]= useState(false);
+
+  useEffect(()=>{
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window) {
+      setPushSupported(true);
+      // Check if already subscribed
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          setPushEnabled(!!sub);
+        });
+      });
+    }
+  }, []);
+
+  const togglePush = async () => {
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (pushEnabled) {
+        // Unsubscribe
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+        // Remove from server if logged in
+        try {
+          const auth = localStorage.getItem("arbibx-auth-user");
+          if (auth) {
+            const { email, token } = JSON.parse(auth) as { email:string; token:string };
+            await fetch("/api/push-subscribe", {
+              method:"DELETE",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({ email, token }),
+            });
+          }
+        } catch { /**/ }
+        setPushEnabled(false);
+      } else {
+        // Request permission
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") { setPushLoading(false); return; }
+
+        const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: VAPID_KEY,
+        });
+
+        // Save to server if logged in
+        try {
+          const auth = localStorage.getItem("arbibx-auth-user");
+          if (auth) {
+            const { email, token } = JSON.parse(auth) as { email:string; token:string };
+            await fetch("/api/push-subscribe", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({ email, token, subscription: sub.toJSON() }),
+            });
+          }
+        } catch { /**/ }
+        setPushEnabled(true);
+      }
+    } catch (err) { console.error("Push toggle error:", err); }
+    setPushLoading(false);
+  };
+
   return (
     <div style={{padding:"20px 16px",maxWidth:1280,margin:"0 auto"}}>
 
@@ -352,6 +419,12 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
+          {pushSupported&&(
+            <button onClick={togglePush} disabled={pushLoading}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:9,background:pushEnabled?"rgba(0,200,150,0.08)":V.ameDim,border:`1px solid ${pushEnabled?V.gainWire:V.ameWire}`,color:pushEnabled?V.gain:V.ame,cursor:pushLoading?"not-allowed":"pointer",fontSize:12,fontWeight:600,fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",opacity:pushLoading?0.6:1}}>
+              <Bell size={13}/> {pushLoading?"...":pushEnabled?"Push On":"Push Off"}
+            </button>
+          )}
           <button onClick={()=>setShowAdd(true)}
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:9,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"'Bricolage Grotesque',system-ui,sans-serif"}}>
             <Plus size={13}/> Add Stock
