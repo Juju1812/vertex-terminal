@@ -1027,7 +1027,7 @@ export default function ArbibX() {
           </div>
 
           {/* Auth + search */}
-          <div ref={searchRef} style={{position:"relative",flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+          <div ref={searchRef} style={{position:"relative",flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
             {isLoggedIn&&isPro&&(
               <div style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:8,background:"rgba(240,165,0,0.10)",border:"1px solid rgba(240,165,0,0.28)"}}>
                 <Zap size={10} color={V.gold} fill={V.gold}/>
@@ -1036,20 +1036,20 @@ export default function ArbibX() {
             )}
             {!isPro&&(
               <button onClick={()=>{setProReason("Upgrade to remove ads and unlock all features");setShowProModal(true);}}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:8,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:V.gold,cursor:"pointer",fontSize:11,fontFamily:"'Cabinet Grotesk',system-ui",fontWeight:700}}>
+                style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:8,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:V.gold,cursor:"pointer",fontSize:11,fontFamily:"'Cabinet Grotesk',system-ui",fontWeight:700,whiteSpace:"nowrap"}}>
                 <Zap size={11} color={V.gold}/> Upgrade
               </button>
             )}
             {!isLoggedIn&&(
               <button onClick={()=>setShowAuthModal(true)}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:9,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"'Cabinet Grotesk',system-ui",whiteSpace:"nowrap",height:36,transition:"all 0.2s"}}
+                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:9,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"'Cabinet Grotesk',system-ui",whiteSpace:"nowrap",height:36,transition:"all 0.2s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(240,165,0,0.18)"}
                 onMouseLeave={e=>e.currentTarget.style.background=V.goldDim}>
                 Sign In
               </button>
             )}
             {isLoggedIn&&(
-              <div style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:8,background:"rgba(0,229,160,0.07)",border:`1px solid ${V.gainWire}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:8,background:"rgba(0,229,160,0.07)",border:`1px solid ${V.gainWire}`}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:V.gain}}/>
                 <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.gain,letterSpacing:"0.06em"}}>SIGNED IN</span>
               </div>
