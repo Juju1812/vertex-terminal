@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon,
+  AlertTriangle, GitCompare, Sun, Moon, Zap,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
@@ -29,6 +29,7 @@ const StockScreener  = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => impor
 const PortfolioAnalytics = dynamic<{ onSelectTicker?:(t:string)=>void; onGoPortfolio?:()=>void }>(() => import("@/components/PortfolioAnalytics"), { ssr:false, loading:() => <PanelSkeleton /> });
 const WatchlistAlerts = dynamic<{ watchlist:string[]; onToggleWatch:(t:string)=>void; onSelectTicker?:(t:string)=>void }>(() => import("@/components/WatchlistAlerts"), { ssr:false, loading:() => <PanelSkeleton /> });
 const StockComparison = dynamic<{ initialTicker:string; onClose:()=>void }>(() => import("@/components/StockComparison"), { ssr:false });
+const ProUpgradeModal = dynamic(() => import("@/components/ProUpgradeModal"), { ssr:false });
 
 function PanelSkeleton() {
   return (
@@ -720,10 +721,36 @@ export default function ArbibX() {
   const [showAuthModal,setShowAuthModal]= useState(false);
   const [isLoggedIn,setIsLoggedIn]= useState(()=>{try{return !!localStorage.getItem("arbibx-auth-user");}catch{return false;}});
   const [showLanding,setShowLanding]= useState(()=>{try{return !localStorage.getItem("arbibx-visited");}catch{return true;}});
-  const [showCompare,setShowCompare]= useState(false);
+  const [showCompare,  setShowCompare]  = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
+  const [proReason,    setProReason]    = useState("");
+  const [isPro,        setIsPro]        = useState(false);
   const [theme, setTheme] = useState<"dark"|"light">(() => {
     try { return (localStorage.getItem("arbibx-theme") ?? "dark") as "dark"|"light"; } catch { return "dark"; }
   });
+
+  // Check Pro status on mount and login
+  useEffect(()=>{
+    const checkPro = async () => {
+      try {
+        const stored = localStorage.getItem("arbibx-auth-user");
+        if (!stored) return;
+        const { email, token } = JSON.parse(stored) as { email:string; token:string };
+        const r = await fetch(`/api/subscription?email=${encodeURIComponent(email)}&token=${token}`);
+        const d = await r.json() as { isPro:boolean };
+        setIsPro(d.isPro);
+      } catch { /**/ }
+    };
+    checkPro();
+    window.addEventListener("arbibx-login", checkPro);
+    // Handle Stripe success redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("pro")==="success") {
+      setIsPro(true); setTab("portfolio");
+      window.history.replaceState({},""," /");
+    }
+    return ()=>window.removeEventListener("arbibx-login", checkPro);
+  },[]);
 
   // Apply theme to document and update V tokens
   useEffect(() => {
@@ -1001,6 +1028,18 @@ export default function ArbibX() {
 
           {/* Auth + search */}
           <div ref={searchRef} style={{position:"relative",flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+            {isLoggedIn&&isPro&&(
+              <div style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:8,background:"rgba(240,165,0,0.10)",border:"1px solid rgba(240,165,0,0.28)"}}>
+                <Zap size={10} color={V.gold} fill={V.gold}/>
+                <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.gold,letterSpacing:"0.06em",fontWeight:600}}>PRO</span>
+              </div>
+            )}
+            {!isPro&&(
+              <button onClick={()=>{setProReason("Upgrade to remove ads and unlock all features");setShowProModal(true);}}
+                style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:8,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:V.gold,cursor:"pointer",fontSize:11,fontFamily:"'Cabinet Grotesk',system-ui",fontWeight:700}}>
+                <Zap size={11} color={V.gold}/> Upgrade
+              </button>
+            )}
             {!isLoggedIn&&(
               <button onClick={()=>setShowAuthModal(true)}
                 style={{display:"flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:9,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"'Cabinet Grotesk',system-ui",whiteSpace:"nowrap",height:36,transition:"all 0.2s"}}
@@ -1067,6 +1106,15 @@ export default function ArbibX() {
           </div>
         )}
       </main>
+
+      {/* ════ PRO UPGRADE MODAL ══════════════════════════════ */}
+      {showProModal&&(
+        <ProUpgradeModal
+          onClose={()=>setShowProModal(false)}
+          userEmail={isLoggedIn ? (()=>{try{return JSON.parse(localStorage.getItem("arbibx-auth-user")??"{}").email??"";}catch{return "";}})() : undefined}
+          reason={proReason}
+        />
+      )}
 
       {/* ════ BOTTOM NAV (mobile) ════════════════════════════ */}
       <MobileNav tab={tab} setTab={setTab} />
