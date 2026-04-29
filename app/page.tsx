@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare,
+  AlertTriangle, GitCompare, Sun, Moon,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
@@ -694,6 +694,17 @@ export default function ArbibX() {
   const [isLoggedIn,setIsLoggedIn]= useState(()=>{try{return !!localStorage.getItem("arbibx-auth-user");}catch{return false;}});
   const [showLanding,setShowLanding]= useState(()=>{try{return !localStorage.getItem("arbibx-visited");}catch{return true;}});
   const [showCompare,setShowCompare]= useState(false);
+  const [theme, setTheme] = useState<"dark"|"light">(() => {
+    try { return (localStorage.getItem("arbibx-theme") ?? "dark") as "dark"|"light"; } catch { return "dark"; }
+  });
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try { localStorage.setItem("arbibx-theme", theme); } catch { /**/ }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
   const searchRef = useRef<HTMLDivElement>(null);
 
   const enterApp = (asGuest=true) => {
@@ -972,6 +983,11 @@ export default function ArbibX() {
                 <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.gain,letterSpacing:"0.06em"}}>SIGNED IN</span>
               </div>
             )}
+            <button onClick={toggleTheme}
+              style={{background:"none",border:`1px solid ${theme==="light"?"rgba(196,120,0,0.28)":"transparent"}`,borderRadius:8,cursor:"pointer",color:theme==="dark"?V.ink3:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
+              title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>
+              {theme==="dark" ? <Sun size={16}/> : <Moon size={16}/>}
+            </button>
             <button onClick={()=>setShowSearch(s=>!s)}
               style={{background:showSearch?V.goldDim:"none",border:`1px solid ${showSearch?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
               <Search size={16}/>
