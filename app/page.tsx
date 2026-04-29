@@ -899,8 +899,8 @@ export default function ArbibX() {
 
             {/* Headline */}
             <div style={{marginBottom:28,animation:"fadeUp 0.7s 0.1s ease both",opacity:0}}>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(52px,10vw,128px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}>TRADE</div>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(52px,10vw,128px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}>SMARTER.</div>
+              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(42px,7vw,96px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}>TRADE</div>
+              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(42px,7vw,96px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}>SMARTER.</div>
             </div>
 
             {/* Subtitle */}
