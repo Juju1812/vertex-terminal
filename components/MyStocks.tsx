@@ -461,12 +461,82 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
     try { localStorage.removeItem(AU); localStorage.removeItem(SK); } catch { /**/ }
   };
 
-  /* ---- Fetch prices ---------------------------------------- */
+  /* ---- Fetch prices + portfolio push alerts ---------------- */
   const fetchAll = useCallback(async () => {
     if (!holdings.length) return;
     setL(true);
-    setP(await fetchPrices([...new Set(holdings.map(h => h.ticker))]));
-    setTs(new Date()); setL(false);
+    const newPrices = await fetchPrices([...new Set(holdings.map(h => h.ticker))]);
+    setP(newPrices);
+    setTs(new Date());
+    setL(false);
+
+    // Portfolio alerts — only if logged in
+    try {
+      const auth = localStorage.getItem(AU);
+      if (!auth) return;
+      const { email } = JSON.parse(auth) as AuthUser;
+
+      const enrichedNow = holdings.map(h => {
+        const p   = newPrices[h.ticker];
+        const cur = p?.p || KNOWN[h.ticker]?.p || h.buyPrice;
+        const day = p?.d || KNOWN[h.ticker]?.d || 0;
+        const pct = ((cur - h.buyPrice) / h.buyPrice) * 100;
+        return { ticker:h.ticker, name:p?.n||KNOWN[h.ticker]?.n||h.ticker, cur, day, pct, shares:h.shares, buyPrice:h.buyPrice };
+      });
+
+      // Use a per-day key so alerts fire at most once per day per trigger
+      const todayKey = `arbibx-palerts-${new Date().toISOString().split("T")[0]}`;
+      const firedToday = new Set<string>(JSON.parse(localStorage.getItem(todayKey) ?? "[]") as string[]);
+      const pushAlerts: { title:string; body:string }[] = [];
+
+      // 1. Position down 5%+ today
+      for (const h of enrichedNow) {
+        const key = `drop-${h.ticker}`;
+        if (h.day <= -5 && !firedToday.has(key)) {
+          pushAlerts.push({
+            title: `⚠️ ${h.ticker} down ${Math.abs(h.day).toFixed(1)}% today`,
+            body:  `${h.name} dropped ${Math.abs(h.day).toFixed(1)}% today. Current: $${h.cur.toFixed(2)}`,
+          });
+          firedToday.add(key);
+        }
+      }
+
+      // 2. Position up 20%+ from buy price
+      for (const h of enrichedNow) {
+        const key = `gain-${h.ticker}`;
+        if (h.pct >= 20 && !firedToday.has(key)) {
+          pushAlerts.push({
+            title: `🚀 ${h.ticker} up ${h.pct.toFixed(0)}% from your buy`,
+            body:  `${h.name} is up ${h.pct.toFixed(1)}% since you bought at $${h.buyPrice.toFixed(2)}. Current: $${h.cur.toFixed(2)}`,
+          });
+          firedToday.add(key);
+        }
+      }
+
+      // 3. Total portfolio down 3%+ today
+      const pfKey  = "portfolio-drop";
+      const totVal = enrichedNow.reduce((s, h) => s + h.cur * h.shares, 0);
+      const prevVal = enrichedNow.reduce((s, h) => s + (h.cur / (1 + h.day / 100)) * h.shares, 0);
+      const totDay = prevVal > 0 ? ((totVal - prevVal) / prevVal) * 100 : 0;
+      if (totDay <= -3 && !firedToday.has(pfKey)) {
+        pushAlerts.push({
+          title: `📉 Portfolio down ${Math.abs(totDay).toFixed(1)}% today`,
+          body:  `Your portfolio dropped ${Math.abs(totDay).toFixed(1)}% today. Value: $${totVal.toLocaleString("en-US",{maximumFractionDigits:0})}`,
+        });
+        firedToday.add(pfKey);
+      }
+
+      if (pushAlerts.length) {
+        localStorage.setItem(todayKey, JSON.stringify([...firedToday]));
+        for (const alert of pushAlerts) {
+          fetch("/api/push-send", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({ email, title:alert.title, body:alert.body, url:"/?tab=portfolio" }),
+          }).catch(()=>{/***/});
+        }
+      }
+    } catch { /**/ }
   }, [holdings]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);

@@ -64,8 +64,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* PWA essentials */}
-        <link rel="manifest" href="/manifest.json" />
+        {/* Google AdSense */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2690222846295907"
+          crossOrigin="anonymous"
+        />
 
         {/* Apple-specific PWA tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
