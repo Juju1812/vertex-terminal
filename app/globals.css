@@ -626,3 +626,115 @@ body::after {
   background: rgba(245,243,255,0.97) !important;
 }
 
+/* ── Light mode text overrides ──────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Force text colors in light mode */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] p,
+[data-theme="light"] span:not([style*="color:#00"]):not([style*="color:#ff"]):not([style*="color:#f0"]):not([style*="color:#FF"]):not([style*="color:#E8"]):not([style*="color:#4F"]):not([style*="color:#9B"]):not([style*="color:#7E"]):not([style*="color:#7e"]) {
+  color: var(--ink1);
+}
+
+/* Override hardcoded white/light text colors */
+[data-theme="light"] [style*="color:#F2F6FF"],
+[data-theme="light"] [style*="color:#f4f0ff"],
+[data-theme="light"] [style*="color:#C8D5E8"],
+[data-theme="light"] [style*="color:#cdc7e0"],
+[data-theme="light"] [style*="color:#F2F6FF"],
+[data-theme="light"] [style*="color: #F2F6FF"] { color: var(--ink0) !important; }
+
+[data-theme="light"] [style*="color:#7A9CBF"],
+[data-theme="light"] [style*="color:#8a82a8"] { color: var(--ink2) !important; }
+
+[data-theme="light"] [style*="color:#3D5A7A"],
+[data-theme="light"] [style*="color:#4a4468"] { color: var(--ink3) !important; }
+
+[data-theme="light"] [style*="color:#1F3550"],
+[data-theme="light"] [style*="color:#2d2848"] { color: var(--ink4) !important; }
+
+/* Override hardcoded dark backgrounds */
+[data-theme="light"] [style*="background:rgba(255,255,255,0.03)"],
+[data-theme="light"] [style*="background: rgba(255,255,255,0.03)"],
+[data-theme="light"] [style*="background:rgba(255,255,255,0.04)"],
+[data-theme="light"] [style*="background:rgba(255,255,255,0.02)"] {
+  background: rgba(0,0,0,0.03) !important;
+}
+
+[data-theme="light"] [style*="background:linear-gradient(145deg,rgba(255,255,255,0.028)"],
+[data-theme="light"] [style*="background:linear-gradient(145deg,rgba(255,255,255,0.030)"],
+[data-theme="light"] [style*="background:linear-gradient(145deg,rgba(255,255,255,0.032)"] {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: var(--border) !important;
+}
+
+/* Header background */
+[data-theme="light"] header {
+  background: rgba(245,243,255,0.95) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+/* Card backgrounds */
+[data-theme="light"] [style*="background:rgba(8,13,24"],
+[data-theme="light"] [style*="background: rgba(8,13,24"],
+[data-theme="light"] [style*="background:rgba(5,8,16"],
+[data-theme="light"] [style*="background:#050810"] {
+  background: rgba(245,243,255,0.98) !important;
+}
+
+/* Table header backgrounds */
+[data-theme="light"] [style*="background:rgba(5,8,16,0.8)"],
+[data-theme="light"] [style*="background:rgba(5,8,16,0.75)"] {
+  background: rgba(235,230,255,0.9) !important;
+}
+
+/* Input fields */
+[data-theme="light"] input {
+  background: rgba(255,255,255,0.8) !important;
+  color: var(--ink0) !important;
+  border-color: var(--border) !important;
+}
+
+/* Mono text */
+[data-theme="light"] [style*="fontFamily:'Geist Mono"],
+[data-theme="light"] [style*="fontFamily: 'Geist Mono"],
+[data-theme="light"] [style*="fontFamily:'DM Mono"],
+[data-theme="light"] [style*="font-family:'DM Mono"] {
+  color: inherit;
+}
+
+/* Border overrides */
+[data-theme="light"] [style*="border:1px solid rgba(130,180,255,0.055)"],
+[data-theme="light"] [style*="border: 1px solid rgba(130,180,255,0.055)"],
+[data-theme="light"] [style*="borderColor:rgba(130,180,255"] {
+  border-color: var(--border) !important;
+}
+
+/* Chart tooltip */
+[data-theme="light"] [style*="background:rgba(8,6,16,0.97)"],
+[data-theme="light"] [style*="background: rgba(8,6,16,0.97)"] {
+  background: rgba(255,255,255,0.98) !important;
+  color: var(--ink0) !important;
+}
+
+/* Indices bar */
+[data-theme="light"] [style*="background:rgba(5,4,7,0.95)"] {
+  background: rgba(245,243,255,0.95) !important;
+}
+
+/* Quick select buttons */
+[data-theme="light"] [style*="background:rgba(255,255,255,0.025)"] {
+  background: rgba(255,255,255,0.7) !important;
+}
+
+/* Landing page */
+[data-theme="light"] [style*="background:var(--void)"],
+[data-theme="light"] [style*="background: var(--void)"] {
+  background: var(--void) !important;
+}
+
