@@ -102,7 +102,7 @@ const TABS: {id:Tab;label:string;short:string}[] = [
 ];
 
 /* ── Design tokens ────────────────────────────────────────── */
-const V = {
+const DARK_V = {
   void:"#050407", abyss:"#080610", deep:"#0d0b16",
   surface:"#120f1e", raised:"#1a1628",
   border:"rgba(60,48,100,0.5)", borderHi:"rgba(90,72,150,0.6)",
@@ -113,21 +113,45 @@ const V = {
   gain:"#00e5a0", gainDim:"rgba(0,229,160,0.08)", gainWire:"rgba(0,229,160,0.22)",
   loss:"#ff4560", lossDim:"rgba(255,69,96,0.08)", lossWire:"rgba(255,69,96,0.22)",
 };
+
+const LIGHT_V = {
+  void:"#f5f3ff", abyss:"#ede9ff", deep:"#e8e2ff",
+  surface:"#ffffff", raised:"#f0ecff",
+  border:"rgba(180,170,220,0.5)", borderHi:"rgba(160,150,200,0.6)",
+  gold:"#c47800", goldBright:"#e08c00",
+  goldDim:"rgba(196,120,0,0.10)", goldWire:"rgba(196,120,0,0.28)",
+  ember:"#e05520", emberDim:"rgba(224,85,32,0.08)",
+  ink0:"#1a1530", ink1:"#2d2650", ink2:"#4a4270", ink3:"#7a72a0", ink4:"#a09acc",
+  gain:"#008a5e", gainDim:"rgba(0,138,94,0.08)", gainWire:"rgba(0,138,94,0.22)",
+  loss:"#cc2040", lossDim:"rgba(204,32,64,0.08)", lossWire:"rgba(204,32,64,0.22)",
+};
+
+// V is set at runtime based on theme — default dark
+let V = DARK_V;
 const mono: React.CSSProperties = { fontFamily:"'DM Mono','Courier New',monospace" };
 const display: React.CSSProperties = { fontFamily:"'Cabinet Grotesk','Syne',system-ui,sans-serif" };
 
-const card = (ex?: React.CSSProperties): React.CSSProperties => ({
-  background:"linear-gradient(145deg,rgba(255,255,255,0.032) 0%,rgba(255,255,255,0.010) 100%)",
-  backdropFilter:"blur(20px) saturate(1.4)",
-  WebkitBackdropFilter:"blur(20px) saturate(1.4)",
-  border:`1px solid ${V.border}`,
-  borderRadius:18,
-  boxShadow:"0 4px 32px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.045)",
-  position:"relative" as const,
-  overflow:"hidden",
-  transition:"border-color 0.3s,transform 0.3s,box-shadow 0.3s",
-  ...ex,
-});
+function getCard(theme: "dark"|"light", ex?: React.CSSProperties): React.CSSProperties {
+  const v = theme === "light" ? LIGHT_V : DARK_V;
+  return {
+    background: theme === "light"
+      ? "linear-gradient(145deg,rgba(255,255,255,0.9) 0%,rgba(255,255,255,0.7) 100%)"
+      : "linear-gradient(145deg,rgba(255,255,255,0.032) 0%,rgba(255,255,255,0.010) 100%)",
+    backdropFilter:"blur(20px) saturate(1.4)",
+    WebkitBackdropFilter:"blur(20px) saturate(1.4)",
+    border:`1px solid ${v.border}`,
+    borderRadius:18,
+    boxShadow: theme === "light"
+      ? "0 2px 16px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.9)"
+      : "0 4px 32px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.045)",
+    position:"relative" as const,
+    overflow:"hidden",
+    transition:"border-color 0.3s,transform 0.3s,box-shadow 0.3s",
+    ...ex,
+  };
+}
+
+const card = (ex?: React.CSSProperties): React.CSSProperties => getCard("dark", ex);
 
 /* ── Polygon helpers ──────────────────────────────────────── */
 interface SnapTicker {
@@ -319,43 +343,46 @@ interface MarketsPanelProps {
   indices:IndexData[];
   go:(t:string)=>void;toggleWatch:(t:string)=>void;refreshMarkets:()=>Promise<void>;
   onCompare:(t:string)=>void;
+  theme:"dark"|"light";
 }
 
 const MarketsPanel = memo(function MarketsPanel({
-  ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare,
+  ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare,theme,
 }:MarketsPanelProps) {
+  const v = theme === "light" ? LIGHT_V : DARK_V;
+  const c = (ex?: React.CSSProperties) => getCard(theme, ex);
   return (
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       {/* Main chart card */}
-      <div style={{...card({padding:0})}}>
+      <div style={{...c({padding:0})}}>
         <div style={{position:"absolute",top:-40,right:-40,width:220,height:220,borderRadius:"50%",background:up?"rgba(0,229,160,0.06)":"rgba(255,69,96,0.06)",filter:"blur(60px)",pointerEvents:"none"}} />
         <div style={{position:"relative",padding:"24px 24px 0"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
             <div style={{minWidth:0,flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-                <h1 style={{...mono,fontSize:"clamp(26px,5vw,44px)",fontWeight:500,letterSpacing:"-0.04em",color:V.ink0,flexShrink:0}}>{ticker}</h1>
-                <span style={{...mono,fontSize:10,padding:"3px 10px",borderRadius:6,background:up?V.gainDim:V.lossDim,color:up?V.gain:V.loss,border:`1px solid ${up?V.gainWire:V.lossWire}`,display:"inline-flex",alignItems:"center",gap:3,flexShrink:0}}>
+                <h1 style={{...mono,fontSize:"clamp(26px,5vw,44px)",fontWeight:500,letterSpacing:"-0.04em",color:v.ink0,flexShrink:0}}>{ticker}</h1>
+                <span style={{...mono,fontSize:10,padding:"3px 10px",borderRadius:6,background:up?v.gainDim:v.lossDim,color:up?v.gain:v.loss,border:`1px solid ${up?v.gainWire:v.lossWire}`,display:"inline-flex",alignItems:"center",gap:3,flexShrink:0}}>
                   {up?<TrendingUp size={10}/>:<TrendingDown size={10}/>}{fp(quote.changePct)}
                 </span>
                 <YahooBtn ticker={ticker}/>
                 <button onClick={()=>onCompare(ticker)}
-                  style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:V.gold,fontSize:10,...mono,whiteSpace:"nowrap",cursor:"pointer",transition:"background 0.15s",flexShrink:0}}
+                  style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:v.gold,fontSize:10,...mono,whiteSpace:"nowrap",cursor:"pointer",transition:"background 0.15s",flexShrink:0}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(240,165,0,0.16)";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="rgba(240,165,0,0.08)";}}>
                   <GitCompare size={10}/> Compare
                 </button>
                 <button onClick={()=>toggleWatch(ticker)} style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",alignItems:"center",minWidth:36,minHeight:36,justifyContent:"center",borderRadius:8,flexShrink:0}}>
-                  {watched?<Star size={17} color={V.gold} fill={V.gold}/>:<StarOff size={17} color={V.ink3}/>}
+                  {watched?<Star size={17} color={v.gold} fill={v.gold}/>:<StarOff size={17} color={v.ink3}/>}
                 </button>
               </div>
-              <p style={{color:V.ink2,fontSize:13}}>{quote.name}</p>
+              <p style={{color:v.ink2,fontSize:13}}>{quote.name}</p>
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
               {loading
                 ? <div className="skel" style={{width:150,height:44}}/>
                 : <>
-                    <div style={{...mono,fontSize:"clamp(28px,4.5vw,42px)",fontWeight:500,letterSpacing:"-0.04em",color:V.ink0}}>{f$(quote.price)}</div>
-                    <div style={{...mono,fontSize:12,color:up?V.gain:V.loss,marginTop:4}}>{quote.change>=0?"+":""}{f$(quote.change)} today</div>
+                    <div style={{...mono,fontSize:"clamp(28px,4.5vw,42px)",fontWeight:500,letterSpacing:"-0.04em",color:v.ink0}}>{f$(quote.price)}</div>
+                    <div style={{...mono,fontSize:12,color:up?v.gain:v.loss,marginTop:4}}>{quote.change>=0?"+":""}{f$(quote.change)} today</div>
                   </>
               }
             </div>
@@ -369,9 +396,9 @@ const MarketsPanel = memo(function MarketsPanel({
                 {l:"Volume",v:fv(quote.volume)},
                 {l:"Prev",v:f$(quote.price-quote.change)},
               ].map(s=>(
-                <div key={s.l} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${V.border}`,borderRadius:10,padding:"8px 14px",flexShrink:0}}>
-                  <p style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>{s.l}</p>
-                  <p style={{...mono,fontSize:12,fontWeight:500,color:V.ink0}}>{s.v}</p>
+                <div key={s.l} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${v.border}`,borderRadius:10,padding:"8px 14px",flexShrink:0}}>
+                  <p style={{...mono,fontSize:8,color:v.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>{s.l}</p>
+                  <p style={{...mono,fontSize:12,fontWeight:500,color:v.ink0}}>{s.v}</p>
                 </div>
               ))}
             </div>
@@ -380,7 +407,7 @@ const MarketsPanel = memo(function MarketsPanel({
         <div style={{position:"relative"}}>
           <div style={{display:"flex",alignItems:"center",padding:"0 24px 10px",gap:6}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:lineColor,animation:"live-pulse 2.5s ease-in-out infinite"}}/>
-            <span style={{...mono,fontSize:9,color:V.ink3,textTransform:"uppercase",letterSpacing:"0.1em"}}>90-day chart · Polygon.io</span>
+            <span style={{...mono,fontSize:9,color:v.ink3,textTransform:"uppercase",letterSpacing:"0.1em"}}>90-day chart · Polygon.io</span>
           </div>
           {loading
             ? <div className="skel" style={{height:200,margin:"0 16px 16px"}}/>
@@ -394,10 +421,10 @@ const MarketsPanel = memo(function MarketsPanel({
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="2 8" stroke="rgba(255,255,255,0.03)" vertical={false}/>
-                    <XAxis dataKey="date" tick={{fill:V.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
-                    <YAxis tick={{fill:V.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`$${v.toFixed(0)}`} width={44} domain={["auto","auto"]}/>
-                    <Tooltip content={<ChartTip/>} cursor={{stroke:V.borderHi,strokeWidth:1}}/>
-                    <Area type="monotone" dataKey="close" stroke={lineColor} strokeWidth={1.5} fill="url(#vxGrad)" dot={false} activeDot={{r:5,fill:lineColor,stroke:V.void,strokeWidth:2}}/>
+                    <XAxis dataKey="date" tick={{fill:v.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+                    <YAxis tick={{fill:v.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`$${v.toFixed(0)}`} width={44} domain={["auto","auto"]}/>
+                    <Tooltip content={<ChartTip/>} cursor={{stroke:v.borderHi,strokeWidth:1}}/>
+                    <Area type="monotone" dataKey="close" stroke={lineColor} strokeWidth={1.5} fill="url(#vxGrad)" dot={false} activeDot={{r:5,fill:lineColor,stroke:v.void,strokeWidth:2}}/>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -409,7 +436,7 @@ const MarketsPanel = memo(function MarketsPanel({
 
       {/* Quick select */}
       <div>
-        <p style={{...mono,fontSize:9,color:V.ink3,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:10}}>Quick Select</p>
+        <p style={{...mono,fontSize:9,color:v.ink3,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:10}}>Quick Select</p>
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",marginLeft:-16,marginRight:-16,paddingLeft:16,paddingRight:16}}>
           <div style={{display:"flex",gap:8,minWidth:"max-content",paddingBottom:2}}>
             {TICKERS.map(t=>{
@@ -420,9 +447,9 @@ const MarketsPanel = memo(function MarketsPanel({
                 <button key={t} onClick={()=>go(t)}
                   style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-start",padding:"10px 14px",borderRadius:12,border:"1px solid",cursor:"pointer",minWidth:68,minHeight:52,transition:"all 0.25s",
                     background:active?"linear-gradient(135deg,rgba(240,165,0,0.12),rgba(240,165,0,0.05))":"rgba(255,255,255,0.025)",
-                    borderColor:active?V.goldWire:V.border}}>
-                  <span style={{...mono,fontSize:12,fontWeight:500,color:active?V.gold:V.ink0}}>{t}</span>
-                  <span style={{...mono,fontSize:9,color:pos?V.gain:V.loss,marginTop:2}}>{fp(changePct)}</span>
+                    borderColor:active?v.goldWire:v.border}}>
+                  <span style={{...mono,fontSize:12,fontWeight:500,color:active?v.gold:v.ink0}}>{t}</span>
+                  <span style={{...mono,fontSize:9,color:pos?v.gain:v.loss,marginTop:2}}>{fp(changePct)}</span>
                 </button>
               );
             })}
@@ -434,13 +461,13 @@ const MarketsPanel = memo(function MarketsPanel({
       <div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}>
-            <Star size={13} color={V.gold} fill={V.gold}/>
-            <span style={{...display,fontSize:13,fontWeight:700,color:V.ink0}}>Watchlist</span>
+            <Star size={13} color={v.gold} fill={v.gold}/>
+            <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Watchlist</span>
           </div>
-          <span style={{...mono,fontSize:10,color:V.ink3}}>{watchlist.length} tracked</span>
+          <span style={{...mono,fontSize:10,color:v.ink3}}>{watchlist.length} tracked</span>
         </div>
-        <div style={{...card({overflow:"hidden"})}}>
-          {watchlist.length===0&&<p style={{color:V.ink3,fontSize:13,textAlign:"center",padding:"24px 20px"}}>Star a ticker to add it here</p>}
+        <div style={{...c({overflow:"hidden"})}}>
+          {watchlist.length===0&&<p style={{color:v.ink3,fontSize:13,textAlign:"center",padding:"24px 20px"}}>Star a ticker to add it here</p>}
           {watchlist.map((t,i)=>{
             const live=livePrices[t];
             const price=live?.price??FALLBACK[t]?.price??0;
@@ -448,25 +475,25 @@ const MarketsPanel = memo(function MarketsPanel({
             const pos=changePct>=0;
             return (
               <button key={t} onClick={()=>go(t)}
-                style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"13px 18px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.07),transparent)":"none",border:"none",cursor:"pointer",minHeight:54,textAlign:"left",transition:"background 0.2s",borderLeft:t===ticker?`2px solid ${V.gold}`:"2px solid transparent",borderBottom:i<watchlist.length-1?`1px solid ${V.border}`:"none"}}
+                style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"13px 18px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.07),transparent)":"none",border:"none",cursor:"pointer",minHeight:54,textAlign:"left",transition:"background 0.2s",borderLeft:t===ticker?`2px solid ${v.gold}`:"2px solid transparent",borderBottom:i<watchlist.length-1?`1px solid ${v.border}`:"none"}}
                 className="row-hover">
                 <div>
-                  <p style={{...mono,fontSize:13,fontWeight:500,color:t===ticker?V.gold:V.ink0}}>{t}</p>
-                  <p style={{color:V.ink3,fontSize:11,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"min(180px,40vw)"}}>{NAMES[t]??t}</p>
+                  <p style={{...mono,fontSize:13,fontWeight:500,color:t===ticker?v.gold:v.ink0}}>{t}</p>
+                  <p style={{color:v.ink3,fontSize:11,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"min(180px,40vw)"}}>{NAMES[t]??t}</p>
                 </div>
                 <div style={{textAlign:"right",marginLeft:8}}>
-                  <p style={{...mono,fontSize:13,fontWeight:500,color:V.ink0}}>{price>0?f$(price):"---"}</p>
-                  <p style={{...mono,fontSize:11,color:pos?V.gain:V.loss,marginTop:1}}>{fp(changePct)}</p>
+                  <p style={{...mono,fontSize:13,fontWeight:500,color:v.ink0}}>{price>0?f$(price):"---"}</p>
+                  <p style={{...mono,fontSize:11,color:pos?v.gain:v.loss,marginTop:1}}>{fp(changePct)}</p>
                 </div>
               </button>
             );
           })}
-          <div style={{padding:"10px 14px",borderTop:`1px solid ${V.border}`,display:"flex",flexWrap:"wrap",gap:5}}>
+          <div style={{padding:"10px 14px",borderTop:`1px solid ${v.border}`,display:"flex",flexWrap:"wrap",gap:5}}>
             {TICKERS.filter(t=>!watchlist.includes(t)).map(t=>(
               <button key={t} onClick={()=>toggleWatch(t)}
-                style={{...mono,fontSize:10,padding:"5px 10px",borderRadius:6,background:"transparent",border:`1px solid ${V.border}`,color:V.ink3,cursor:"pointer",minHeight:32,transition:"all 0.2s"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor=V.goldWire;e.currentTarget.style.color=V.gold;}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=V.border;e.currentTarget.style.color=V.ink3;}}>
+                style={{...mono,fontSize:10,padding:"5px 10px",borderRadius:6,background:"transparent",border:`1px solid ${v.border}`,color:v.ink3,cursor:"pointer",minHeight:32,transition:"all 0.2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=v.goldWire;e.currentTarget.style.color=v.gold;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=v.border;e.currentTarget.style.color=v.ink3;}}>
                 +{t}
               </button>
             ))}
@@ -476,14 +503,14 @@ const MarketsPanel = memo(function MarketsPanel({
 
       {/* Global Markets */}
       <div>
-        <p style={{...display,fontSize:13,fontWeight:700,color:V.ink0,marginBottom:10}}>Global Markets</p>
-        <div style={{...card({overflow:"hidden"})}}>
+        <p style={{...display,fontSize:13,fontWeight:700,color:v.ink0,marginBottom:10}}>Global Markets</p>
+        <div style={{...c({overflow:"hidden"})}}>
           {indices.map((m,i)=>(
-            <div key={m.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 18px",borderBottom:i<indices.length-1?`1px solid ${V.border}`:"none"}}>
-              <span style={{color:V.ink2,fontSize:13,fontWeight:500}}>{m.n}</span>
+            <div key={m.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 18px",borderBottom:i<indices.length-1?`1px solid ${v.border}`:"none"}}>
+              <span style={{color:v.ink2,fontSize:13,fontWeight:500}}>{m.n}</span>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <span style={{...mono,fontSize:13,fontWeight:500,color:V.ink0}}>{m.v}</span>
-                <span style={{...mono,fontSize:11,color:m.up?V.gain:V.loss,minWidth:56,textAlign:"right"}}>{m.d}</span>
+                <span style={{...mono,fontSize:13,fontWeight:500,color:v.ink0}}>{m.v}</span>
+                <span style={{...mono,fontSize:11,color:m.up?v.gain:v.loss,minWidth:56,textAlign:"right"}}>{m.d}</span>
               </div>
             </div>
           ))}
@@ -698,13 +725,18 @@ export default function ArbibX() {
     try { return (localStorage.getItem("arbibx-theme") ?? "dark") as "dark"|"light"; } catch { return "dark"; }
   });
 
-  // Apply theme to document
+  // Apply theme to document and update V tokens
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     try { localStorage.setItem("arbibx-theme", theme); } catch { /**/ }
+    // Update the module-level V so all components re-render with correct colors
+    V = theme === "light" ? LIGHT_V : DARK_V;
   }, [theme]);
 
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+
+  // Recompute V synchronously for this render
+  V = theme === "light" ? LIGHT_V : DARK_V;
   const searchRef = useRef<HTMLDivElement>(null);
 
   const enterApp = (asGuest=true) => {
@@ -775,7 +807,7 @@ export default function ArbibX() {
   const lineColor=up?V.gain:V.loss;
   const watched=watchlist.includes(ticker);
 
-  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true)}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets]);
+  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true),theme}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,theme]);
   const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab}),[ticker,watchlist,livePrices,indices,go,toggleWatch]);
 
   return (
@@ -921,7 +953,7 @@ export default function ArbibX() {
       )}
 
       {/* ════ HEADER ═════════════════════════════════════════ */}
-      <header style={{position:"sticky",top:0,zIndex:100,background:"rgba(5,4,7,0.95)",backdropFilter:"blur(40px) saturate(2)",WebkitBackdropFilter:"blur(40px) saturate(2)",borderBottom:`1px solid ${V.border}`}}>
+      <header style={{position:"sticky",top:0,zIndex:100,background:theme==="light"?"rgba(245,243,255,0.97)":"rgba(5,4,7,0.95)",backdropFilter:"blur(40px) saturate(2)",WebkitBackdropFilter:"blur(40px) saturate(2)",borderBottom:`1px solid ${V.border}`}}>
         {/* Indices ticker */}
         <div style={{display:"flex",alignItems:"center",padding:"0 16px",height:30,borderBottom:`1px solid ${V.border}`,overflow:"hidden"}}>
           <div className="vx-strip" style={{flex:1,display:"flex",alignItems:"center",gap:16,overflowX:"auto"}}>
