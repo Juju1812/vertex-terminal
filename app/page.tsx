@@ -890,27 +890,27 @@ export default function ArbibX() {
           </div>
 
           {/* Hero */}
-          <div style={{position:"relative",zIndex:5,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"clamp(32px,6vw,80px) clamp(20px,5vw,80px)",textAlign:"center",overflowY:"auto",overscrollBehavior:"contain"}}>
+          <div style={{position:"relative",zIndex:5,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"clamp(16px,3vw,40px) clamp(20px,5vw,80px)",textAlign:"center",overflowY:"auto",overscrollBehavior:"contain"}}>
             {/* Eyebrow */}
-            <div style={{display:"inline-flex",alignItems:"center",gap:10,padding:"6px 16px",borderRadius:99,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",marginBottom:40,animation:"fadeUp 0.7s ease both"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:10,padding:"6px 16px",borderRadius:99,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",marginBottom:20,animation:"fadeUp 0.7s ease both"}}>
               <span style={{width:5,height:5,borderRadius:"50%",background:V.gold,display:"block",animation:"live-pulse 2s ease-in-out infinite"}}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:V.gold,letterSpacing:"0.16em"}}>AI-POWERED STOCK INTELLIGENCE · 2026</span>
             </div>
 
             {/* Headline */}
-            <div style={{marginBottom:28,animation:"fadeUp 0.7s 0.1s ease both",opacity:0}}>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(42px,7vw,96px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}>TRADE</div>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(42px,7vw,96px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}>SMARTER.</div>
+            <div style={{marginBottom:16,animation:"fadeUp 0.7s 0.1s ease both",opacity:0}}>
+              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}>TRADE</div>
+              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}>SMARTER.</div>
             </div>
 
             {/* Subtitle */}
-            <p style={{fontSize:"clamp(14px,1.8vw,19px)",color:V.ink2,maxWidth:540,lineHeight:1.75,marginBottom:52,animation:"fadeUp 0.7s 0.2s ease both",opacity:0}}>
+            <p style={{fontSize:"clamp(14px,1.8vw,19px)",color:V.ink2,maxWidth:540,lineHeight:1.75,marginBottom:28,animation:"fadeUp 0.7s 0.2s ease both",opacity:0}}>
               Real-time market data. Claude AI analysis across 57 stocks.<br/>
               Professional-grade tools — in one cinematic terminal.
             </p>
 
             {/* CTAs */}
-            <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",marginBottom:72,animation:"fadeUp 0.7s 0.3s ease both",opacity:0}}>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",marginBottom:32,animation:"fadeUp 0.7s 0.3s ease both",opacity:0}}>
               <button className="land-cta-primary" onClick={()=>enterApp(false)}>
                 Sign In / Create Account <ChevronRight size={16}/>
               </button>
