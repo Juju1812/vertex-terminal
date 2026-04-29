@@ -218,17 +218,21 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
   // never reads a stale empty array from the closure
   const alertsRef = useRef<PriceAlert[]>([]);
 
-  // Load alerts from localStorage on mount
+  // Load alerts from localStorage on mount, then immediately check triggers
+  // against any prices already fetched
   useEffect(()=>{
     try {
       const raw = localStorage.getItem(ALERTS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as PriceAlert[];
         setAlerts(parsed);
-        alertsRef.current = parsed; // sync ref immediately
+        alertsRef.current = parsed;
       }
     } catch { /**/ }
-  }, []);
+    // Re-run loadPrices after alerts are loaded so trigger check has real data
+    // Small delay ensures alertsRef.current is set before loadPrices reads it
+    setTimeout(() => { loadPrices(); }, 100);
+  }, []); // eslint-disable-line
 
   // Keep ref in sync whenever alerts state changes
   useEffect(()=>{ alertsRef.current = alerts; }, [alerts]);
@@ -285,8 +289,14 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
     if (changed) saveAlerts(updated);
   }, [watchlist, saveAlerts]);
 
-  // Load prices on mount and whenever watchlist changes
-  useEffect(() => { loadPrices(); }, [watchlist.length]); // eslint-disable-line
+  // Reload prices when watchlist size changes (stocks added/removed)
+  const prevLenRef = useRef(watchlist.length);
+  useEffect(() => {
+    if (watchlist.length !== prevLenRef.current) {
+      prevLenRef.current = watchlist.length;
+      loadPrices();
+    }
+  }, [watchlist.length, loadPrices]);
 
   const addAlert = (alert: Omit<PriceAlert,"id"|"triggered"|"createdAt">) => {
     const newAlert: PriceAlert = {
