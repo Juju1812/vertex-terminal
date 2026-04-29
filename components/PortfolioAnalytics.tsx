@@ -9,6 +9,7 @@ import {
   PieChart as RechartsPie, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
+  AreaChart, Area,
 } from "recharts";
 
 interface Holding { id: string; ticker: string; shares: number; buyPrice: number; }
@@ -194,10 +195,79 @@ function CustomTooltip({active,payload}:{active?:boolean;payload?:Array<{name:st
 }
 
 export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&{onGoPortfolio?:()=>void}) {
-  const [holdings,  setHoldings]  = useState<Holding[]>([]);
-  const [enriched,  setEnriched]  = useState<EnrichedHolding[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [lastUpdate,setLastUpdate]= useState<Date|null>(null);
+  const [holdings,    setHoldings]    = useState<Holding[]>([]);
+  const [enriched,    setEnriched]    = useState<EnrichedHolding[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [lastUpdate,  setLastUpdate]  = useState<Date|null>(null);
+  const [histData,    setHistData]    = useState<{date:string;value:number;cost:number}[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histRange,   setHistRange]   = useState<"1M"|"3M"|"6M">("3M");
+
+  /* ---- Fetch historical portfolio value --------------------- */
+  const loadHistory = useCallback(async (holdings: Holding[], range: "1M"|"3M"|"6M") => {
+    if (!holdings.length) return;
+    setHistLoading(true);
+    try {
+      const days   = range === "1M" ? 30 : range === "3M" ? 90 : 180;
+      const to     = new Date().toISOString().split("T")[0];
+      const from   = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
+      const tickers = [...new Set(holdings.map(h => h.ticker))];
+
+      // Fetch daily bars for each ticker in parallel
+      const barMap: Record<string, Record<string, number>> = {};
+      await Promise.all(tickers.map(async ticker => {
+        try {
+          const r = await fetch(
+            `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=300&apiKey=${POLYGON_KEY}`
+          );
+          const d = r.ok ? await r.json() as { results?: { t: number; c: number }[] } : null;
+          if (d?.results) {
+            barMap[ticker] = {};
+            for (const bar of d.results) {
+              const date = new Date(bar.t).toISOString().split("T")[0];
+              barMap[ticker][date] = bar.c;
+            }
+          }
+        } catch { /**/ }
+      }));
+
+      // Build list of all trading days
+      const allDates = new Set<string>();
+      for (const bars of Object.values(barMap)) {
+        for (const date of Object.keys(bars)) allDates.add(date);
+      }
+      const sortedDates = [...allDates].sort();
+
+      // For each day, compute total portfolio value using last known price
+      const lastKnown: Record<string, number> = {};
+      const totalCost = holdings.reduce((s, h) => s + h.shares * h.buyPrice, 0);
+      const points: { date: string; value: number; cost: number }[] = [];
+
+      for (const date of sortedDates) {
+        for (const ticker of tickers) {
+          if (barMap[ticker]?.[date]) lastKnown[ticker] = barMap[ticker][date];
+        }
+        // Only include days where we have prices for at least half the holdings
+        const covered = tickers.filter(t => lastKnown[t]).length;
+        if (covered < Math.ceil(tickers.length / 2)) continue;
+
+        const value = holdings.reduce((s, h) => {
+          const price = lastKnown[h.ticker] ?? h.buyPrice;
+          return s + h.shares * price;
+        }, 0);
+
+        points.push({
+          date: new Date(date + "T12:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric" }),
+          value: +value.toFixed(2),
+          cost:  +totalCost.toFixed(2),
+        });
+      }
+
+      setHistData(points);
+    } catch { /**/ }
+    setHistLoading(false);
+  }, []);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -244,9 +314,15 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
     setEnriched(enrichedData);
     setLastUpdate(new Date());
     setLoading(false);
-  }, []);
+    // Load historical chart data after holdings are ready
+    loadHistory(raw, histRange);
+  }, [loadHistory, histRange]);
 
   useEffect(() => { load(); }, [load]);
+  // Reload history when range changes
+  useEffect(() => {
+    if (holdings.length) loadHistory(holdings, histRange);
+  }, [histRange, holdings, loadHistory]);
   useEffect(() => {
     const onLogin = () => load();
     window.addEventListener("arbibx-login", onLogin);
@@ -332,6 +408,107 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
         <StatCard icon={<Activity size={16} color={dayPnl>=0?V.gain:V.loss}/>} label="Today's P&L" value={f$(dayPnl)} sub={`${dayPnl>=0?"+":""}${(dayPnl/totalValue*100).toFixed(2)}% today`} color={dayPnl>=0?V.gain:V.loss}/>
         <StatCard icon={<Target size={16} color={V.gold}/>} label="Total P&L" value={f$(totalPnl)} sub={`${winners}/${enriched.length} positions winning`} color={totalPnl>=0?V.gain:V.loss}/>
         <StatCard icon={<Award size={16} color={gradeColor}/>} label="Portfolio Grade" value={grade} sub={`Score: ${gradeScore}/100`} color={gradeColor}/>
+      </div>
+
+      {/* Historical performance chart */}
+      <div style={{...glass({padding:"18px",marginBottom:16})}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+          <p style={{fontSize:13,fontWeight:600,color:V.ink0,margin:0,display:"flex",alignItems:"center",gap:6}}>
+            <TrendingUp size={14} color={V.gain}/> Portfolio Performance
+          </p>
+          <div style={{display:"flex",gap:6}}>
+            {(["1M","3M","6M"] as const).map(r=>(
+              <button key={r} onClick={()=>setHistRange(r)}
+                style={{...mono,fontSize:10,padding:"4px 12px",borderRadius:7,border:`1px solid ${histRange===r?V.gainWire:V.w1}`,background:histRange===r?V.gainDim:"transparent",color:histRange===r?V.gain:V.ink3,cursor:"pointer"}}>
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {histLoading ? (
+          <div style={{height:200,borderRadius:10,background:"linear-gradient(105deg,#0C1220 30%,#151F30 50%,#0C1220 70%)",backgroundSize:"400% 100%",animation:"shimmer 2s ease-in-out infinite"}}/>
+        ) : histData.length < 2 ? (
+          <div style={{height:200,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <p style={{...mono,fontSize:11,color:V.ink4}}>Not enough historical data yet</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary line */}
+            <div style={{display:"flex",gap:20,marginBottom:12,flexWrap:"wrap"}}>
+              {(() => {
+                const first = histData[0].value;
+                const last  = histData[histData.length-1].value;
+                const chg   = last - first;
+                const chgPct = (chg / first) * 100;
+                const up = chg >= 0;
+                return (
+                  <>
+                    <div>
+                      <p style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:2}}>{histRange} Change</p>
+                      <p style={{...mono,fontSize:16,fontWeight:600,color:up?V.gain:V.loss}}>{up?"+":""}{f$(chg)} ({up?"+":""}{chgPct.toFixed(2)}%)</p>
+                    </div>
+                    <div>
+                      <p style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:2}}>Start Value</p>
+                      <p style={{...mono,fontSize:16,fontWeight:600,color:V.ink2}}>{f$(first)}</p>
+                    </div>
+                    <div>
+                      <p style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:2}}>Current Value</p>
+                      <p style={{...mono,fontSize:16,fontWeight:600,color:V.ink0}}>{f$(last)}</p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={histData} margin={{top:4,right:4,left:0,bottom:0}}>
+                <defs>
+                  <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={totalPnl>=0?V.gain:V.loss} stopOpacity={0.25}/>
+                    <stop offset="100%" stopColor={totalPnl>=0?V.gain:V.loss} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={V.ink3} stopOpacity={0.15}/>
+                    <stop offset="100%" stopColor={V.ink3} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 8" stroke="rgba(255,255,255,0.03)" vertical={false}/>
+                <XAxis dataKey="date" tick={{fill:V.ink4,fontSize:8,fontFamily:"'Geist Mono',monospace"}} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+                <YAxis tick={{fill:V.ink4,fontSize:8,fontFamily:"'Geist Mono',monospace"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`$${(v/1000).toFixed(0)}k`} width={44} domain={["auto","auto"]}/>
+                <Tooltip
+                  content={({active,payload,label})=>{
+                    if (!active||!payload?.length) return null;
+                    const val  = payload.find(p=>p.dataKey==="value")?.value as number;
+                    const cost = payload.find(p=>p.dataKey==="cost")?.value as number;
+                    const pnl  = val - cost;
+                    const up   = pnl >= 0;
+                    return (
+                      <div style={{background:"rgba(8,13,24,0.97)",border:`1px solid ${V.w2}`,borderRadius:10,padding:"10px 14px"}}>
+                        <p style={{...mono,fontSize:9,color:V.ink4,marginBottom:6}}>{label}</p>
+                        <p style={{...mono,fontSize:13,color:V.ink0,margin:"2px 0"}}>{f$(val)}</p>
+                        <p style={{...mono,fontSize:11,color:up?V.gain:V.loss,margin:"2px 0"}}>{up?"+":""}{f$(pnl)} ({up?"+":""}{((pnl/cost)*100).toFixed(2)}%)</p>
+                        <p style={{...mono,fontSize:9,color:V.ink4,margin:"2px 0"}}>Cost basis: {f$(cost)}</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Area type="monotone" dataKey="cost" stroke={V.ink3} strokeWidth={1} strokeDasharray="4 4" fill="url(#costGrad)" dot={false} name="Cost Basis"/>
+                <Area type="monotone" dataKey="value" stroke={totalPnl>=0?V.gain:V.loss} strokeWidth={2} fill="url(#portfolioGrad)" dot={false} name="Portfolio Value" activeDot={{r:5,fill:totalPnl>=0?V.gain:V.loss,stroke:"#050810",strokeWidth:2}}/>
+              </AreaChart>
+            </ResponsiveContainer>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginTop:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:16,height:2,background:totalPnl>=0?V.gain:V.loss,borderRadius:99}}/>
+                <span style={{...mono,fontSize:9,color:V.ink4}}>Portfolio Value</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:16,height:2,background:V.ink3,borderRadius:99,opacity:0.5,backgroundImage:"repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(0,0,0,0.5) 3px,rgba(0,0,0,0.5) 7px)"}}/>
+                <span style={{...mono,fontSize:9,color:V.ink4}}>Cost Basis</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,marginBottom:16}}>

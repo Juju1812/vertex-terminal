@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle,
+  AlertTriangle, GitCompare,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 
@@ -28,6 +28,7 @@ const NewsFeed       = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => impor
 const StockScreener  = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/StockScreener"),     { ssr:false, loading:() => <PanelSkeleton /> });
 const PortfolioAnalytics = dynamic<{ onSelectTicker?:(t:string)=>void; onGoPortfolio?:()=>void }>(() => import("@/components/PortfolioAnalytics"), { ssr:false, loading:() => <PanelSkeleton /> });
 const WatchlistAlerts = dynamic<{ watchlist:string[]; onToggleWatch:(t:string)=>void; onSelectTicker?:(t:string)=>void }>(() => import("@/components/WatchlistAlerts"), { ssr:false, loading:() => <PanelSkeleton /> });
+const StockComparison = dynamic<{ initialTicker:string; onClose:()=>void }>(() => import("@/components/StockComparison"), { ssr:false });
 
 function PanelSkeleton() {
   return (
@@ -317,10 +318,11 @@ interface MarketsPanelProps {
   livePrices:Record<string,{price:number;changePct:number}>;
   indices:IndexData[];
   go:(t:string)=>void;toggleWatch:(t:string)=>void;refreshMarkets:()=>Promise<void>;
+  onCompare:(t:string)=>void;
 }
 
 const MarketsPanel = memo(function MarketsPanel({
-  ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,
+  ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare,
 }:MarketsPanelProps) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
@@ -336,6 +338,12 @@ const MarketsPanel = memo(function MarketsPanel({
                   {up?<TrendingUp size={10}/>:<TrendingDown size={10}/>}{fp(quote.changePct)}
                 </span>
                 <YahooBtn ticker={ticker}/>
+                <button onClick={()=>onCompare(ticker)}
+                  style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:V.gold,fontSize:10,...mono,whiteSpace:"nowrap",cursor:"pointer",transition:"background 0.15s",flexShrink:0}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(240,165,0,0.16)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(240,165,0,0.08)";}}>
+                  <GitCompare size={10}/> Compare
+                </button>
                 <button onClick={()=>toggleWatch(ticker)} style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",alignItems:"center",minWidth:36,minHeight:36,justifyContent:"center",borderRadius:8,flexShrink:0}}>
                   {watched?<Star size={17} color={V.gold} fill={V.gold}/>:<StarOff size={17} color={V.ink3}/>}
                 </button>
@@ -685,6 +693,7 @@ export default function ArbibX() {
   const [showAuthModal,setShowAuthModal]= useState(false);
   const [isLoggedIn,setIsLoggedIn]= useState(()=>{try{return !!localStorage.getItem("arbibx-auth-user");}catch{return false;}});
   const [showLanding,setShowLanding]= useState(()=>{try{return !localStorage.getItem("arbibx-visited");}catch{return true;}});
+  const [showCompare,setShowCompare]= useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const enterApp = (asGuest=true) => {
@@ -755,7 +764,7 @@ export default function ArbibX() {
   const lineColor=up?V.gain:V.loss;
   const watched=watchlist.includes(ticker);
 
-  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets]);
+  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true)}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets]);
   const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab}),[ticker,watchlist,livePrices,indices,go,toggleWatch]);
 
   return (
@@ -1013,6 +1022,11 @@ export default function ArbibX() {
 
       {/* ════ BOTTOM NAV (mobile) ════════════════════════════ */}
       <MobileNav tab={tab} setTab={setTab} />
+
+      {/* ════ STOCK COMPARISON MODAL ═════════════════════════ */}
+      {showCompare && (
+        <StockComparison initialTicker={ticker} onClose={()=>setShowCompare(false)}/>
+      )}
 
       {/* ════ GLOBAL STYLES ══════════════════════════════════ */}
       <style>{`

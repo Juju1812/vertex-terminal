@@ -289,7 +289,13 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
     if (changed) saveAlerts(updated);
   }, [watchlist, saveAlerts]);
 
-  // Reload prices when watchlist size changes (stocks added/removed)
+  // Auto-refresh every 5 minutes so alerts fire without manual refresh
+  useEffect(() => {
+    const id = setInterval(() => { loadPrices(); }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [loadPrices]);
+
+  // Reload when watchlist size changes (stock added/removed)
   const prevLenRef = useRef(watchlist.length);
   useEffect(() => {
     if (watchlist.length !== prevLenRef.current) {
@@ -547,8 +553,15 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {alerts.map(alert=>{
               const stock=prices[alert.ticker];
-              const distance=stock?((stock.price-alert.targetPrice)/alert.targetPrice*100):null;
-              const isClose=distance!==null&&Math.abs(distance)<5;
+              const pct = stock
+                ? ((stock.price - alert.targetPrice) / alert.targetPrice * 100)
+                : null;
+              // "Close" means within 5% of target in the right direction
+              const isClose = pct !== null && !alert.triggered && (
+                alert.condition === "above"
+                  ? pct > -5 && pct < 0   // approaching from below
+                  : pct < 5  && pct > 0   // approaching from above
+              );
               return (
                 <div key={alert.id} style={{...glass({padding:"14px 16px",borderColor:alert.triggered?V.gainWire:isClose?V.goldWire:V.w2,background:alert.triggered?V.gainDim:"linear-gradient(145deg,rgba(255,255,255,0.028) 0%,rgba(255,255,255,0.010) 100%)"})}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
@@ -571,15 +584,22 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
                         </div>
                         <p style={{...mono,fontSize:9,color:V.ink4,margin:0,marginTop:2}}>
                           {alert.email} · {stock?`Current: ${f$(stock.price)}`:"Price unavailable"}
-                          {distance!==null?` · ${distance>=0?"+":""}${distance.toFixed(1)}% away`:""}
+                          {pct!==null?` · ${pct>=0?"+":""}${pct.toFixed(1)}% from target`:""}
                         </p>
                       </div>
                     </div>
                     <div style={{display:"flex",gap:8,flexShrink:0}}>
-                      <button onClick={()=>testAlert(alert)} disabled={!!sendingAlert}
-                        style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.arcDim,border:`1px solid ${V.arcWire}`,color:"#7EB6FF",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                        {alertSent===alert.id?<><CheckCircle size={10}/> Sent!</>:sendingAlert===alert.id?"Sending...":<><Mail size={10}/> Test</>}
-                      </button>
+                      {alert.triggered ? (
+                        <button onClick={()=>saveAlerts(alertsRef.current.map(a=>a.id===alert.id?{...a,triggered:false}:a))}
+                          style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                          ↺ Reset
+                        </button>
+                      ) : (
+                        <button onClick={()=>testAlert(alert)} disabled={!!sendingAlert}
+                          style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.arcDim,border:`1px solid ${V.arcWire}`,color:"#7EB6FF",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                          {alertSent===alert.id?<><CheckCircle size={10}/> Sent!</>:sendingAlert===alert.id?"Sending...":<><Mail size={10}/> Test</>}
+                        </button>
+                      )}
                       <button onClick={()=>removeAlert(alert.id)}
                         style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.lossDim,border:`1px solid ${V.lossWire}`,color:V.loss,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
                         <Trash2 size={10}/> Remove
