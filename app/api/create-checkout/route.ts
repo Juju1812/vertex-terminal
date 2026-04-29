@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       payment_method_types: ["card"],
       line_items: [{ price: PRICE_ID, quantity: 1 }],
       mode: "subscription",
+      allow_promotion_codes: true,
       success_url: `${APP_URL}/?pro=success`,
       cancel_url:  `${APP_URL}/?pro=cancel`,
       metadata: { email },
