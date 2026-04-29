@@ -2,23 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-interface AlertPayload {
-  email: string;
-  signal: "BUY" | "SELL" | "ADD";
-  ticker: string;
-  name: string;
-  price: number;
-  confidence: number;
-  reason: string;
-  targetPrice?: number;
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as AlertPayload;
-    const { email, signal, ticker, name, price, confidence, reason, targetPrice } = body;
+    const body = await req.json() as {
+      email: string;
+      ticker: string;
+      condition: "above" | "below";
+      targetPrice: number;
+      currentPrice: number;
+      test?: boolean;
+      // Legacy AI signal fields (kept for compatibility)
+      signal?: string;
+      name?: string;
+      confidence?: number;
+      reason?: string;
+    };
 
-    if (!email || !ticker || !signal) {
+    const { email, ticker, condition, targetPrice, currentPrice, test } = body;
+
+    if (!email || !ticker) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -26,81 +28,81 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email service not configured" }, { status: 500 });
     }
 
-    const signalColor  = signal === "BUY" || signal === "ADD" ? "#00C896" : "#E8445A";
-    const signalBg     = signal === "BUY" || signal === "ADD" ? "rgba(0,200,150,0.10)" : "rgba(232,68,90,0.10)";
-    const signalBorder = signal === "BUY" || signal === "ADD" ? "rgba(0,200,150,0.25)" : "rgba(232,68,90,0.25)";
-    const signalLabel  = signal === "BUY" ? "BUY SIGNAL" : signal === "ADD" ? "ADD TO POSITION" : "SELL SIGNAL";
-    const emoji        = signal === "BUY" ? "&#128200;" : signal === "ADD" ? "&#43;" : "&#128201;";
+    const isAbove   = condition === "above";
+    const triggered = test ? false : (isAbove ? currentPrice >= targetPrice : currentPrice <= targetPrice);
+    const color     = isAbove ? "#00e5a0" : "#ff4560";
+    const arrow     = isAbove ? "↑" : "↓";
+    const subject   = test
+      ? `ArbibX · Test Alert — ${ticker}`
+      : `ArbibX · Price Alert Triggered — ${ticker} ${arrow} $${targetPrice.toFixed(2)}`;
 
     const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#050810;font-family:'Segoe UI',system-ui,sans-serif;">
-  <div style="max-width:560px;margin:0 auto;padding:40px 24px;">
+<body style="margin:0;padding:0;background:#050407;font-family:'Segoe UI',system-ui,sans-serif;">
+  <div style="max-width:520px;margin:0 auto;padding:40px 20px;">
 
+    <!-- Header -->
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px;">
-      <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#4F8EF7,#00C896);display:inline-flex;align-items:center;justify-content:center;">
-        <span style="color:#fff;font-size:18px;font-weight:700;">A</span>
+      <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#f0a500,#ff6b35);display:inline-flex;align-items:center;justify-content:center;">
+        <span style="color:#0a0800;font-size:18px;font-weight:900;">A</span>
       </div>
       <div>
-        <div style="font-size:18px;font-weight:700;color:#F2F6FF;letter-spacing:0.05em;">ArbibX</div>
-        <div style="font-size:11px;color:#3D5A7A;letter-spacing:0.15em;text-transform:uppercase;">AI Signal Alert</div>
+        <div style="font-size:16px;font-weight:800;color:#f4f0ff;letter-spacing:0.08em;font-family:monospace;">ArbibX</div>
+        <div style="font-size:9px;color:#2d2848;letter-spacing:0.2em;text-transform:uppercase;font-family:monospace;">TERMINAL</div>
       </div>
     </div>
 
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(130,180,255,0.12);border-radius:16px;overflow:hidden;">
+    <!-- Card -->
+    <div style="background:linear-gradient(145deg,rgba(255,255,255,0.032) 0%,rgba(255,255,255,0.010) 100%);border:1px solid rgba(60,48,100,0.6);border-radius:18px;overflow:hidden;">
 
-      <!-- Signal banner -->
-      <div style="background:${signalBg};border-bottom:1px solid ${signalBorder};padding:20px 28px;display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="font-size:11px;color:${signalColor};text-transform:uppercase;letter-spacing:0.12em;font-weight:600;margin-bottom:4px;">${signalLabel}</div>
-          <div style="font-size:28px;font-weight:700;color:#F2F6FF;font-family:monospace;letter-spacing:-0.02em;">${ticker}</div>
-          <div style="font-size:13px;color:#7A9CBF;margin-top:2px;">${name}</div>
+      <!-- Top accent bar -->
+      <div style="height:3px;background:linear-gradient(90deg,#f0a500,#ff6b35);"></div>
+
+      <!-- Alert banner -->
+      <div style="background:${isAbove ? "rgba(0,229,160,0.08)" : "rgba(255,69,96,0.08)"};border-bottom:1px solid ${isAbove ? "rgba(0,229,160,0.20)" : "rgba(255,69,96,0.20)"};padding:24px 28px;">
+        <div style="font-size:10px;color:${color};text-transform:uppercase;letter-spacing:0.16em;font-weight:600;font-family:monospace;margin-bottom:8px;">
+          ${test ? "TEST ALERT" : "PRICE ALERT TRIGGERED"}
         </div>
-        <div style="font-size:40px;">${emoji}</div>
+        <div style="font-size:36px;font-weight:700;color:#f4f0ff;font-family:monospace;letter-spacing:-0.03em;line-height:1;">${ticker}</div>
+        <div style="font-size:14px;color:#8a82a8;margin-top:6px;">
+          Price ${isAbove ? "rose above" : "dropped below"} your target of <strong style="color:${color};">$${targetPrice.toFixed(2)}</strong>
+        </div>
       </div>
 
       <div style="padding:28px;">
 
-        <!-- Price + confidence -->
+        <!-- Price cards -->
         <div style="display:flex;gap:12px;margin-bottom:24px;">
-          <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(130,180,255,0.08);border-radius:10px;padding:14px;">
-            <div style="font-size:10px;color:#3D5A7A;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Current Price</div>
-            <div style="font-size:22px;font-weight:600;color:#F2F6FF;font-family:monospace;">$${price.toFixed(2)}</div>
+          <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(60,48,100,0.5);border-radius:12px;padding:16px;">
+            <div style="font-size:9px;color:#4a4468;text-transform:uppercase;letter-spacing:0.12em;font-family:monospace;margin-bottom:6px;">Current Price</div>
+            <div style="font-size:24px;font-weight:600;color:#f4f0ff;font-family:monospace;">$${currentPrice.toFixed(2)}</div>
           </div>
-          <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(130,180,255,0.08);border-radius:10px;padding:14px;">
-            <div style="font-size:10px;color:#3D5A7A;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">AI Confidence</div>
-            <div style="font-size:22px;font-weight:600;color:${signalColor};font-family:monospace;">${confidence}%</div>
+          <div style="flex:1;background:${isAbove ? "rgba(0,229,160,0.06)" : "rgba(255,69,96,0.06)"};border:1px solid ${isAbove ? "rgba(0,229,160,0.20)" : "rgba(255,69,96,0.20)"};border-radius:12px;padding:16px;">
+            <div style="font-size:9px;color:${color};text-transform:uppercase;letter-spacing:0.12em;font-family:monospace;margin-bottom:6px;">Your Target</div>
+            <div style="font-size:24px;font-weight:600;color:${color};font-family:monospace;">${arrow} $${targetPrice.toFixed(2)}</div>
           </div>
-          ${targetPrice ? `
-          <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(130,180,255,0.08);border-radius:10px;padding:14px;">
-            <div style="font-size:10px;color:#3D5A7A;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Price Target</div>
-            <div style="font-size:22px;font-weight:600;color:#4F8EF7;font-family:monospace;">$${targetPrice.toFixed(0)}</div>
-          </div>` : ""}
         </div>
 
-        <!-- Reason -->
-        <div style="background:rgba(79,142,247,0.05);border:1px solid rgba(79,142,247,0.14);border-radius:10px;padding:16px;margin-bottom:24px;">
-          <p style="font-size:10px;color:#7EB6FF;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin:0 0 8px;">AI Reasoning</p>
-          <p style="font-size:14px;color:#C8D5E8;line-height:1.65;margin:0;">${reason}</p>
-        </div>
+        ${test ? `<div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.25);border-radius:10px;padding:14px;margin-bottom:24px;text-align:center;">
+          <p style="font-size:13px;color:#f0a500;margin:0;">This is a test alert — your alerts are working correctly ✓</p>
+        </div>` : ""}
 
         <!-- CTA -->
         <div style="text-align:center;margin-bottom:20px;">
-          <a href="https://arbibx.vercel.app" style="display:inline-block;background:linear-gradient(135deg,#4F8EF7,#00C896);color:#fff;text-decoration:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:600;letter-spacing:0.02em;">
-            View in ArbibX Terminal &#8594;
+          <a href="https://www.arbibx.com" style="display:inline-block;background:linear-gradient(135deg,#f0a500,#ffbe1a);color:#0a0800;text-decoration:none;padding:13px 36px;border-radius:12px;font-size:14px;font-weight:800;letter-spacing:0.04em;">
+            Open ArbibX Terminal →
           </a>
         </div>
 
-        <p style="color:#3D5A7A;font-size:11px;text-align:center;margin:0;line-height:1.6;">
-          Not investment advice. For informational purposes only.<br>
-          Past performance does not guarantee future results.
+        <p style="color:#2d2848;font-size:11px;text-align:center;margin:0;line-height:1.6;font-family:monospace;">
+          NOT FINANCIAL ADVICE · FOR INFORMATIONAL PURPOSES ONLY
         </p>
       </div>
     </div>
 
-    <p style="color:#1F3550;font-size:11px;text-align:center;margin-top:24px;">
-      ArbibX Terminal &mdash; Powered by Polygon.io
+    <p style="color:#1a1628;font-size:10px;text-align:center;margin-top:20px;font-family:monospace;letter-spacing:0.06em;">
+      ArbibX Terminal · Powered by Polygon.io
     </p>
   </div>
 </body>
@@ -115,12 +117,17 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         from: "ArbibX Alerts <alerts@arbibx.com>",
         to: email,
-        subject: `ArbibX Alert: ${signalLabel} ??? ${ticker} @ $${price.toFixed(2)}`,
+        subject,
         html,
       }),
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Resend error:", errText);
+      throw new Error(errText);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Alert send error:", err);

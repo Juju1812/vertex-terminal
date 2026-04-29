@@ -1,36 +1,110 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "ArbibX",
-  description: "Arbibs Run The World!",
+  title: "ArbibX Terminal",
+  description: "AI-powered stock intelligence. Real-time market data, Claude AI analysis, and portfolio tracking.",
+  applicationName: "ArbibX",
+  authors: [{ name: "ArbibX" }],
+  keywords: ["stocks", "trading", "AI", "portfolio", "market data", "Claude AI"],
+  manifest: "/manifest.json",
+
+  // Open Graph (for link previews)
+  openGraph: {
+    title: "ArbibX Terminal",
+    description: "AI-powered stock intelligence terminal",
+    type: "website",
+    url: "https://www.arbibx.com",
+    images: [{ url: "/logo.png", width: 512, height: 512, alt: "ArbibX" }],
+  },
+
+  // Twitter card
+  twitter: {
+    card: "summary",
+    title: "ArbibX Terminal",
+    description: "AI-powered stock intelligence terminal",
+    images: ["/logo.png"],
+  },
+
+  // Apple PWA
+  appleWebApp: {
+    capable: true,
+    title: "ArbibX",
+    statusBarStyle: "black-translucent",
+    startupImage: [{ url: "/logo.png" }],
+  },
+
+  // Icons
   icons: {
-    icon: "/logo.png",
+    icon: [
+      { url: "/logo.png", sizes: "32x32",  type: "image/png" },
+      { url: "/logo.png", sizes: "192x192", type: "image/png" },
+      { url: "/logo.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/logo.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/logo.png",
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)",  color: "#050407" },
+    { media: "(prefers-color-scheme: light)", color: "#050407" },
+  ],
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en">
+      <head>
+        {/* PWA essentials */}
+        <link rel="manifest" href="/manifest.json" />
+
+        {/* Apple-specific PWA tags */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ArbibX" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+
+        {/* Microsoft tiles */}
+        <meta name="msapplication-TileColor" content="#050407" />
+        <meta name="msapplication-TileImage" content="/logo.png" />
+        <meta name="msapplication-tap-highlight" content="no" />
+
+        {/* Prevent phone number detection */}
+        <meta name="format-detection" content="telephone=no" />
+      </head>
+      <body>
+        {children}
+
+        {/* Service worker registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(reg) {
+                      console.log('ArbibX SW registered:', reg.scope);
+                    })
+                    .catch(function(err) {
+                      console.log('SW registration failed:', err);
+                    });
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   );
 }

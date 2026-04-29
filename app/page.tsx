@@ -642,67 +642,24 @@ function GlobalAuthForm({onSuccess}:{onSuccess:()=>void}) {
 }
 
 /* ── MobileNav ─────────────────────────────────────────────── */
-const PRIMARY_TABS: Tab[] = ["markets","top15","portfolio","watchlist"];
-const MORE_TABS: Tab[]    = ["earnings","news","screener","analytics"];
-
 function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
-  const [showMore,setShowMore] = useState(false);
-  const inMore = MORE_TABS.includes(tab);
-
   return (
-    <>
-      {/* More drawer overlay */}
-      {showMore&&(
-        <div onClick={()=>setShowMore(false)}
-          style={{position:"fixed",inset:0,zIndex:98,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(8px)"}}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{position:"absolute",bottom:"calc(64px + env(safe-area-inset-bottom,0px))",left:0,right:0,background:"rgba(8,6,16,0.98)",borderTop:`1px solid rgba(240,165,0,0.2)`,padding:"16px 8px 8px"}}>
-            <p style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"rgba(240,165,0,0.6)",textTransform:"uppercase",letterSpacing:"0.16em",textAlign:"center",marginBottom:12}}>More Tabs</p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4}}>
-              {MORE_TABS.map(t=>{
-                const active=tab===t;
-                return (
-                  <button key={t} onClick={()=>{setTab(t);setShowMore(false);}}
-                    style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"10px 4px 8px",gap:4,background:active?"rgba(240,165,0,0.08)":"none",border:active?`1px solid rgba(240,165,0,0.2)`:"1px solid transparent",borderRadius:12,cursor:"pointer",minHeight:60,color:active?"#f0a500":"#4a4468",transition:"all 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
-                    <TabIcon id={t} size={22} active={active}/>
-                    <span style={{fontSize:10,fontWeight:active?700:400,whiteSpace:"nowrap"}}>{TABS.find(x=>x.id===t)?.short??t}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom bar */}
-      <nav className="vx-bottom-nav">
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)"}}>
-          {PRIMARY_TABS.map(t=>{
-            const active=tab===t;
-            return (
-              <button key={t} onClick={()=>setTab(t)}
-                style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"8px 4px 6px",gap:3,background:"none",border:"none",cursor:"pointer",minHeight:54,color:active?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
-                <div style={{padding:"3px 10px",borderRadius:16,background:active?"rgba(240,165,0,0.10)":"transparent",transition:"background 0.25s",display:"flex",alignItems:"center",justifyContent:"center",minWidth:40}}>
-                  <TabIcon id={t} size={21} active={active}/>
-                </div>
-                <span style={{fontSize:10,fontWeight:active?700:400,letterSpacing:"0.01em",whiteSpace:"nowrap"}}>{TABS.find(x=>x.id===t)?.short??t}</span>
-              </button>
-            );
-          })}
-          {/* More button */}
-          <button onClick={()=>setShowMore(s=>!s)}
-            style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"8px 4px 6px",gap:3,background:"none",border:"none",cursor:"pointer",minHeight:54,color:inMore?"#f0a500":showMore?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
-            <div style={{padding:"3px 10px",borderRadius:16,background:(inMore||showMore)?"rgba(240,165,0,0.10)":"transparent",transition:"background 0.25s",display:"flex",alignItems:"center",justifyContent:"center",minWidth:40,flexDirection:"column",gap:3}}>
-              {/* Hamburger dots */}
-              <div style={{display:"flex",gap:3}}>
-                {[0,1,2].map(i=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:(inMore||showMore)?"#f0a500":"#2d2848",transition:"background 0.2s"}}/>)}
+    <nav className="vx-bottom-nav">
+      <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)"}}>
+        {TABS.map(t=>{
+          const active=tab===t.id;
+          return (
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"7px 2px 5px",gap:2,background:"none",border:"none",cursor:"pointer",minHeight:52,color:active?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
+              <div style={{padding:"2px 4px",borderRadius:10,background:active?"rgba(240,165,0,0.10)":"transparent",transition:"background 0.25s",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <TabIcon id={t.id} size={18} active={active}/>
               </div>
-            </div>
-            <span style={{fontSize:10,fontWeight:(inMore||showMore)?700:400,letterSpacing:"0.01em",whiteSpace:"nowrap"}}>More</span>
-          </button>
-        </div>
-      </nav>
-    </>
+              <span style={{fontSize:8,fontWeight:active?700:400,whiteSpace:"nowrap",letterSpacing:"-0.01em"}}>{t.short}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 

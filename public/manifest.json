@@ -1,0 +1,70 @@
+{
+  "name": "ArbibX Terminal",
+  "short_name": "ArbibX",
+  "description": "AI-powered stock intelligence terminal. Real-time market data, Claude AI analysis, and portfolio tracking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050407",
+  "theme_color": "#050407",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ArbibX Terminal"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "AI Top 15",
+      "short_name": "Top 15",
+      "description": "View Claude AI stock analysis",
+      "url": "/?tab=top15",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Portfolio",
+      "short_name": "Portfolio",
+      "description": "View your portfolio",
+      "url": "/?tab=portfolio",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Markets",
+      "short_name": "Markets",
+      "description": "Live market data",
+      "url": "/?tab=markets",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}
