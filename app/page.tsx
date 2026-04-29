@@ -528,16 +528,19 @@ interface SidebarProps {
   indices:IndexData[];
   go:(t:string)=>void;toggleWatch:(t:string)=>void;
   setTab:Dispatch<SetStateAction<Tab>>;
+  theme:"dark"|"light";
 }
 
-const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab}:SidebarProps) {
+const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme}:SidebarProps) {
+  const v = theme === "light" ? LIGHT_V : DARK_V;
+  const c = (ex?: React.CSSProperties) => getCard(theme, ex);
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{...card({overflow:"hidden",padding:0})}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderBottom:`1px solid ${V.border}`}}>
-          <Star size={13} color={V.gold} fill={V.gold}/>
-          <span style={{...display,fontSize:13,fontWeight:700,color:V.ink0}}>Watchlist</span>
-          <span style={{...mono,fontSize:10,color:V.ink3,marginLeft:"auto"}}>{watchlist.length}</span>
+      <div style={{...c({overflow:"hidden",padding:0})}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderBottom:`1px solid ${v.border}`}}>
+          <Star size={13} color={v.gold} fill={v.gold}/>
+          <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Watchlist</span>
+          <span style={{...mono,fontSize:10,color:v.ink3,marginLeft:"auto"}}>{watchlist.length}</span>
         </div>
         {watchlist.map((t,i)=>{
           const live=livePrices[t];
@@ -546,57 +549,57 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
           const pos=changePct>=0;
           return (
             <button key={t} onClick={()=>go(t)}
-              style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"11px 16px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.06),transparent)":"none",border:"none",cursor:"pointer",borderBottom:i<watchlist.length-1?`1px solid ${V.border}`:"none",borderLeft:t===ticker?`2px solid ${V.gold}`:"2px solid transparent",minHeight:48,textAlign:"left",transition:"background 0.18s"}}
+              style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"11px 16px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.06),transparent)":"none",border:"none",cursor:"pointer",borderBottom:i<watchlist.length-1?`1px solid ${v.border}`:"none",borderLeft:t===ticker?`2px solid ${v.gold}`:"2px solid transparent",minHeight:48,textAlign:"left",transition:"background 0.18s"}}
               className="row-hover">
               <div>
-                <p style={{...mono,fontSize:12,fontWeight:500,color:t===ticker?V.gold:V.ink0}}>{t}</p>
-                <p style={{color:V.ink3,fontSize:10,marginTop:1,maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{NAMES[t]??t}</p>
+                <p style={{...mono,fontSize:12,fontWeight:500,color:t===ticker?v.gold:v.ink0}}>{t}</p>
+                <p style={{color:v.ink3,fontSize:10,marginTop:1,maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{NAMES[t]??t}</p>
               </div>
               <div style={{textAlign:"right"}}>
-                <p style={{...mono,fontSize:12,fontWeight:500,color:V.ink0}}>{price>0?f$(price):"---"}</p>
-                <p style={{...mono,fontSize:10,color:pos?V.gain:V.loss,marginTop:1}}>{fp(changePct)}</p>
+                <p style={{...mono,fontSize:12,fontWeight:500,color:v.ink0}}>{price>0?f$(price):"---"}</p>
+                <p style={{...mono,fontSize:10,color:pos?v.gain:v.loss,marginTop:1}}>{fp(changePct)}</p>
               </div>
             </button>
           );
         })}
-        <div style={{padding:"8px 12px",borderTop:`1px solid ${V.border}`,display:"flex",flexWrap:"wrap",gap:4}}>
+        <div style={{padding:"8px 12px",borderTop:`1px solid ${v.border}`,display:"flex",flexWrap:"wrap",gap:4}}>
           {TICKERS.filter(t=>!watchlist.includes(t)).map(t=>(
             <button key={t} onClick={()=>toggleWatch(t)}
-              style={{...mono,fontSize:9,padding:"3px 8px",borderRadius:5,background:"transparent",border:`1px solid ${V.border}`,color:V.ink3,cursor:"pointer",transition:"all 0.18s"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=V.goldWire;e.currentTarget.style.color=V.gold;}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=V.border;e.currentTarget.style.color=V.ink3;}}>
+              style={{...mono,fontSize:9,padding:"3px 8px",borderRadius:5,background:"transparent",border:`1px solid ${v.border}`,color:v.ink3,cursor:"pointer",transition:"all 0.18s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=v.goldWire;e.currentTarget.style.color=v.gold;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=v.border;e.currentTarget.style.color=v.ink3;}}>
               +{t}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{...card({overflow:"hidden",padding:0})}}>
-        <div style={{padding:"12px 16px",borderBottom:`1px solid ${V.border}`}}>
-          <span style={{...display,fontSize:13,fontWeight:700,color:V.ink0}}>Global Markets</span>
+      <div style={{...c({overflow:"hidden",padding:0})}}>
+        <div style={{padding:"12px 16px",borderBottom:`1px solid ${v.border}`}}>
+          <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Global Markets</span>
         </div>
         {indices.map((m,i)=>(
-          <div key={m.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderBottom:i<indices.length-1?`1px solid ${V.border}`:"none"}}>
-            <span style={{color:V.ink2,fontSize:12,fontWeight:500}}>{m.n}</span>
+          <div key={m.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderBottom:i<indices.length-1?`1px solid ${v.border}`:"none"}}>
+            <span style={{color:v.ink2,fontSize:12,fontWeight:500}}>{m.n}</span>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{...mono,fontSize:12,fontWeight:500,color:V.ink0}}>{m.v}</span>
-              <span style={{...mono,fontSize:10,color:m.up?V.gain:V.loss,minWidth:48,textAlign:"right"}}>{m.d}</span>
+              <span style={{...mono,fontSize:12,fontWeight:500,color:v.ink0}}>{m.v}</span>
+              <span style={{...mono,fontSize:10,color:m.up?v.gain:v.loss,minWidth:48,textAlign:"right"}}>{m.d}</span>
             </div>
           </div>
         ))}
       </div>
 
       {/* Explore nav */}
-      <div style={{...card({padding:14})}}>
-        <p style={{...mono,fontSize:9,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:10}}>Explore</p>
+      <div style={{...c({padding:14})}}>
+        <p style={{...mono,fontSize:9,color:v.ink4,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:10}}>Explore</p>
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
           {([
-            {id:"top15"     as Tab, label:"Top 15 Stocks",      color:V.gold,  bg:V.goldDim,  wire:V.goldWire},
+            {id:"top15"     as Tab, label:"Top 15 Stocks",      color:v.gold,  bg:v.goldDim,  wire:v.goldWire},
             {id:"earnings"  as Tab, label:"Earnings Cal.",        color:"#7eb6ff",bg:"rgba(79,142,247,0.08)", wire:"rgba(79,142,247,0.22)"},
-            {id:"news"      as Tab, label:"News Feed",            color:V.gain,  bg:V.gainDim,  wire:V.gainWire},
+            {id:"news"      as Tab, label:"News Feed",            color:v.gain,  bg:v.gainDim,  wire:v.gainWire},
             {id:"screener"  as Tab, label:"Stock Screener",       color:"#c084fc",bg:"rgba(192,132,252,0.08)",wire:"rgba(192,132,252,0.22)"},
-            {id:"analytics" as Tab, label:"Portfolio Analytics",  color:V.gold,  bg:V.goldDim,  wire:V.goldWire},
-            {id:"watchlist" as Tab, label:"Watchlist & Alerts",   color:V.ember, bg:V.emberDim, wire:V.goldWire},
+            {id:"analytics" as Tab, label:"Portfolio Analytics",  color:v.gold,  bg:v.goldDim,  wire:v.goldWire},
+            {id:"watchlist" as Tab, label:"Watchlist & Alerts",   color:v.ember, bg:v.emberDim, wire:v.goldWire},
             {id:"portfolio" as Tab, label:"My Portfolio",         color:"#c084fc",bg:"rgba(192,132,252,0.08)",wire:"rgba(192,132,252,0.22)"},
           ] as const).map(item=>(
             <button key={item.id} onClick={()=>setTab(item.id)}
@@ -835,7 +838,7 @@ export default function ArbibX() {
   const watched=watchlist.includes(ticker);
 
   const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true),theme}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,theme]);
-  const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab}),[ticker,watchlist,livePrices,indices,go,toggleWatch]);
+  const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme}),[ticker,watchlist,livePrices,indices,go,toggleWatch,theme]);
 
   return (
     <div style={{minHeight:"100vh",background:V.void,color:V.ink1,fontFamily:"'Syne',system-ui,sans-serif"}}>
