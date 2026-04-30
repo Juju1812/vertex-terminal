@@ -389,7 +389,41 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   try { allocs = simulate(stocks, num); } catch { allocs = []; }
   const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
-  const buildHoldings = () => allocs
+  const [busy, setBusy] = useState<"add" | "replace" | null>(null);
+
+  type H = { id: string; ticker: string; shares: number; buyPrice: number };
+  type AuthUser = { email: string; token: string };
+
+  const getAuthUser = (): AuthUser | null => {
+    try {
+      const s = localStorage.getItem("arbibx-auth-user");
+      if (!s) return null;
+      const u = JSON.parse(s) as AuthUser;
+      return u.email && u.token ? u : null;
+    } catch { return null; }
+  };
+
+  const fetchCloudHoldings = async (u: AuthUser): Promise<H[]> => {
+    try {
+      const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
+      if (!r.ok) return [];
+      const d = await r.json() as { holdings?: H[] };
+      return Array.isArray(d.holdings) ? d.holdings : [];
+    } catch { return []; }
+  };
+
+  const saveCloudHoldings = async (u: AuthUser, h: H[]): Promise<boolean> => {
+    try {
+      const r = await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: u.email, token: u.token, holdings: h }),
+      });
+      return r.ok;
+    } catch { return false; }
+  };
+
+  const buildHoldings = (): H[] => allocs
     .filter(a => a.shares > 0)
     .map(a => ({
       id: `sim-${Date.now()}-${a.ticker}-${Math.random()}`,
@@ -398,30 +432,62 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
       buyPrice: +a.price.toFixed(2),
     }));
 
-  const addToPortfolio = () => {
+  // Persist holdings: cloud first if logged in (cloud is source of truth
+  // for logged-in users — MyStocks overwrites localStorage on mount).
+  // Then mirror to localStorage and dispatch synthetic storage event for
+  // any mounted MyStocks instance to pick up immediately.
+  const persist = async (next: H[]): Promise<boolean> => {
+    const u = getAuthUser();
+    if (u) {
+      const ok = await saveCloudHoldings(u, next);
+      if (!ok) return false;
+    }
     try {
-      const newHoldings = buildHoldings();
-      if (!newHoldings.length) return;
-      const existing = JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as { id: string; ticker: string; shares: number; buyPrice: number }[];
-      const existingTickers = new Set(existing.map((h: { ticker: string }) => h.ticker));
-      const toAdd = newHoldings.filter(h => !existingTickers.has(h.ticker));
-      const merged = [...existing, ...toAdd];
-      localStorage.setItem("arbibx-holdings-local", JSON.stringify(merged));
+      localStorage.setItem("arbibx-holdings-local", JSON.stringify(next));
       window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
-      setAdded(true);
-      setTimeout(() => setAdded(false), 2500);
     } catch { /**/ }
+    return true;
   };
 
-  const replacePortfolio = () => {
+  const addToPortfolio = async () => {
+    if (busy) return;
+    const newHoldings = buildHoldings();
+    if (!newHoldings.length) return;
+    setBusy("add");
     try {
-      const newHoldings = buildHoldings();
-      if (!newHoldings.length) return;
-      localStorage.setItem("arbibx-holdings-local", JSON.stringify(newHoldings));
-      window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
-      setReplaced(true);
-      setTimeout(() => setReplaced(false), 2500);
-    } catch { /**/ }
+      // Use cloud as source of truth for logged-in users; fall back to
+      // localStorage for guests.
+      const u = getAuthUser();
+      const existing: H[] = u
+        ? await fetchCloudHoldings(u)
+        : (() => { try { return JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as H[]; } catch { return []; } })();
+      const existingTickers = new Set(existing.map(h => h.ticker));
+      const toAdd = newHoldings.filter(h => !existingTickers.has(h.ticker));
+      const merged = [...existing, ...toAdd];
+      const ok = await persist(merged);
+      if (ok) {
+        setAdded(true);
+        setTimeout(() => setAdded(false), 2500);
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const replacePortfolio = async () => {
+    if (busy) return;
+    const newHoldings = buildHoldings();
+    if (!newHoldings.length) return;
+    setBusy("replace");
+    try {
+      const ok = await persist(newHoldings);
+      if (ok) {
+        setReplaced(true);
+        setTimeout(() => setReplaced(false), 2500);
+      }
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -482,13 +548,13 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
           </div>
           {allocs.length > 0 && (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              <button onClick={addToPortfolio}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"var(--gain,#00C896)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
-                {added ? "✓ Added!" : "+ Add to Portfolio"}
+              <button onClick={addToPortfolio} disabled={!!busy}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"var(--gain,#00C896)", cursor: busy ? "wait" : "pointer", opacity: busy && busy !== "add" ? 0.5 : 1, fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                {busy === "add" ? "Saving…" : added ? "✓ Added!" : "+ Add to Portfolio"}
               </button>
-              <button onClick={replacePortfolio}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
-                {replaced ? "✓ Replaced!" : "⟳ Replace Portfolio"}
+              <button onClick={replacePortfolio} disabled={!!busy}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"var(--ticker-blue,#7EB6FF)", cursor: busy ? "wait" : "pointer", opacity: busy && busy !== "replace" ? 0.5 : 1, fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                {busy === "replace" ? "Saving…" : replaced ? "✓ Replaced!" : "⟳ Replace Portfolio"}
               </button>
             </div>
           )}
