@@ -334,6 +334,26 @@ const f$ = (n:number) => new Intl.NumberFormat("en-US",{style:"currency",currenc
 const fp = (n:number) => `${n>=0?"+":""}${n.toFixed(2)}%`;
 const fv = (n:number) => n>=1e9?`${(n/1e9).toFixed(2)}B`:n>=1e6?`${(n/1e6).toFixed(2)}M`:n>=1e3?`${(n/1e3).toFixed(1)}K`:String(n);
 
+/* ── Market session detection ─────────────────────────────────
+   Returns the current US-equity session label based on the user's
+   wall-clock time converted to America/New_York. Boundaries:
+     PRE     04:00 - 09:30  ET
+     OPEN    09:30 - 16:00  ET
+     POST    16:00 - 20:00  ET
+     CLOSED  otherwise (incl. weekends + holidays) */
+type MarketSession = "PRE" | "OPEN" | "POST" | "CLOSED";
+function getMarketSession(): MarketSession {
+  const now = new Date();
+  const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = et.getDay();
+  if (day === 0 || day === 6) return "CLOSED";
+  const mins = et.getHours() * 60 + et.getMinutes();
+  if (mins >= 240  && mins < 570)  return "PRE";    // 04:00 - 09:30
+  if (mins >= 570  && mins < 960)  return "OPEN";   // 09:30 - 16:00
+  if (mins >= 960  && mins < 1200) return "POST";   // 16:00 - 20:00
+  return "CLOSED";
+}
+
 /* ── Shared components ────────────────────────────────────── */
 function ChartTip({active,payload,label}:{active?:boolean;payload?:{value:number}[];label?:string}) {
   if (!active||!payload?.length) return null;
@@ -356,6 +376,31 @@ function TabIcon({id,size=20,active}:{id:Tab;size?:number;active:boolean}) {
   if (id==="analytics") return <BarChart2       size={size} strokeWidth={sw}/>;
   if (id==="watchlist") return <Bell            size={size} strokeWidth={sw}/>;
   return null;
+}
+
+/* Live market-session badge — replaces the static "Live" pill in
+   the indices header bar. Re-evaluates the session every 30 seconds
+   so the label flips automatically when the market opens / closes. */
+function MarketSessionBadge() {
+  const [session, setSession] = useState<MarketSession>(() => getMarketSession());
+  useEffect(() => {
+    const id = setInterval(() => setSession(getMarketSession()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const cfg: Record<MarketSession, { label: string; color: string; pulse: boolean }> = {
+    OPEN:   { label: "Live · Market open",   color: V.gain,         pulse: true  },
+    PRE:    { label: "Pre-market",           color: V.gold,         pulse: true  },
+    POST:   { label: "After-hours",          color: V.gold,         pulse: true  },
+    CLOSED: { label: "Market closed",        color: V.ink3,         pulse: false },
+  };
+  const c = cfg[session];
+  return (
+    <div title={session === "OPEN" ? "Regular trading hours" : session === "PRE" ? "Pre-market: 4:00–9:30 AM ET" : session === "POST" ? "After-hours: 4:00–8:00 PM ET" : "Markets closed (overnight or weekend)"}
+      style={{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:10,paddingLeft:10,borderLeft:`1px solid ${V.border}`}}>
+      <div style={{width:5,height:5,borderRadius:"50%",background:c.color,animation: c.pulse ? "live-pulse 2.5s ease-in-out infinite" : "none"}}/>
+      <span style={{...mono,fontSize:8,color:c.color,textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:500,whiteSpace:"nowrap"}}>{c.label}</span>
+    </div>
+  );
 }
 
 function YahooBtn({ticker,compact=false}:{ticker:string;compact?:boolean}) {
@@ -1387,10 +1432,7 @@ export default function ArbibX() {
               </div>
             ))}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0,marginLeft:10,paddingLeft:10,borderLeft:`1px solid ${V.border}`}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:V.gain,animation:"live-pulse 2.5s ease-in-out infinite"}}/>
-            <span style={{...mono,fontSize:8,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.12em"}}>Live</span>
-          </div>
+          <MarketSessionBadge />
         </div>
 
         {/* Nav bar */}
