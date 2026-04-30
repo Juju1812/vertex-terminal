@@ -200,7 +200,18 @@ function nextMarketOpen(): string {
   return "Tomorrow at 9:30 AM ET";
 }
 
-/* ---- Portfolio simulator ----------------------------------- */
+/* ---- Portfolio simulator -----------------------------------
+   Two-pass allocator that ALWAYS gives whole-share counts and
+   tells you exactly what you'd actually spend.
+
+   Pass 1: Compute target weight per stock (confidence × score),
+   convert to planned dollars per stock, floor to whole shares.
+   Pass 2: Greedy distribute the leftover (cash - sum of actual
+   costs) by buying one extra share of the next stock that fits,
+   in order of weight. Repeats until no stock can fit another
+   share. Result: every stock gets a whole-share count and the
+   "reserve" is true unspent cash.
+*/
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const buys = stocks.filter(s => {
     const sig = (s.signal ?? "").toString().trim().toUpperCase();
@@ -209,17 +220,46 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
   if (!buys.length) return [];
   const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
   if (!tw || isNaN(tw)) return [];
-  return buys.map(p => {
-    const w = (p.confidence * Math.max(p.score, 1)) / tw;
-    const dollars = Math.round(cash * w * 100) / 100;
-    const shares = p.price > 0 ? Math.floor(dollars / p.price) : 0;
-    return {
-      ticker: p.ticker, name: p.name, price: p.price,
-      dollars, shares,
-      pct: +(w * 100).toFixed(1),
-      note: `${(w * 100).toFixed(1)}% — ${p.targetPrice > 0 && !isNaN(p.targetPrice) ? "target $" + p.targetPrice.toFixed(0) : "no target"} — ${p.confidence}% conf`,
-    };
-  }).sort((a, b) => b.dollars - a.dollars);
+
+  // Pass 1: floor to whole shares from the weighted target
+  type Row = { p: typeof buys[number]; weight: number; shares: number };
+  const rows: Row[] = buys.map(p => {
+    const weight = (p.confidence * Math.max(p.score, 1)) / tw;
+    const planned = cash * weight;
+    const shares = p.price > 0 ? Math.floor(planned / p.price) : 0;
+    return { p, weight, shares };
+  });
+
+  // Pass 2: greedily add whole shares from leftover, prioritizing
+  // the highest-weight stocks. Stops when no stock can afford
+  // another share. Guarantees we never over-spend cash.
+  const remaining = () => cash - rows.reduce((s, r) => s + r.shares * r.p.price, 0);
+  const order = [...rows].sort((a, b) => b.weight - a.weight);
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const r of order) {
+      if (r.p.price > 0 && r.p.price <= remaining()) {
+        r.shares += 1;
+        progress = true;
+      }
+    }
+  }
+
+  // Build the display rows. Drop any 0-share allocations (allocation
+  // too small to buy even one share at this price).
+  return rows
+    .filter(r => r.shares > 0)
+    .map(r => {
+      const dollars = +(r.shares * r.p.price).toFixed(2);
+      const actualPct = cash > 0 ? +(dollars / cash * 100).toFixed(1) : 0;
+      return {
+        ticker: r.p.ticker, name: r.p.name, price: r.p.price,
+        dollars, shares: r.shares, pct: actualPct,
+        note: `${actualPct}% — ${r.p.targetPrice > 0 && !isNaN(r.p.targetPrice) ? "target $" + r.p.targetPrice.toFixed(0) : "no target"} — ${r.p.confidence}% conf`,
+      };
+    })
+    .sort((a, b) => b.dollars - a.dollars);
 }
 
 /* ---- Formatters -------------------------------------------- */

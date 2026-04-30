@@ -173,8 +173,20 @@ function grade(h: EH[]): Grade {
 
   const winners = h.filter(x => x.pnl > 0).length;
   const wr = winners / n;
-  if (wr >= 0.7)      { s += 12; st.push(`${winners}/${n} positions are profitable.`); }
-  else if (wr < 0.4)  { s -= 8;  wk.push(`Only ${winners}/${n} positions are in profit.`); }
+  // Detect "fresh" portfolio: positions haven't moved meaningfully
+  // from cost basis yet (avg absolute % change < 1.5%). Penalizing
+  // win rate on day 1 is unfair - prices haven't had time to move.
+  // The previous behavior gave every fresh 8-position portfolio a
+  // C- automatically because winners=0 → -8 from the base score.
+  const avgAbsMove = h.reduce((a, x) => a + Math.abs(x.pct), 0) / n;
+  const isFresh = avgAbsMove < 1.5;
+  if (isFresh) {
+    tp.push("Portfolio is too fresh to grade win rate — check back after a few trading days for an accurate score.");
+  } else if (wr >= 0.7) {
+    s += 12; st.push(`${winners}/${n} positions are profitable.`);
+  } else if (wr < 0.4) {
+    s -= 8;  wk.push(`Only ${winners}/${n} positions are in profit.`);
+  }
 
   if (!tp.length) tp.push("Continue monitoring and rebalance quarterly.");
 
