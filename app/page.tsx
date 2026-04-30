@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge,
+  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 import {
@@ -1462,7 +1462,7 @@ export default function ArbibX() {
                     ? "Performance mode: Lite (forced) · click for Cinematic"
                     : "Performance mode: Cinematic (forced) · click for Auto"
               }>
-              {liteMode ? <Gauge size={16}/> : <Zap size={16}/>}
+              {liteMode ? <Gauge size={16}/> : <Sparkles size={16}/>}
             </button>
             <button onClick={()=>setShowSearch(s=>!s)}
               style={{background:showSearch?V.goldDim:"none",border:`1px solid ${showSearch?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
