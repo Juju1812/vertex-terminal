@@ -466,6 +466,27 @@ body::after {
 .tab-label { display: none; }
 @media (min-width: 520px) { .tab-label { display: inline; } }
 
+/* ── Nav tab hover preview underline ───────────────────────
+   Animated underline that grows from center on hover so users
+   see where the active indicator would land before they click.
+   Only on inactive tabs — the active tab has its own indicator. */
+.vx-nav-tab__hover-underline {
+  position: absolute;
+  inset: auto 12px 0 12px;
+  height: 2px;
+  background: var(--gold-wire);
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s cubic-bezier(0.23, 1, 0.32, 1), background 0.2s;
+  pointer-events: none;
+}
+.vx-nav-tab:hover .vx-nav-tab__hover-underline {
+  transform: scaleX(1);
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold-wire);
+}
+
 /* ── Keyboard shortcut hint (desktop only, very discreet) ──── */
 .vx-shortcut-hint {
   position: fixed;
