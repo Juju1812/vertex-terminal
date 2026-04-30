@@ -6,6 +6,33 @@ export const dynamic = "force-dynamic";
 const POLYGON_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const POLYGON_BASE = "https://api.polygon.io";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
+
+/* Persist a snapshot of the picks so we can render historical
+   track record charts later. Fires only on cache misses (fresh
+   analyses) — cache hits skip to avoid duplicating the same row.
+   Failures are non-fatal — the analyze response still returns. */
+async function persistSnapshot(picks: unknown[]): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return; // graceful degrade if env unset
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/analysis_snapshots`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+      },
+      body: JSON.stringify({ picks }),
+    });
+    if (!r.ok) {
+      console.warn("[analyze] snapshot persist failed:", r.status, await r.text().catch(() => ""));
+    }
+  } catch (err) {
+    console.warn("[analyze] snapshot persist threw:", err);
+  }
+}
 
 /* ---- Wide universe for pre-screen pipeline ----------------
    Server-side only (not shipped to client). ~250 liquid US
@@ -808,6 +835,9 @@ export async function POST(req: NextRequest) {
     const finalStocks = stocks.slice(0, 15);
     const analyzedAt = new Date().toISOString();
     setCache(finalStocks, analyzedAt);
+    // Persist for the track-record dashboard. Non-blocking — even if
+    // the insert fails the response goes back as normal.
+    void persistSnapshot(finalStocks);
     return NextResponse.json({
       stocks: finalStocks,
       analyzedAt,

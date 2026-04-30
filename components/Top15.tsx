@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
+
+// Dynamic import — TrackRecord fetches data client-side, lazy-loaded so
+// the Top 15 page renders instantly while the track-record panel
+// hydrates underneath.
+const TrackRecord = dynamic(() => import("./TrackRecord"), { ssr: false, loading: () => null });
 import {
   TrendingUp, TrendingDown, DollarSign,
   Trophy, Target, Shield, Zap, Brain,
@@ -789,6 +795,12 @@ export default function Top15({ onSelectTicker }: Top15Props) {
 
   return (
     <div style={{ padding:"20px 16px", maxWidth:1280, margin:"0 auto" }}>
+
+      {/* Track Record — rolling AI vs SPY performance + past picks list.
+          Hidden until the first snapshot writes; populates automatically
+          on every Refresh. Sits at the top so users see receipts before
+          they see today's picks. */}
+      <TrackRecord />
 
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:18, gap:12, flexWrap:"wrap" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
