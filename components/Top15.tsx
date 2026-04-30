@@ -97,11 +97,11 @@ const SECTOR_HUE: Record<string, string> = {
 };
 
 const SIGNAL_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  "STRONG BUY":  { color:"#00C896", bg:"rgba(0,200,150,0.10)",   border:"rgba(0,200,150,0.30)",   label:"STRONG BUY"  },
-  "BUY":         { color:"#00C896", bg:"rgba(0,200,150,0.07)",   border:"rgba(0,200,150,0.20)",   label:"BUY"         },
-  "HOLD":        { color:"#E8A030", bg:"rgba(232,160,48,0.07)",  border:"rgba(232,160,48,0.20)",  label:"HOLD"        },
-  "SELL":        { color:"#E8445A", bg:"rgba(232,68,90,0.07)",   border:"rgba(232,68,90,0.20)",   label:"SELL"        },
-  "STRONG SELL": { color:"#E8445A", bg:"rgba(232,68,90,0.12)",   border:"rgba(232,68,90,0.30)",   label:"STRONG SELL" },
+  "STRONG BUY":  { color:"var(--gain,#00C896)", bg:"rgba(0,200,150,0.10)",   border:"rgba(0,200,150,0.30)",   label:"STRONG BUY"  },
+  "BUY":         { color:"var(--gain,#00C896)", bg:"rgba(0,200,150,0.07)",   border:"rgba(0,200,150,0.20)",   label:"BUY"         },
+  "HOLD":        { color:"var(--gold,#E8A030)", bg:"rgba(232,160,48,0.07)",  border:"rgba(232,160,48,0.20)",  label:"HOLD"        },
+  "SELL":        { color:"var(--loss,#E8445A)", bg:"rgba(232,68,90,0.07)",   border:"rgba(232,68,90,0.20)",   label:"SELL"        },
+  "STRONG SELL": { color:"var(--loss,#E8445A)", bg:"rgba(232,68,90,0.12)",   border:"rgba(232,68,90,0.30)",   label:"STRONG SELL" },
 };
 
 /* ---- Market hours check ------------------------------------ */
@@ -204,7 +204,7 @@ function YahooBtn({ ticker }: { ticker: string }) {
   return (
     <a href={`https://finance.yahoo.com/quote/${ticker}`} target="_blank" rel="noopener noreferrer"
       onClick={e => e.stopPropagation()}
-      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"#7EB6FF", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", flexShrink:0 }}
+      style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.18)", color:"var(--ticker-blue,#7EB6FF)", textDecoration:"none", fontSize:9, fontFamily:"'Geist Mono',monospace", whiteSpace:"nowrap", flexShrink:0 }}
       onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.16)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(79,142,247,0.08)"; }}>
       <ExternalLink size={8} /> Yahoo
@@ -225,7 +225,7 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
-                <span style={{ ...mono, fontSize:20, fontWeight:700, color:"#7EB6FF" }}>{stock.ticker}</span>
+                <span style={{ ...mono, fontSize:20, fontWeight:700, color:"var(--ticker-blue,#7EB6FF)" }}>{stock.ticker}</span>
                 <span style={{ ...mono, fontSize:10, padding:"3px 8px", borderRadius:5, background:sig.bg, color:sig.color, border:`1px solid ${sig.border}`, fontWeight:600 }}>{sig.label}</span>
                 <YahooBtn ticker={stock.ticker} />
               </div>
@@ -280,7 +280,7 @@ function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
           <div style={{ background:"rgba(79,142,247,0.05)", border:`1px solid rgba(79,142,247,0.15)`, borderRadius:10, padding:"16px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
               <Brain size={14} color="#7EB6FF" />
-              <span style={{ ...mono, fontSize:9, color:"#7EB6FF", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:600 }}>AI Analysis</span>
+              <span style={{ ...mono, fontSize:9, color:"var(--ticker-blue,#7EB6FF)", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:600 }}>AI Analysis</span>
             </div>
             <p style={{ fontSize:13, color:V.ink1, lineHeight:1.7, margin:"0 0 12px" }}>{stock.thesis}</p>
             <div style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"10px 12px", borderRadius:8, background:"rgba(232,68,90,0.06)", border:`1px solid rgba(232,68,90,0.15)` }}>
@@ -387,7 +387,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
           ) : allocs.map((a, i) => (
             <div key={a.ticker} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:"1px solid rgba(130,180,255,0.05)", flexWrap:"wrap" }}>
               <span style={{ ...mono, color:V.ink4, fontSize:10, minWidth:22 }}>#{i + 1}</span>
-              <span style={{ ...mono, fontWeight:500, fontSize:13, color:"#7EB6FF", minWidth:48 }}>{a.ticker}</span>
+              <span style={{ ...mono, fontWeight:500, fontSize:13, color:"var(--ticker-blue,#7EB6FF)", minWidth:48 }}>{a.ticker}</span>
               <div style={{ flex:1, minWidth:100 }}>
                 <div style={{ height:2, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden", marginBottom:3 }}>
                   <div style={{ width:`${a.pct}%`, height:"100%", background:"linear-gradient(90deg,#4F8EF7,#00C896)", borderRadius:99 }} />
@@ -410,11 +410,11 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
           {allocs.length > 0 && (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <button onClick={addToPortfolio}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"#00C896", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"var(--gain,#00C896)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
                 {added ? "✓ Added!" : "+ Add to Portfolio"}
               </button>
               <button onClick={replacePortfolio}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"#7EB6FF", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
                 {replaced ? "✓ Replaced!" : "⟳ Replace Portfolio"}
               </button>
             </div>
@@ -545,8 +545,8 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       <div style={{ ...glass({ padding:20, display:"flex", alignItems:"center", gap:14 }) }}>
         <Brain size={22} color="#9B72F5" />
         <div>
-          <p style={{ color:"#F2F6FF", fontWeight:600, fontSize:14, margin:0 }}>AI is analyzing {UNI.length} stocks...</p>
-          <p style={{ color:"#3D5A7A", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~20-30 seconds.</p>
+          <p style={{ color:"var(--ink0,#F2F6FF)", fontWeight:600, fontSize:14, margin:0 }}>AI is analyzing {UNI.length} stocks...</p>
+          <p style={{ color:"var(--ink3,#3D5A7A)", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~20-30 seconds.</p>
         </div>
       </div>
       {[200, 60, 60, 60, 60, 60].map((h, i) => (
@@ -591,7 +591,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
           </div>
         </div>
         <button onClick={() => setShowSim(true)}
-          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.15),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"#7EB6FF", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0 }}>
+          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.15),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0 }}>
           <DollarSign size={13} /> Simulate Portfolio
         </button>
       </div>
@@ -607,7 +607,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
           {analyzing && (
             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
               <Activity size={11} color="#9B72F5" style={{ animation:"spin 1.5s linear infinite" }} />
-              <span style={{ ...mono, fontSize:9, color:"#9B72F5" }}>Analyzing...</span>
+              <span style={{ ...mono, fontSize:9, color:"var(--ame,#9B72F5)" }}>Analyzing...</span>
             </div>
           )}
           {lastUpdate && <span style={{ ...mono, fontSize:9, color:V.ink4 }}>Updated {lastUpdate.toLocaleTimeString()}</span>}
@@ -712,7 +712,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                       <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"center" }}>
                         <button
                           onClick={e => { e.stopPropagation(); setSelected(s); }}
-                          style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(155,114,245,0.08)", border:"1px solid rgba(155,114,245,0.18)", color:"#9B72F5", fontSize:9, fontFamily:"'Geist Mono',monospace", cursor:"pointer", whiteSpace:"nowrap" }}>
+                          style={{ display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:5, background:"rgba(155,114,245,0.08)", border:"1px solid rgba(155,114,245,0.18)", color:"var(--ame,#9B72F5)", fontSize:9, fontFamily:"'Geist Mono',monospace", cursor:"pointer", whiteSpace:"nowrap" }}>
                           <Brain size={8} /> AI
                         </button>
                         <YahooBtn ticker={s.ticker} />

@@ -599,7 +599,7 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
           <p style={{...mono,fontSize:9,color:V.gain,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Best Performer</p>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div>
-              <button onClick={()=>onSelectTicker?.(bestPos.ticker)} style={{...mono,fontSize:18,fontWeight:700,color:"#7EB6FF",background:"none",border:"none",cursor:"pointer",padding:0}}>{bestPos.ticker}</button>
+              <button onClick={()=>onSelectTicker?.(bestPos.ticker)} style={{...mono,fontSize:18,fontWeight:700,color:"var(--ticker-blue,#7EB6FF)",background:"none",border:"none",cursor:"pointer",padding:0}}>{bestPos.ticker}</button>
               <p style={{fontSize:11,color:V.ink3,margin:"2px 0 0"}}>{bestPos.name}</p>
             </div>
             <div style={{textAlign:"right"}}>
@@ -613,7 +613,7 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
           <p style={{...mono,fontSize:9,color:V.loss,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Worst Performer</p>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div>
-              <button onClick={()=>onSelectTicker?.(worstPos.ticker)} style={{...mono,fontSize:18,fontWeight:700,color:"#7EB6FF",background:"none",border:"none",cursor:"pointer",padding:0}}>{worstPos.ticker}</button>
+              <button onClick={()=>onSelectTicker?.(worstPos.ticker)} style={{...mono,fontSize:18,fontWeight:700,color:"var(--ticker-blue,#7EB6FF)",background:"none",border:"none",cursor:"pointer",padding:0}}>{worstPos.ticker}</button>
               <p style={{fontSize:11,color:V.ink3,margin:"2px 0 0"}}>{worstPos.name}</p>
             </div>
             <div style={{textAlign:"right"}}>
@@ -669,7 +669,7 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
                   onMouseEnter={e=>(e.currentTarget.style.background="rgba(30,45,64,0.7)")}
                   onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                   <td style={{padding:"11px 12px"}}>
-                    <p style={{...mono,fontSize:12,fontWeight:600,color:"#7EB6FF",margin:0}}>{h.ticker}</p>
+                    <p style={{...mono,fontSize:12,fontWeight:600,color:"var(--ticker-blue,#7EB6FF)",margin:0}}>{h.ticker}</p>
                     <p style={{fontSize:10,color:V.ink3,margin:0}}>{h.name}</p>
                   </td>
                   <td style={{padding:"11px 12px"}}>

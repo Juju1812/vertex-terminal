@@ -192,7 +192,7 @@ function AddTickerModal({ watchlist, onAdd, onClose }:{watchlist:string[];onAdd:
               style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"12px 18px",background:"none",border:"none",cursor:"pointer",borderBottom:`1px solid rgba(130,180,255,0.04)`,transition:"background 0.15s"}}
               onMouseEnter={e=>(e.currentTarget.style.background="rgba(130,180,255,0.04)")}
               onMouseLeave={e=>(e.currentTarget.style.background="none")}>
-              <span style={{...mono,fontSize:13,fontWeight:600,color:"#7EB6FF"}}>{t}</span>
+              <span style={{...mono,fontSize:13,fontWeight:600,color:"var(--ticker-blue,#7EB6FF)"}}>{t}</span>
               <span style={{fontSize:12,color:V.ink3}}>{TICKER_NAMES[t]}</span>
             </button>
           ))}
@@ -487,7 +487,7 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
                     <div>
                       <button onClick={()=>onSelectTicker?.(ticker)}
-                        style={{...mono,fontSize:16,fontWeight:700,color:"#7EB6FF",background:"none",border:"none",cursor:"pointer",padding:0,display:"block",marginBottom:2}}>
+                        style={{...mono,fontSize:16,fontWeight:700,color:"var(--ticker-blue,#7EB6FF)",background:"none",border:"none",cursor:"pointer",padding:0,display:"block",marginBottom:2}}>
                         {ticker}
                       </button>
                       <p style={{fontSize:11,color:V.ink3,margin:0}}>{TICKER_NAMES[ticker]??ticker}</p>
@@ -571,7 +571,7 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
                       </div>
                       <div>
                         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                          <span style={{...mono,fontSize:14,fontWeight:700,color:"#7EB6FF"}}>{alert.ticker}</span>
+                          <span style={{...mono,fontSize:14,fontWeight:700,color:"var(--ticker-blue,#7EB6FF)"}}>{alert.ticker}</span>
                           <span style={{...mono,fontSize:10,color:alert.condition==="above"?V.gain:V.loss}}>
                             {alert.condition==="above"?"↑ above":"↓ below"} {f$(alert.targetPrice)}
                           </span>
@@ -596,7 +596,7 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
                         </button>
                       ) : (
                         <button onClick={()=>testAlert(alert)} disabled={!!sendingAlert}
-                          style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.arcDim,border:`1px solid ${V.arcWire}`,color:"#7EB6FF",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                          style={{...mono,fontSize:10,padding:"6px 12px",borderRadius:8,background:V.arcDim,border:`1px solid ${V.arcWire}`,color:"var(--ticker-blue,#7EB6FF)",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
                           {alertSent===alert.id?<><CheckCircle size={10}/> Sent!</>:sendingAlert===alert.id?"Sending...":<><Mail size={10}/> Test</>}
                         </button>
                       )}

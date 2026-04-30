@@ -653,7 +653,7 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
           ))}
           <div style={{ display:"flex", alignItems:"flex-end" }}>
             <button onClick={add}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"10px 18px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.18),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"#7EB6FF", cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", whiteSpace:"nowrap" }}>
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"10px 18px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.18),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", whiteSpace:"nowrap" }}>
               <Plus size={15} /> Add
             </button>
           </div>
@@ -687,7 +687,7 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
                 <div key={h.id} style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto auto", gap:12, alignItems:"center", padding:"14px 18px", borderBottom: i < enriched.length - 1 ? `1px solid ${V.w1}` : "none" }}>
                   <div>
                     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                      <span style={{ ...mono, fontSize:14, fontWeight:600, color:"#7EB6FF" }}>{h.ticker}</span>
+                      <span style={{ ...mono, fontSize:14, fontWeight:600, color:"var(--ticker-blue,#7EB6FF)" }}>{h.ticker}</span>
                       <span style={{ fontSize:11, color:V.ink3 }}>{h.name}</span>
                     </div>
                     <div style={{ ...mono, fontSize:10, color:V.ink4, marginTop:2 }}>{h.shares} sh @ {f$(h.buyPrice)}</div>

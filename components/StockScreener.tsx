@@ -392,7 +392,7 @@ export default function StockScreener({ onSelectTicker }: Props) {
         <div style={{ ...glass({ padding:"32px 24px", textAlign:"center" }) }}>
           <p style={{ color:V.ink3, fontSize:14 }}>No stocks match your filters.</p>
           <button onClick={() => { setPreset(null); setSector("All"); setSearch(""); setMinRsi(0); setMaxRsi(100); setMinMom(-100); }}
-            style={{ ...mono, fontSize:11, color:"#7EB6FF", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:8, padding:"6px 14px", cursor:"pointer", marginTop:12 }}>
+            style={{ ...mono, fontSize:11, color:"var(--ticker-blue,#7EB6FF)", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:8, padding:"6px 14px", cursor:"pointer", marginTop:12 }}>
             Clear all filters
           </button>
         </div>
@@ -429,7 +429,7 @@ export default function StockScreener({ onSelectTicker }: Props) {
 
                       {/* Ticker */}
                       <td style={{ padding:"12px 12px" }}>
-                        <p style={{ ...mono, fontSize:13, fontWeight:600, color:"#7EB6FF", margin:0 }}>{s.ticker}</p>
+                        <p style={{ ...mono, fontSize:13, fontWeight:600, color:"var(--ticker-blue,#7EB6FF)", margin:0 }}>{s.ticker}</p>
                         <span style={{ ...mono, fontSize:8, padding:"1px 5px", borderRadius:4, background:`${sc}15`, color:sc, border:`1px solid ${sc}22` }}>{s.sector}</span>
                       </td>
 
@@ -487,7 +487,7 @@ export default function StockScreener({ onSelectTicker }: Props) {
                       <td style={{ padding:"8px 12px", textAlign:"center" }}>
                         <a href={`https://finance.yahoo.com/quote/${s.ticker}`} target="_blank" rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          style={{ ...mono, fontSize:9, display:"inline-flex", alignItems:"center", gap:3, padding:"3px 8px", borderRadius:5, background:V.arcDim, border:`1px solid ${V.arcWire}`, color:"#7EB6FF", textDecoration:"none" }}>
+                          style={{ ...mono, fontSize:9, display:"inline-flex", alignItems:"center", gap:3, padding:"3px 8px", borderRadius:5, background:V.arcDim, border:`1px solid ${V.arcWire}`, color:"var(--ticker-blue,#7EB6FF)", textDecoration:"none" }}>
                           <ExternalLink size={8} /> Yahoo
                         </a>
                       </td>

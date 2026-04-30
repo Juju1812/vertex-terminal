@@ -28,6 +28,11 @@
   --ember-dim:   rgba(255,107,53,0.10);
   --ember-wire:  rgba(255,107,53,0.25);
 
+  /* Accent ladder for tickers and analytics — readable in both themes */
+  --ticker-blue: #7EB6FF;
+  --ticker-blue-deep: #4F8EF7;
+  --ame:         #9B72F5;
+
   /* Arctic whites */
   --ink0:        #f4f0ff;
   --ink1:        #cdc7e0;
@@ -977,6 +982,11 @@ body::after {
   --ember:       #9a2a04;
   --ember-dim:   rgba(154,42,4,0.10);
   --ember-wire:  rgba(154,42,4,0.30);
+
+  /* Accent ladder — deep variants for cream contrast */
+  --ticker-blue: #0d3d8a;
+  --ticker-blue-deep: #0d3d8a;
+  --ame:         #4a1a9c;
 
   /* Rich dark ink — high contrast on cream */
   --ink0:        #0a0500;

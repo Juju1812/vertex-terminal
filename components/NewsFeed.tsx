@@ -164,7 +164,7 @@ function NewsCard({ article, onTickerClick }: { article: NewsArticle; onTickerCl
           <Tag size={10} color={V.ink4} style={{ marginTop:2, flexShrink:0 }} />
           {article.tickers.slice(0, 6).map(t => (
             <button key={t} onClick={() => onTickerClick(t)}
-              style={{ ...mono, fontSize:9, padding:"2px 8px", borderRadius:99, background:V.arcDim, border:`1px solid ${V.arcWire}`, color:"#7EB6FF", cursor:"pointer", transition:"background 0.15s" }}
+              style={{ ...mono, fontSize:9, padding:"2px 8px", borderRadius:99, background:V.arcDim, border:`1px solid ${V.arcWire}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", transition:"background 0.15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(79,142,247,0.14)")}
               onMouseLeave={e => (e.currentTarget.style.background = V.arcDim)}>
               {t}
@@ -296,7 +296,7 @@ export default function NewsFeed({ onSelectTicker }: Props) {
         <div style={{ ...glass({ padding:"32px 24px", textAlign:"center" }) }}>
           <p style={{ color:V.ink3, fontSize:14 }}>No articles match your filters.</p>
           <button onClick={() => { setFilter("all"); setSearch(""); setTickerFilter(""); }}
-            style={{ ...mono, fontSize:11, color:"#7EB6FF", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:8, padding:"6px 14px", cursor:"pointer", marginTop:12 }}>
+            style={{ ...mono, fontSize:11, color:"var(--ticker-blue,#7EB6FF)", background:"none", border:`1px solid ${V.arcWire}`, borderRadius:8, padding:"6px 14px", cursor:"pointer", marginTop:12 }}>
             Clear filters
           </button>
         </div>
