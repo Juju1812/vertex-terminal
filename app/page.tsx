@@ -19,8 +19,16 @@ import {
   AlertTriangle, GitCompare, Sun, Moon, Zap,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
+import {
+  AnimatedHeadline, ParallaxLayer, TiltCard, SpringButton,
+  ScrollReveal, AnimatedGradient,
+} from "@/components/landing/LandingFX";
+import { AnimatedTab } from "@/components/motion/AnimatedTab";
+import { motion } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
+const Scene3D       = dynamic(() => import("@/components/landing/Scene3D"),       { ssr:false, loading:() => null });
+const ParticleField = dynamic(() => import("@/components/landing/ParticleField"), { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -355,7 +363,7 @@ const MarketsPanel = memo(function MarketsPanel({
   return (
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       {/* Main chart card */}
-      <div style={{...c({padding:0})}}>
+      <div className="vx-tilt vx-marquee-card" style={{...c({padding:0})}}>
         <div style={{position:"absolute",top:-40,right:-40,width:220,height:220,borderRadius:"50%",background:up?"rgba(0,229,160,0.06)":"rgba(255,69,96,0.06)",filter:"blur(60px)",pointerEvents:"none"}} />
         <div style={{position:"relative",padding:"24px 24px 0"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
@@ -425,7 +433,19 @@ const MarketsPanel = memo(function MarketsPanel({
                     <XAxis dataKey="date" tick={{fill:v.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
                     <YAxis tick={{fill:v.ink4,fontSize:8,fontFamily:"DM Mono"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`$${v.toFixed(0)}`} width={44} domain={["auto","auto"]}/>
                     <Tooltip content={<ChartTip/>} cursor={{stroke:v.borderHi,strokeWidth:1}}/>
-                    <Area type="monotone" dataKey="close" stroke={lineColor} strokeWidth={1.5} fill="url(#vxGrad)" dot={false} activeDot={{r:5,fill:lineColor,stroke:v.void,strokeWidth:2}}/>
+                    <Area
+                      type="monotone"
+                      dataKey="close"
+                      stroke={lineColor}
+                      strokeWidth={1.8}
+                      fill="url(#vxGrad)"
+                      dot={false}
+                      activeDot={{r:5,fill:lineColor,stroke:v.void,strokeWidth:2}}
+                      isAnimationActive={true}
+                      animationBegin={120}
+                      animationDuration={1800}
+                      animationEasing="ease-out"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -467,7 +487,7 @@ const MarketsPanel = memo(function MarketsPanel({
           </div>
           <span style={{...mono,fontSize:10,color:v.ink3}}>{watchlist.length} tracked</span>
         </div>
-        <div style={{...c({overflow:"hidden"})}}>
+        <div className="vx-tilt" style={{...c({overflow:"hidden"})}}>
           {watchlist.length===0&&<p style={{color:v.ink3,fontSize:13,textAlign:"center",padding:"24px 20px"}}>Star a ticker to add it here</p>}
           {watchlist.map((t,i)=>{
             const live=livePrices[t];
@@ -505,7 +525,7 @@ const MarketsPanel = memo(function MarketsPanel({
       {/* Global Markets */}
       <div>
         <p style={{...display,fontSize:13,fontWeight:700,color:v.ink0,marginBottom:10}}>Global Markets</p>
-        <div style={{...c({overflow:"hidden"})}}>
+        <div className="vx-tilt" style={{...c({overflow:"hidden"})}}>
           {indices.map((m,i)=>(
             <div key={m.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 18px",borderBottom:i<indices.length-1?`1px solid ${v.border}`:"none"}}>
               <span style={{color:v.ink2,fontSize:13,fontWeight:500}}>{m.n}</span>
@@ -536,7 +556,7 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
   const c = (ex?: React.CSSProperties) => getCard(theme, ex);
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{...c({overflow:"hidden",padding:0})}}>
+      <div className="vx-tilt" style={{...c({overflow:"hidden",padding:0})}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderBottom:`1px solid ${v.border}`}}>
           <Star size={13} color={v.gold} fill={v.gold}/>
           <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Watchlist</span>
@@ -574,7 +594,7 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
         </div>
       </div>
 
-      <div style={{...c({overflow:"hidden",padding:0})}}>
+      <div className="vx-tilt" style={{...c({overflow:"hidden",padding:0})}}>
         <div style={{padding:"12px 16px",borderBottom:`1px solid ${v.border}`}}>
           <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Global Markets</span>
         </div>
@@ -590,7 +610,7 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
       </div>
 
       {/* Explore nav */}
-      <div style={{...c({padding:14})}}>
+      <div className="vx-tilt" style={{...c({padding:14})}}>
         <p style={{...mono,fontSize:9,color:v.ink4,textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:10}}>Explore</p>
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
           {([
@@ -684,16 +704,23 @@ function GlobalAuthForm({onSuccess}:{onSuccess:()=>void}) {
 function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
   return (
     <nav className="vx-bottom-nav">
-      <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",position:"relative"}}>
         {TABS.map(t=>{
           const active=tab===t.id;
           return (
             <button key={t.id} onClick={()=>setTab(t.id)}
-              style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"7px 2px 5px",gap:2,background:"none",border:"none",cursor:"pointer",minHeight:52,color:active?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
-              <div style={{padding:"2px 4px",borderRadius:10,background:active?"rgba(240,165,0,0.10)":"transparent",transition:"background 0.25s",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"7px 2px 5px",gap:2,background:"none",border:"none",cursor:"pointer",minHeight:52,color:active?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
+              {active && (
+                <motion.div
+                  layoutId="vx-mobile-tab-indicator"
+                  style={{position:"absolute",top:4,left:"50%",transform:"translateX(-50%)",width:32,height:28,borderRadius:10,background:"rgba(240,165,0,0.12)",border:"1px solid rgba(240,165,0,0.28)"}}
+                  transition={{type:"spring",stiffness:400,damping:32}}
+                />
+              )}
+              <div style={{padding:"2px 4px",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",zIndex:1}}>
                 <TabIcon id={t.id} size={18} active={active}/>
               </div>
-              <span style={{fontSize:8,fontWeight:active?700:400,whiteSpace:"nowrap",letterSpacing:"-0.01em"}}>{t.short}</span>
+              <span style={{fontSize:8,fontWeight:active?700:400,whiteSpace:"nowrap",letterSpacing:"-0.01em",position:"relative",zIndex:1}}>{t.short}</span>
             </button>
           );
         })}
@@ -861,15 +888,18 @@ export default function ArbibX() {
             .feat-card:hover{background:rgba(240,165,0,0.05);border-color:rgba(240,165,0,0.2);transform:translateY(-5px) scale(1.01);box-shadow:0 24px 60px rgba(0,0,0,0.5)}
           `}</style>
 
-          {/* Deep space bg */}
+          {/* Cinematic background — 3D scene + particles + animated gradient */}
           <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
-            <div style={{position:"absolute",top:"-15%",left:"55%",width:"min(900px,120vw)",height:"min(900px,120vw)",borderRadius:"50%",background:"radial-gradient(circle,rgba(240,165,0,0.08) 0%,transparent 65%)",animation:"drift1 10s ease-in-out infinite"}}/>
-            <div style={{position:"absolute",bottom:"-20%",left:"-10%",width:"min(700px,90vw)",height:"min(700px,90vw)",borderRadius:"50%",background:"radial-gradient(circle,rgba(255,107,53,0.06) 0%,transparent 65%)",animation:"drift2 13s ease-in-out infinite"}}/>
-            <div style={{position:"absolute",top:"30%",right:"-5%",width:"min(500px,70vw)",height:"min(500px,70vw)",borderRadius:"50%",background:"radial-gradient(circle,rgba(240,165,0,0.05) 0%,transparent 65%)",animation:"drift3 16s ease-in-out infinite"}}/>
-            <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)",backgroundSize:"80px 80px",maskImage:"radial-gradient(ellipse 80% 60% at 50% 0%,black 0%,transparent 100%)"}}/>
-            <div style={{position:"absolute",top:0,left:"50%",width:"1px",height:"35%",background:"linear-gradient(180deg,rgba(240,165,0,0.4) 0%,transparent 100%)"}}/>
-            <div style={{position:"absolute",top:0,left:"25%",width:"1px",height:"22%",background:"linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 100%)"}}/>
-            <div style={{position:"absolute",top:0,left:"75%",width:"1px",height:"18%",background:"linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%)"}}/>
+            <AnimatedGradient />
+            <div className="vx-scene-3d" style={{position:"absolute",inset:0}}>
+              <Scene3D />
+            </div>
+            <ParticleField density={110} />
+            <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)",backgroundSize:"80px 80px",maskImage:"radial-gradient(ellipse 80% 60% at 50% 0%,black 0%,transparent 100%)",zIndex:2}}/>
+            <div style={{position:"absolute",top:0,left:"50%",width:"1px",height:"35%",background:"linear-gradient(180deg,rgba(240,165,0,0.45) 0%,transparent 100%)",zIndex:2}}/>
+            <div style={{position:"absolute",top:0,left:"25%",width:"1px",height:"22%",background:"linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 100%)",zIndex:2}}/>
+            <div style={{position:"absolute",top:0,left:"75%",width:"1px",height:"18%",background:"linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%)",zIndex:2}}/>
+            <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 90% 70% at 50% 60%, transparent 0%, rgba(5,4,7,0.55) 100%)",zIndex:3,pointerEvents:"none"}}/>
           </div>
 
           {/* Header */}
@@ -893,37 +923,56 @@ export default function ArbibX() {
           </div>
 
           {/* Hero */}
-          <div style={{position:"relative",zIndex:5,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"clamp(16px,3vw,40px) clamp(20px,5vw,80px)",textAlign:"center",overflowY:"auto",overscrollBehavior:"contain"}}>
+          <ParallaxLayer
+            strength={10}
+            style={{position:"relative",zIndex:5,flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"clamp(16px,3vw,40px) clamp(20px,5vw,80px)",textAlign:"center",overflowY:"auto",overscrollBehavior:"contain"}}
+          >
             {/* Eyebrow */}
-            <div style={{display:"inline-flex",alignItems:"center",gap:10,padding:"6px 16px",borderRadius:99,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",marginBottom:20,animation:"fadeUp 0.7s ease both"}}>
+            <ScrollReveal delay={0} y={18} style={{display:"inline-flex",alignItems:"center",gap:10,padding:"6px 16px",borderRadius:99,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",marginBottom:20,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}>
               <span style={{width:5,height:5,borderRadius:"50%",background:V.gold,display:"block",animation:"live-pulse 2s ease-in-out infinite"}}/>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:V.gold,letterSpacing:"0.16em"}}>AI-POWERED STOCK INTELLIGENCE · 2026</span>
-            </div>
+            </ScrollReveal>
 
-            {/* Headline */}
-            <div style={{marginBottom:16,animation:"fadeUp 0.7s 0.1s ease both",opacity:0}}>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}>TRADE</div>
-              <div style={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}>SMARTER.</div>
+            {/* Headline — letter-by-letter spring animation */}
+            <div style={{marginBottom:16,perspective:"800px"}}>
+              <AnimatedHeadline
+                lines={[
+                  { text: "TRADE" },
+                  { text: "SMARTER.", gradient: true },
+                ]}
+                baseStyle={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",color:V.ink0}}
+                gradientStyle={{fontFamily:"'Cabinet Grotesk','Syne',system-ui",fontSize:"clamp(36px,5.5vw,80px)",fontWeight:900,lineHeight:0.9,letterSpacing:"-0.04em",background:"linear-gradient(135deg,#ffbe1a 0%,#f0a500 45%,#ff6b35 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",filter:"drop-shadow(0 0 48px rgba(240,165,0,0.3))"}}
+              />
             </div>
 
             {/* Subtitle */}
-            <p style={{fontSize:"clamp(14px,1.8vw,19px)",color:V.ink2,maxWidth:540,lineHeight:1.75,marginBottom:28,animation:"fadeUp 0.7s 0.2s ease both",opacity:0}}>
+            <motion.p
+              initial={{opacity:0,y:18}}
+              animate={{opacity:1,y:0}}
+              transition={{delay:0.55,type:"spring",stiffness:80,damping:18}}
+              style={{fontSize:"clamp(14px,1.8vw,19px)",color:V.ink2,maxWidth:540,lineHeight:1.75,marginBottom:28}}
+            >
               Real-time market data. Claude AI analysis across 57 stocks.<br/>
               Professional-grade tools — in one cinematic terminal.
-            </p>
+            </motion.p>
 
             {/* CTAs */}
-            <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",marginBottom:32,animation:"fadeUp 0.7s 0.3s ease both",opacity:0}}>
-              <button className="land-cta-primary" onClick={()=>enterApp(false)}>
+            <motion.div
+              initial={{opacity:0,y:18}}
+              animate={{opacity:1,y:0}}
+              transition={{delay:0.7,type:"spring",stiffness:80,damping:18}}
+              style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",marginBottom:32}}
+            >
+              <SpringButton className="land-cta-primary" onClick={()=>enterApp(false)}>
                 Sign In / Create Account <ChevronRight size={16}/>
-              </button>
-              <button className="land-cta-ghost" onClick={()=>enterApp(true)}>
+              </SpringButton>
+              <SpringButton className="land-cta-ghost" onClick={()=>enterApp(true)}>
                 Continue as Guest
-              </button>
-            </div>
+              </SpringButton>
+            </motion.div>
 
-            {/* Feature grid */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,190px),1fr))",gap:12,width:"100%",maxWidth:920,animation:"fadeUp 0.7s 0.4s ease both",opacity:0}}>
+            {/* Feature grid — 3D tilt cards */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,190px),1fr))",gap:12,width:"100%",maxWidth:920,perspective:"1200px"}}>
               {[
                 {icon:"⚡",label:"Live Prices",       desc:"Real-time Polygon.io"},
                 {icon:"🧠",label:"Claude AI Top 15",  desc:"Hourly AI analysis"},
@@ -931,19 +980,30 @@ export default function ArbibX() {
                 {icon:"💼",label:"Portfolio Tracker", desc:"P&L, grades & analytics"},
                 {icon:"📰",label:"News Feed",         desc:"Sentiment-tagged"},
                 {icon:"🎯",label:"Price Alerts",      desc:"Email when targets hit"},
-              ].map(f=>(
-                <div key={f.label} className="feat-card">
-                  <div style={{fontSize:26,marginBottom:10}}>{f.icon}</div>
-                  <div style={{fontFamily:"'Cabinet Grotesk',system-ui",fontSize:13,fontWeight:700,color:V.ink0,marginBottom:3}}>{f.label}</div>
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:V.ink4,letterSpacing:"0.04em"}}>{f.desc}</div>
-                </div>
+              ].map((f,i)=>(
+                <ScrollReveal key={f.label} delay={0.85 + i*0.06} y={28}>
+                  <TiltCard
+                    className="feat-card"
+                    intensity={9}
+                    float={i % 2 === 0}
+                  >
+                    <div style={{fontSize:26,marginBottom:10}}>{f.icon}</div>
+                    <div style={{fontFamily:"'Cabinet Grotesk',system-ui",fontSize:13,fontWeight:700,color:V.ink0,marginBottom:3}}>{f.label}</div>
+                    <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:V.ink4,letterSpacing:"0.04em"}}>{f.desc}</div>
+                  </TiltCard>
+                </ScrollReveal>
               ))}
             </div>
 
-            <p style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.ink4,marginTop:44,letterSpacing:"0.1em",animation:"fadeUp 0.7s 0.5s ease both",opacity:0}}>
+            <motion.p
+              initial={{opacity:0}}
+              animate={{opacity:1}}
+              transition={{delay:1.4,duration:0.6}}
+              style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.ink4,marginTop:44,letterSpacing:"0.1em"}}
+            >
               NOT FINANCIAL ADVICE · FOR INFORMATIONAL PURPOSES ONLY
-            </p>
-          </div>
+            </motion.p>
+          </ParallaxLayer>
 
           {/* Bottom stats */}
           <div style={{position:"relative",zIndex:10,display:"flex",justifyContent:"center",gap:"clamp(24px,6vw,80px)",padding:"22px clamp(20px,5vw,48px)",borderTop:"1px solid rgba(255,255,255,0.05)",flexWrap:"wrap"}}>
@@ -984,6 +1044,8 @@ export default function ArbibX() {
 
       {/* ════ HEADER ═════════════════════════════════════════ */}
       <header style={{position:"sticky",top:0,zIndex:100,background:theme==="light"?"rgba(245,243,255,0.97)":"rgba(5,4,7,0.95)",backdropFilter:"blur(40px) saturate(2)",WebkitBackdropFilter:"blur(40px) saturate(2)",borderBottom:`1px solid ${V.border}`}}>
+        {/* Subtle glow behind header */}
+        <div aria-hidden style={{position:"absolute",inset:"-30% 0 auto 0",height:"160%",pointerEvents:"none",background:"radial-gradient(ellipse 60% 60% at 50% 0%, rgba(240,165,0,0.10) 0%, transparent 70%)",filter:"blur(20px)",zIndex:-1}}/>
         {/* Indices ticker */}
         <div style={{display:"flex",alignItems:"center",padding:"0 16px",height:30,borderBottom:`1px solid ${V.border}`,overflow:"hidden"}}>
           <div className="vx-strip" style={{flex:1,display:"flex",alignItems:"center",gap:16,overflowX:"auto"}}>
@@ -1020,10 +1082,16 @@ export default function ArbibX() {
               const active=tab===t.id;
               return (
                 <button key={t.id} onClick={()=>setTab(t.id)}
-                  style={{display:"flex",alignItems:"center",gap:5,padding:"0 12px",height:50,background:"none",border:"none",borderBottom:active?`2px solid ${V.gold}`:"2px solid transparent",color:active?V.ink0:V.ink3,cursor:"pointer",fontSize:12,fontWeight:active?700:400,fontFamily:"'Syne',system-ui,sans-serif",transition:"all 0.2s",whiteSpace:"nowrap",position:"relative"}}>
+                  style={{display:"flex",alignItems:"center",gap:5,padding:"0 12px",height:50,background:"none",border:"none",color:active?V.ink0:V.ink3,cursor:"pointer",fontSize:12,fontWeight:active?700:400,fontFamily:"'Syne',system-ui,sans-serif",transition:"color 0.2s",whiteSpace:"nowrap",position:"relative"}}>
                   <TabIcon id={t.id} size={14} active={active}/>
                   <span style={{display:"none"}} className="tab-label">{t.label}</span>
-                  {active&&<span style={{position:"absolute",bottom:-1,left:"50%",transform:"translateX(-50%)",width:"60%",height:2,background:V.gold,filter:"blur(4px)",opacity:0.5}}/>}
+                  {active && (
+                    <motion.div
+                      layoutId="vx-tab-indicator"
+                      style={{position:"absolute",inset:"auto 0 0 0",height:2,background:V.gold,boxShadow:`0 0 12px ${V.gold}, 0 0 4px ${V.gold}`,borderRadius:2}}
+                      transition={{type:"spring",stiffness:380,damping:32}}
+                    />
+                  )}
                 </button>
               );
             })}
@@ -1093,21 +1161,23 @@ export default function ArbibX() {
 
       {/* ════ MAIN CONTENT ════════════════════════════════════ */}
       <main className="vx-main" style={{position:"relative",zIndex:1}}>
-        {tab==="top15"     && <Top15 onSelectTicker={go}/>}
-        {tab==="earnings"  && <EarningsCal onSelectTicker={go}/>}
-        {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
-        {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
-        {tab==="analytics" && <PortfolioAnalytics onSelectTicker={go} onGoPortfolio={()=>setTab("portfolio")}/>}
-        {tab==="watchlist" && <WatchlistAlerts watchlist={watchlist} onToggleWatch={toggleWatch} onSelectTicker={go}/>}
-        {tab==="portfolio" && <MyStocks onSignIn={()=>setShowAuthModal(true)}/>}
-        {tab==="markets"&&(
-          <div style={{maxWidth:1200,margin:"0 auto",padding:"24px 16px"}}>
-            <div className="vx-two-col" style={{display:"flex",flexDirection:"column",gap:24}}>
-              <div style={{minWidth:0}}><MarketsPanel {...marketProps}/></div>
-              <div id="vx-sidebar" style={{display:"none"}}><Sidebar {...sideProps}/></div>
+        <AnimatedTab tabKey={tab}>
+          {tab==="top15"     && <Top15 onSelectTicker={go}/>}
+          {tab==="earnings"  && <EarningsCal onSelectTicker={go}/>}
+          {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
+          {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
+          {tab==="analytics" && <PortfolioAnalytics onSelectTicker={go} onGoPortfolio={()=>setTab("portfolio")}/>}
+          {tab==="watchlist" && <WatchlistAlerts watchlist={watchlist} onToggleWatch={toggleWatch} onSelectTicker={go}/>}
+          {tab==="portfolio" && <MyStocks onSignIn={()=>setShowAuthModal(true)}/>}
+          {tab==="markets"&&(
+            <div style={{maxWidth:1200,margin:"0 auto",padding:"24px 16px"}}>
+              <div className="vx-two-col" style={{display:"flex",flexDirection:"column",gap:24}}>
+                <div style={{minWidth:0}}><MarketsPanel {...marketProps}/></div>
+                <div id="vx-sidebar" style={{display:"none"}}><Sidebar {...sideProps}/></div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatedTab>
       </main>
 
       {/* ════ PRO UPGRADE MODAL ══════════════════════════════ */}

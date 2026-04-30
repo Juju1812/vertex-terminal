@@ -160,17 +160,51 @@ body::after {
 }
 
 /* ── 3D card tilt system ────────────────────────────────────── */
-.card-3d {
+.card-3d, .vx-tilt {
   transform-style: preserve-3d;
   perspective: 1000px;
-  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.45s cubic-bezier(0.23, 1, 0.32, 1),
+              border-color 0.3s;
   will-change: transform;
 }
 
-.card-3d:hover {
+.card-3d:hover, .vx-tilt:hover {
   transform: perspective(1000px) rotateX(-2deg) rotateY(2deg) translateZ(8px);
   box-shadow: var(--shadow-float);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-3d:hover, .vx-tilt:hover { transform: none; }
+}
+
+/* Soft floating animation for marquee cards */
+.vx-float {
+  animation: vx-float-bob 6.5s ease-in-out infinite;
+}
+
+@keyframes vx-float-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* Marquee card: glass + subtle tilt + soft floor shadow */
+.vx-marquee-card {
+  position: relative;
+}
+.vx-marquee-card::after {
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%; bottom: -16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(240,165,0,0.18) 0%, transparent 70%);
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.vx-marquee-card:hover::after { opacity: 1; }
 
 /* ── Typography system ──────────────────────────────────────── */
 .display-xl {
@@ -517,6 +551,8 @@ body::after {
     background: rgba(8, 6, 16, 0.97) !important;
   }
   body::after { display: none; }
+  /* Disable expensive 3D scene on small / reduced-motion clients */
+  .vx-scene-3d { display: none !important; }
 }
 
 /* ── Grain overlay (desktop only) ──────────────────────────── */
