@@ -397,6 +397,13 @@ const MarketsPanel = memo(function MarketsPanel({
                   {up?<TrendingUp size={10}/>:<TrendingDown size={10}/>}{fp(quote.changePct)}
                 </span>
                 <YahooBtn ticker={ticker}/>
+                <a href={`/stock/${ticker}`}
+                  style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,background:"rgba(240,165,0,0.10)",border:"1px solid rgba(240,165,0,0.30)",color:v.gold,fontSize:10,...mono,whiteSpace:"nowrap",cursor:"pointer",transition:"background 0.15s",flexShrink:0,textDecoration:"none"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(240,165,0,0.18)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(240,165,0,0.10)";}}
+                  title={`Open dedicated ${ticker} page`}>
+                  <ExternalLink size={10}/> Open
+                </a>
                 <button onClick={()=>onCompare(ticker)}
                   style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,background:"rgba(240,165,0,0.08)",border:"1px solid rgba(240,165,0,0.22)",color:v.gold,fontSize:10,...mono,whiteSpace:"nowrap",cursor:"pointer",transition:"background 0.15s",flexShrink:0}}
                   onMouseEnter={e=>{e.currentTarget.style.background="rgba(240,165,0,0.16)";}}
