@@ -27,8 +27,9 @@ import { AnimatedTab } from "@/components/motion/AnimatedTab";
 import { motion } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
-const Scene3D       = dynamic(() => import("@/components/landing/Scene3D"),       { ssr:false, loading:() => null });
-const ParticleField = dynamic(() => import("@/components/landing/ParticleField"), { ssr:false, loading:() => null });
+const Scene3D         = dynamic(() => import("@/components/landing/Scene3D"),         { ssr:false, loading:() => null });
+const ParticleField   = dynamic(() => import("@/components/landing/ParticleField"),   { ssr:false, loading:() => null });
+const CursorSpotlight = dynamic(() => import("@/components/landing/CursorSpotlight"), { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -901,6 +902,7 @@ export default function ArbibX() {
             <div style={{position:"absolute",top:0,left:"75%",width:"1px",height:"18%",background:"linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%)",zIndex:2}}/>
             <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 90% 70% at 50% 60%, transparent 0%, rgba(5,4,7,0.55) 100%)",zIndex:3,pointerEvents:"none"}}/>
           </div>
+          <CursorSpotlight />
 
           {/* Header */}
           <div style={{position:"relative",zIndex:10,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(16px,3vw,24px) clamp(20px,5vw,48px)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
