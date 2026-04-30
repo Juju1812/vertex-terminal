@@ -33,6 +33,7 @@ const ParticleField   = dynamic(() => import("@/components/landing/ParticleField
 const CursorSpotlight = dynamic(() => import("@/components/landing/CursorSpotlight"), { ssr:false, loading:() => null });
 const OnboardingTour    = dynamic(() => import("@/components/OnboardingTour"),         { ssr:false, loading:() => null });
 const GlobalAlertsRunner = dynamic(() => import("@/components/GlobalAlertsRunner"),    { ssr:false, loading:() => null });
+const SectorHeatmap      = dynamic(() => import("@/components/SectorHeatmap"),         { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -489,6 +490,9 @@ const MarketsPanel = memo(function MarketsPanel({
       </div>
 
       <CountdownBar onRefresh={refreshMarkets} label="Next market update"/>
+
+      {/* Sector Heatmap — market-wide visual scanner */}
+      <SectorHeatmap />
 
       {/* Quick select */}
       <div>
