@@ -122,6 +122,55 @@ async function fetchNews(ticker: string): Promise<string[]> {
   } catch { return []; }
 }
 
+/* ---- Model fallback chain ----------------------------------
+   Try Opus 4.7 first (best reasoning over technicals + news).
+   Fall back to Sonnet 4.6 if Opus errors (e.g. account tier
+   doesn't have Opus access, rate limited, etc.). Final fallback
+   to Haiku 4.5 so the feature never fully breaks.
+   The chosen model is logged on each call so you can see in
+   Vercel logs which tier actually ran. */
+const MODEL_CHAIN = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"] as const;
+
+async function callClaudeWithFallback(prompt: string): Promise<{ ok: true; text: string; model: string } | { ok: false; error: string }> {
+  let lastError = "no models attempted";
+  for (const model of MODEL_CHAIN) {
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_KEY!,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 8000,
+          messages: [
+            { role: "user", content: prompt },
+            { role: "assistant", content: '{"analyses":[' },
+          ],
+        }),
+      });
+      if (r.ok) {
+        const data = await r.json() as { content: { type: string; text: string }[]; error?: { message: string } };
+        if (data.error) { lastError = `${model}: ${data.error.message}`; continue; }
+        const text = data.content?.find(c => c.type === "text")?.text ?? "";
+        console.log(`[analyze] using model: ${model}`);
+        return { ok: true, text, model };
+      }
+      const errText = await r.text();
+      // 404 / 403 / 400 typically mean the account doesn't have access — try next model.
+      // 429 is rate limit; we still try fallbacks since cheaper models often have higher quotas.
+      lastError = `${model}: HTTP ${r.status} — ${errText.slice(0, 200)}`;
+      console.warn(`[analyze] ${model} failed:`, lastError);
+    } catch (err) {
+      lastError = `${model}: ${err instanceof Error ? err.message : "unknown error"}`;
+      console.warn(`[analyze] ${model} threw:`, lastError);
+    }
+  }
+  return { ok: false, error: lastError };
+}
+
 /* ---- Run Claude AI analysis -------------------------------- */
 async function runClaudeAnalysis(stocks: {
   ticker: string; name: string; sector: string;
@@ -177,46 +226,15 @@ Guidelines:
 - Do NOT give generic analyses. Every thesis must reference the specific numbers provided.`;
 
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_KEY!,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 8000,
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          },
-          {
-            role: "assistant",
-            content: '{"analyses":['
-          }
-        ],
-      }),
-    });
-
-    if (!r.ok) {
-      const errText = await r.text();
-      console.error("Claude API error status:", r.status, errText);
+    const response = await callClaudeWithFallback(prompt);
+    if (!response.ok) {
+      console.error("Claude analysis: all models failed:", response.error);
       return {};
     }
 
-    const data = await r.json() as { content: { type: string; text: string }[]; error?: { message: string } };
-    
-    if (data.error) {
-      console.error("Claude API returned error:", data.error.message);
-      return {};
-    }
-
-    const rawText = data.content?.find(c => c.type === "text")?.text ?? "";
     // We prefilled with {"analyses":[ so prepend it back
-    const fullText = '{"analyses":[' + rawText;
-    console.log("Claude response preview:", fullText.slice(0, 300));
+    const fullText = '{"analyses":[' + response.text;
+    console.log(`Claude response preview (${response.model}):`, fullText.slice(0, 300));
 
     // Parse the JSON
     let parsed: { analyses: Array<{ ticker: string; signal: string; confidence: number; targetPrice: number; thesis: string; risks: string; tags: string[] }> };
