@@ -24,6 +24,7 @@ import {
   ScrollReveal, AnimatedGradient,
 } from "@/components/landing/LandingFX";
 import { AnimatedTab } from "@/components/motion/AnimatedTab";
+import AnimatedPrice from "@/components/motion/AnimatedPrice";
 import { motion } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
@@ -391,7 +392,10 @@ const MarketsPanel = memo(function MarketsPanel({
               {loading
                 ? <div className="skel" style={{width:150,height:44}}/>
                 : <>
-                    <div style={{...mono,fontSize:"clamp(28px,4.5vw,42px)",fontWeight:500,letterSpacing:"-0.04em",color:v.ink0}}>{f$(quote.price)}</div>
+                    <AnimatedPrice
+                      value={quote.price}
+                      style={{...mono,fontSize:"clamp(28px,4.5vw,42px)",fontWeight:500,letterSpacing:"-0.04em",color:v.ink0}}
+                    />
                     <div style={{...mono,fontSize:12,color:up?v.gain:v.loss,marginTop:4}}>{quote.change>=0?"+":""}{f$(quote.change)} today</div>
                   </>
               }
