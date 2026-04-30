@@ -805,55 +805,63 @@ body::after {
 
 /* ── Text color overrides — strong contrast on cream ──────
    Every shade darkened so text reads cleanly on #e8dcb8 page.
-   Also covers spaced variants (`color: #...`) some libs emit. */
-[data-theme="light"] *[style*="color:#F2F6FF"],
-[data-theme="light"] *[style*="color: #F2F6FF"]   { color: #0a0500 !important; }
-[data-theme="light"] *[style*="color:#f4f0ff"],
-[data-theme="light"] *[style*="color: #f4f0ff"]   { color: #0a0500 !important; }
-[data-theme="light"] *[style*="color:#C8D5E8"],
-[data-theme="light"] *[style*="color: #C8D5E8"]   { color: #1a1004 !important; }
-[data-theme="light"] *[style*="color:#cdc7e0"],
-[data-theme="light"] *[style*="color: #cdc7e0"]   { color: #1a1004 !important; }
-[data-theme="light"] *[style*="color:#7A9CBF"],
-[data-theme="light"] *[style*="color: #7A9CBF"]   { color: #2d1d05 !important; }
-[data-theme="light"] *[style*="color:#8a82a8"],
-[data-theme="light"] *[style*="color: #8a82a8"]   { color: #2d1d05 !important; }
-[data-theme="light"] *[style*="color:#3D5A7A"],
-[data-theme="light"] *[style*="color: #3D5A7A"]   { color: #4a3308 !important; }
-[data-theme="light"] *[style*="color:#4a4468"],
-[data-theme="light"] *[style*="color: #4a4468"]   { color: #4a3308 !important; }
-[data-theme="light"] *[style*="color:#1F3550"],
-[data-theme="light"] *[style*="color: #1F3550"]   { color: #6b4a14 !important; }
-[data-theme="light"] *[style*="color:#2d2848"],
-[data-theme="light"] *[style*="color: #2d2848"]   { color: #6b4a14 !important; }
+   The `i` flag makes attribute matching case-insensitive so
+   #7EB6FF and #7eb6ff both match. Some component files mix cases. */
+[data-theme="light"] *[style*="color:#F2F6FF" i] { color: #0a0500 !important; }
+[data-theme="light"] *[style*="color:#f4f0ff" i] { color: #0a0500 !important; }
+[data-theme="light"] *[style*="color:#C8D5E8" i] { color: #1a1004 !important; }
+[data-theme="light"] *[style*="color:#cdc7e0" i] { color: #1a1004 !important; }
+[data-theme="light"] *[style*="color:#7A9CBF" i] { color: #2d1d05 !important; }
+[data-theme="light"] *[style*="color:#8a82a8" i] { color: #2d1d05 !important; }
+[data-theme="light"] *[style*="color:#3D5A7A" i] { color: #4a3308 !important; }
+[data-theme="light"] *[style*="color:#4a4468" i] { color: #4a3308 !important; }
+[data-theme="light"] *[style*="color:#1F3550" i] { color: #6b4a14 !important; }
+[data-theme="light"] *[style*="color:#2d2848" i] { color: #6b4a14 !important; }
 
 /* Gain/loss — bold on cream */
-[data-theme="light"] *[style*="color:#00C896"],
-[data-theme="light"] *[style*="color: #00C896"]   { color: #004a2c !important; }
-[data-theme="light"] *[style*="color:#00e5a0"],
-[data-theme="light"] *[style*="color: #00e5a0"]   { color: #004a2c !important; }
-[data-theme="light"] *[style*="color:#E8445A"],
-[data-theme="light"] *[style*="color: #E8445A"]   { color: #8a0a1c !important; }
-[data-theme="light"] *[style*="color:#ff4560"],
-[data-theme="light"] *[style*="color: #ff4560"]   { color: #8a0a1c !important; }
+[data-theme="light"] *[style*="color:#00C896" i] { color: #004a2c !important; }
+[data-theme="light"] *[style*="color:#00e5a0" i] { color: #004a2c !important; }
+[data-theme="light"] *[style*="color:#E8445A" i] { color: #8a0a1c !important; }
+[data-theme="light"] *[style*="color:#ff4560" i] { color: #8a0a1c !important; }
 
 /* Gold — deep enough to read on cream */
-[data-theme="light"] *[style*="color:#E8A030"],
-[data-theme="light"] *[style*="color: #E8A030"]   { color: #8a5200 !important; }
-[data-theme="light"] *[style*="color:#f0a500"],
-[data-theme="light"] *[style*="color: #f0a500"]   { color: #8a5200 !important; }
-[data-theme="light"] *[style*="color:#ffbe1a"],
-[data-theme="light"] *[style*="color: #ffbe1a"]   { color: #a06200 !important; }
+[data-theme="light"] *[style*="color:#E8A030" i] { color: #8a5200 !important; }
+[data-theme="light"] *[style*="color:#f0a500" i] { color: #8a5200 !important; }
+[data-theme="light"] *[style*="color:#ffbe1a" i] { color: #a06200 !important; }
+[data-theme="light"] *[style*="color:#ffd066" i] { color: #a06200 !important; }
 
 /* Blue accent (used heavily for tickers across components) */
-[data-theme="light"] *[style*="color:#7EB6FF"],
-[data-theme="light"] *[style*="color: #7EB6FF"]   { color: #0d3d8a !important; }
-[data-theme="light"] *[style*="color:#4F8EF7"],
-[data-theme="light"] *[style*="color: #4F8EF7"]   { color: #0d3d8a !important; }
+[data-theme="light"] *[style*="color:#7EB6FF" i] { color: #0d3d8a !important; }
+[data-theme="light"] *[style*="color:#4F8EF7" i] { color: #0d3d8a !important; }
+[data-theme="light"] *[style*="color:#2D6FDB" i] { color: #0d3d8a !important; }
 
-/* Purple accent */
-[data-theme="light"] *[style*="color:#9B72F5"],
-[data-theme="light"] *[style*="color: #9B72F5"]   { color: #4a1a9c !important; }
+/* Purple accent — both shades used across analytics + portfolio */
+[data-theme="light"] *[style*="color:#9B72F5" i] { color: #4a1a9c !important; }
+[data-theme="light"] *[style*="color:#c084fc" i] { color: #5a2eb0 !important; }
+[data-theme="light"] *[style*="color:#a78bfa" i] { color: #5a2eb0 !important; }
+
+/* ── Safety net: any element whose inline style declares a near-
+   white text color in light mode gets forced dark. Covers cases
+   where library code or untouched components emit hex values I
+   haven't enumerated. The selector is intentionally narrow (only
+   matches `color:` declarations, not bg) so it doesn't affect
+   white text on colored gradient buttons (which use #fff inline
+   on top of e.g. linear-gradient(..., #4F8EF7, ...) - those keep
+   their styling because we don't darken `color:#fff` here.
+
+   We DO darken known-near-white text colors and the literal
+   word `white`, since those are unambiguously meant as primary
+   text on a dark canvas. */
+[data-theme="light"] *[style*="color:white" i],
+[data-theme="light"] *[style*="color: white" i],
+[data-theme="light"] *[style*="color:#FFFFFF" i],
+[data-theme="light"] *[style*="color:#fefefe" i],
+[data-theme="light"] *[style*="color:#fafafa" i],
+[data-theme="light"] *[style*="color:#f5f5f5" i],
+[data-theme="light"] *[style*="color:#f0f0f0" i],
+[data-theme="light"] *[style*="color:#ededed" i] {
+  color: #0a0500 !important;
+}
 
 /* ── Background overrides ───────────────────────────────────── */
 [data-theme="light"] *[style*="background:#050810"],
@@ -963,6 +971,11 @@ body::after {
 [data-theme="light"] *[style*="background:rgba(79,142,247,0.10)"]  { background: rgba(13,61,138,0.12) !important; }
 [data-theme="light"] *[style*="background:rgba(79,142,247,0.15)"]  { background: rgba(13,61,138,0.16) !important; }
 [data-theme="light"] *[style*="background:rgba(79,142,247,0.18)"]  { background: rgba(13,61,138,0.18) !important; }
+/* Alt blue (#7eb6ff rgba form) used in some components */
+[data-theme="light"] *[style*="background:rgba(126,182,255,0.08)"] { background: rgba(13,61,138,0.10) !important; }
+[data-theme="light"] *[style*="background:rgba(126,182,255,0.16)"] { background: rgba(13,61,138,0.14) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(126,182,255,0.22)"] { border-color: rgba(13,61,138,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(126,182,255,0.18)"] { border-color: rgba(13,61,138,0.40) !important; }
 /* Analytics purple dim */
 [data-theme="light"] *[style*="background:rgba(155,114,245,0.08)"] { background: rgba(74,26,156,0.12) !important; }
 [data-theme="light"] *[style*="background:rgba(192,132,252,0.08)"] { background: rgba(74,26,156,0.12) !important; }
