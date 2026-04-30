@@ -25,7 +25,7 @@ import {
 } from "@/components/landing/LandingFX";
 import { AnimatedTab } from "@/components/motion/AnimatedTab";
 import AnimatedPrice from "@/components/motion/AnimatedPrice";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
 const Scene3D         = dynamic(() => import("@/components/landing/Scene3D"),         { ssr:false, loading:() => null });
@@ -778,32 +778,129 @@ function DesktopSideNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
   );
 }
 
-/* ── MobileNav ─────────────────────────────────────────────── */
-function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
+/* ── MobileNav ─────────────────────────────────────────────────
+   Premium mobile bottom nav: 4 primary tabs + a More button that
+   opens a sheet with the remaining tabs. Larger touch targets
+   (60px min), springy active indicator pill, safe-area padding,
+   theme-aware glass surface. */
+const MOBILE_PRIMARY: Tab[] = ["markets", "top15", "watchlist", "portfolio"];
+const MOBILE_SECONDARY: Tab[] = ["earnings", "news", "screener", "analytics"];
+
+function MoreIcon({size=22,active}:{size?:number;active:boolean}) {
+  const sw = active ? 2 : 1.5;
   return (
-    <nav className="vx-bottom-nav">
-      <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",position:"relative"}}>
-        {TABS.map(t=>{
-          const active=tab===t.id;
-          return (
-            <button key={t.id} onClick={()=>setTab(t.id)}
-              style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"7px 2px 5px",gap:2,background:"none",border:"none",cursor:"pointer",minHeight:52,color:active?"#f0a500":"#2d2848",transition:"color 0.2s",touchAction:"manipulation",fontFamily:"'Syne',system-ui,sans-serif"}}>
-              {active && (
-                <motion.div
-                  layoutId="vx-mobile-tab-indicator"
-                  style={{position:"absolute",top:4,left:"50%",transform:"translateX(-50%)",width:32,height:28,borderRadius:10,background:"rgba(240,165,0,0.12)",border:"1px solid rgba(240,165,0,0.28)"}}
-                  transition={{type:"spring",stiffness:400,damping:32}}
-                />
-              )}
-              <div style={{padding:"2px 4px",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",zIndex:1}}>
-                <TabIcon id={t.id} size={18} active={active}/>
-              </div>
-              <span style={{fontSize:8,fontWeight:active?700:400,whiteSpace:"nowrap",letterSpacing:"-0.01em",position:"relative",zIndex:1}}>{t.short}</span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={sw} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5" cy="12" r="1.5"/>
+      <circle cx="12" cy="12" r="1.5"/>
+      <circle cx="19" cy="12" r="1.5"/>
+    </svg>
+  );
+}
+
+function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
+  const [showMore, setShowMore] = useState(false);
+  const moreActive = showMore || MOBILE_SECONDARY.includes(tab);
+
+  // Close the more sheet when a tab is picked from inside it
+  const pick = useCallback((t: Tab) => {
+    setTab(t);
+    setShowMore(false);
+  }, [setTab]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!showMore) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowMore(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showMore]);
+
+  // Build the 5-button row data
+  const slots: { id: Tab | "more"; label: string }[] = [
+    ...MOBILE_PRIMARY.map(id => ({ id, label: TABS.find(t => t.id === id)!.short })),
+    { id: "more", label: "More" },
+  ];
+
+  return (
+    <>
+      {/* Backdrop dimmer when sheet is open */}
+      <AnimatePresence>
+        {showMore && (
+          <motion.div
+            key="more-backdrop"
+            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            transition={{duration:0.2}}
+            onClick={()=>setShowMore(false)}
+            className="vx-more-backdrop"
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+
+      {/* The "More" sheet, slides up from the nav */}
+      <AnimatePresence>
+        {showMore && (
+          <motion.div
+            key="more-sheet"
+            initial={{y:"100%",opacity:0}}
+            animate={{y:0,opacity:1}}
+            exit={{y:"100%",opacity:0}}
+            transition={{type:"spring",stiffness:380,damping:34}}
+            className="vx-more-sheet"
+            role="dialog"
+            aria-label="More tabs"
+          >
+            <div className="vx-more-sheet__handle" aria-hidden />
+            <p className="vx-more-sheet__title">More</p>
+            <div className="vx-more-sheet__grid">
+              {MOBILE_SECONDARY.map(id => {
+                const t = TABS.find(x => x.id === id)!;
+                const active = tab === id;
+                return (
+                  <button key={id} onClick={()=>pick(id)}
+                    className={`vx-more-sheet__item ${active ? "is-active" : ""}`}>
+                    <span className="vx-more-sheet__icon"><TabIcon id={id} size={20} active={active}/></span>
+                    <span className="vx-more-sheet__label">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <nav className="vx-bottom-nav" aria-label="Primary navigation">
+        <div className="vx-bottom-nav__row">
+          {slots.map((slot) => {
+            const isMore = slot.id === "more";
+            const active = isMore ? moreActive : tab === slot.id;
+            const onClick = isMore
+              ? () => setShowMore(s => !s)
+              : () => { setShowMore(false); setTab(slot.id as Tab); };
+            return (
+              <button key={slot.id} onClick={onClick}
+                className={`vx-bottom-nav__btn ${active ? "is-active" : ""}`}
+                aria-current={active && !isMore ? "page" : undefined}>
+                {active && (
+                  <motion.span
+                    layoutId="vx-mobile-tab-indicator"
+                    aria-hidden
+                    className="vx-bottom-nav__indicator"
+                    transition={{type:"spring",stiffness:400,damping:32}}
+                  />
+                )}
+                <span className="vx-bottom-nav__icon">
+                  {isMore
+                    ? <MoreIcon size={22} active={active}/>
+                    : <TabIcon id={slot.id as Tab} size={22} active={active}/>}
+                </span>
+                <span className="vx-bottom-nav__label">{slot.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }
 
