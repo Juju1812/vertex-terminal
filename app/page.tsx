@@ -489,14 +489,25 @@ const MarketsPanel = memo(function MarketsPanel({
           <span style={{...mono,fontSize:10,color:v.ink3}}>{watchlist.length} tracked</span>
         </div>
         <div className="vx-tilt" style={{...c({overflow:"hidden"})}}>
-          {watchlist.length===0&&<p style={{color:v.ink3,fontSize:13,textAlign:"center",padding:"24px 20px"}}>Star a ticker to add it here</p>}
+          {watchlist.length===0&&(
+            <div style={{padding:"32px 20px",textAlign:"center"}}>
+              <div style={{fontSize:32,marginBottom:8,opacity:0.6}}>★</div>
+              <p style={{color:v.ink2,fontSize:13,fontWeight:500,marginBottom:4}}>No tickers tracked yet</p>
+              <p style={{color:v.ink3,fontSize:11}}>Star any ticker to follow it here</p>
+            </div>
+          )}
           {watchlist.map((t,i)=>{
             const live=livePrices[t];
             const price=live?.price??FALLBACK[t]?.price??0;
             const changePct=live?.changePct??FALLBACK[t]?.changePct??0;
             const pos=changePct>=0;
             return (
-              <button key={t} onClick={()=>go(t)}
+              <motion.button
+                key={t}
+                onClick={()=>go(t)}
+                initial={{opacity:0,x:-12}}
+                animate={{opacity:1,x:0}}
+                transition={{delay:i*0.04,type:"spring",stiffness:280,damping:24}}
                 style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"13px 18px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.07),transparent)":"none",border:"none",cursor:"pointer",minHeight:54,textAlign:"left",transition:"background 0.2s",borderLeft:t===ticker?`2px solid ${v.gold}`:"2px solid transparent",borderBottom:i<watchlist.length-1?`1px solid ${v.border}`:"none"}}
                 className="row-hover">
                 <div>
@@ -507,7 +518,7 @@ const MarketsPanel = memo(function MarketsPanel({
                   <p style={{...mono,fontSize:13,fontWeight:500,color:v.ink0}}>{price>0?f$(price):"---"}</p>
                   <p style={{...mono,fontSize:11,color:pos?v.gain:v.loss,marginTop:1}}>{fp(changePct)}</p>
                 </div>
-              </button>
+              </motion.button>
             );
           })}
           <div style={{padding:"10px 14px",borderTop:`1px solid ${v.border}`,display:"flex",flexWrap:"wrap",gap:5}}>
@@ -569,7 +580,12 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
           const changePct=live?.changePct??FALLBACK[t]?.changePct??0;
           const pos=changePct>=0;
           return (
-            <button key={t} onClick={()=>go(t)}
+            <motion.button
+              key={t}
+              onClick={()=>go(t)}
+              initial={{opacity:0,x:-10}}
+              animate={{opacity:1,x:0}}
+              transition={{delay:i*0.035,type:"spring",stiffness:300,damping:24}}
               style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"11px 16px",background:t===ticker?"linear-gradient(90deg,rgba(240,165,0,0.06),transparent)":"none",border:"none",cursor:"pointer",borderBottom:i<watchlist.length-1?`1px solid ${v.border}`:"none",borderLeft:t===ticker?`2px solid ${v.gold}`:"2px solid transparent",minHeight:48,textAlign:"left",transition:"background 0.18s"}}
               className="row-hover">
               <div>
@@ -580,7 +596,7 @@ const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,to
                 <p style={{...mono,fontSize:12,fontWeight:500,color:v.ink0}}>{price>0?f$(price):"---"}</p>
                 <p style={{...mono,fontSize:10,color:pos?v.gain:v.loss,marginTop:1}}>{fp(changePct)}</p>
               </div>
-            </button>
+            </motion.button>
           );
         })}
         <div style={{padding:"8px 12px",borderTop:`1px solid ${v.border}`,display:"flex",flexWrap:"wrap",gap:4}}>
