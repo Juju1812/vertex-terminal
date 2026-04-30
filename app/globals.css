@@ -381,17 +381,42 @@ body::after {
   opacity: 0.6;
 }
 
-/* ── Skeleton loader ────────────────────────────────────────── */
+/* ── Skeleton loader — cinematic gold-touched shimmer ─────── */
 .skel {
+  position: relative;
   background: linear-gradient(
-    105deg,
-    var(--surface) 30%,
-    var(--raised) 50%,
-    var(--surface) 70%
+    100deg,
+    rgba(255,255,255,0.03) 0%,
+    rgba(255,255,255,0.05) 35%,
+    rgba(240,165,0,0.10) 50%,
+    rgba(255,255,255,0.05) 65%,
+    rgba(255,255,255,0.03) 100%
   );
-  background-size: 400% 100%;
-  animation: shimmer 2s ease-in-out infinite;
+  background-color: var(--surface);
+  background-size: 250% 100%;
+  animation: shimmer 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.04) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skel-sweep 2.4s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+@keyframes skel-sweep {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* ── Row hover ──────────────────────────────────────────────── */
@@ -462,8 +487,8 @@ body::after {
    ══════════════════════════════════════════════════════════════ */
 
 @keyframes shimmer {
-  0%   { background-position: -400% 0; }
-  100% { background-position:  400% 0; }
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
 @keyframes live-pulse {
@@ -663,8 +688,25 @@ body::after {
 }
 
 [data-theme="light"] .skel {
-  background: linear-gradient(105deg, #ede8da 30%, #f5f1e8 50%, #ede8da 70%);
-  background-size: 400% 100%;
+  background: linear-gradient(
+    100deg,
+    rgba(140,90,0,0.06) 0%,
+    rgba(140,90,0,0.10) 35%,
+    rgba(184,110,0,0.18) 50%,
+    rgba(140,90,0,0.10) 65%,
+    rgba(140,90,0,0.06) 100%
+  );
+  background-color: rgba(255,255,255,0.6);
+  background-size: 250% 100%;
+}
+
+[data-theme="light"] .skel::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.5) 50%,
+    transparent 100%
+  );
 }
 
 [data-theme="light"] .vx-bottom-nav {

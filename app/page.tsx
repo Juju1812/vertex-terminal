@@ -1125,10 +1125,23 @@ export default function ArbibX() {
         {/* Nav bar */}
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:50}}>
           {/* Logo */}
-          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            <div style={{width:30,height:30,borderRadius:8,overflow:"hidden",background:"linear-gradient(135deg,#f0a500,#ff6b35)",boxShadow:"0 2px 12px rgba(240,165,0,0.35)"}}>
-              <Image src="/logo.png" alt="ArbibX" width={30} height={30} style={{objectFit:"cover",borderRadius:8}} priority unoptimized/>
-            </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,position:"relative"}}>
+            <motion.div
+              whileHover={{ scale: 1.08, rotate: -3 }}
+              transition={{ type: "spring", stiffness: 380, damping: 18 }}
+              style={{position:"relative",width:30,height:30}}
+            >
+              {/* Breathing halo behind logo */}
+              <motion.div
+                aria-hidden
+                animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.18, 1] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                style={{position:"absolute",inset:-4,borderRadius:12,background:"radial-gradient(circle, rgba(240,165,0,0.55) 0%, transparent 70%)",filter:"blur(6px)",pointerEvents:"none"}}
+              />
+              <div style={{width:30,height:30,borderRadius:8,overflow:"hidden",background:"linear-gradient(135deg,#f0a500,#ff6b35)",boxShadow:"0 2px 12px rgba(240,165,0,0.35)",position:"relative"}}>
+                <Image src="/logo.png" alt="ArbibX" width={30} height={30} style={{objectFit:"cover",borderRadius:8}} priority unoptimized/>
+              </div>
+            </motion.div>
             <div style={{lineHeight:1}}>
               <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:500,letterSpacing:"0.1em",color:V.ink0}}>ArbibX</div>
               <div style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:V.ink4,letterSpacing:"0.2em",marginTop:1}}>TERMINAL</div>
