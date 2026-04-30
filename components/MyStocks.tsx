@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
-  Info, Mail, LogOut, Eye, EyeOff, X,
+  Info, Mail, LogOut, Eye, EyeOff, X, Download,
 } from "lucide-react";
 
 /* ---- Types -------------------------------------------------- */
@@ -611,6 +611,44 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
     };
   });
 
+  /* CSV export — opens a download with a single-shot Blob URL.
+     Includes: ticker, name, shares, buy price, current price,
+     cost basis, market value, P&L $, P&L %, today's day change %.
+     Header row + data rows. Quotes any field that contains a comma. */
+  const exportCSV = () => {
+    if (!enriched.length) return;
+    const csvField = (v: string | number) => {
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = [
+      ["Ticker", "Name", "Shares", "Buy Price", "Current Price", "Cost Basis", "Market Value", "P&L $", "P&L %", "Today %"],
+      ...enriched.map(h => [
+        h.ticker,
+        h.name,
+        h.shares,
+        h.buyPrice.toFixed(2),
+        h.cur.toFixed(2),
+        h.cost.toFixed(2),
+        h.val.toFixed(2),
+        h.pnl.toFixed(2),
+        h.pct.toFixed(2),
+        h.day.toFixed(2),
+      ]),
+    ];
+    const csv = rows.map(r => r.map(csvField).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const today = new Date().toISOString().split("T")[0];
+    a.href = url;
+    a.download = `arbibx-portfolio-${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const tv  = enriched.reduce((s, h) => s + h.val, 0);
   const tc  = enriched.reduce((s, h) => s + h.cost, 0);
   const tp  = tc > 0 ? (tv - tc) / tc * 100 : 0;
@@ -667,6 +705,11 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
               <LogOut size={12} /> Sign out
             </button>
           )}
+          <button onClick={exportCSV} disabled={!holdings.length}
+            title="Download portfolio as CSV"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, color:V.ink2, cursor: holdings.length ? "pointer" : "not-allowed", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
+            <Download size={12} /> Export CSV
+          </button>
           <button onClick={fetchAll} disabled={loading || !holdings.length}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, color:V.ink2, cursor: loading || !holdings.length ? "not-allowed" : "pointer", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
             <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} /> Refresh
