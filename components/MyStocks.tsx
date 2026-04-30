@@ -426,20 +426,48 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
   }, [loadFromCloud]);
 
   /* ---- Save holdings — guarded ----------------------------- */
+  // saveStatus: visible UI indicator. "idle" by default, "syncing"
+  // while POST in flight, "saved" briefly after success, "error" on
+  // network failure, "expired" on 401 (token no longer valid - user
+  // needs to sign in again).
+  const [saveStatus, setSaveStatus] = useState<"idle"|"syncing"|"saved"|"error"|"expired">("idle");
+  const saveStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const saveToCloud = useCallback(async (u: AuthUser, h: H[]) => {
     setSyncing(true);
+    setSaveStatus("syncing");
     try {
       const r = await fetch("/api/portfolio", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ email:u.email, token:u.token, holdings:h }),
       });
-      if (!r.ok) console.error("Save failed:", r.status);
-      else {
-        // Keep localStorage in sync
+      if (r.status === 401) {
+        // Token was invalidated (typically by signing in on another
+        // device with the OLD token-rotation behavior). The new auth
+        // route doesn't rotate, but existing users may have stale
+        // tokens. Surface this clearly so the user re-signs in
+        // instead of thinking saves are working when they aren't.
+        console.warn("Save failed: 401 - token invalid. User needs to re-sign-in.");
+        setSaveStatus("expired");
+        // Keep localStorage so the data isn't lost when they sign back in
         try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+      } else if (!r.ok) {
+        console.error("Save failed:", r.status);
+        setSaveStatus("error");
+        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+      } else {
+        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+        setSaveStatus("saved");
+        if (saveStatusTimer.current) clearTimeout(saveStatusTimer.current);
+        saveStatusTimer.current = setTimeout(() => setSaveStatus("idle"), 1800);
       }
-    } catch (e) { console.error("Save error:", e); }
+    } catch (e) {
+      console.error("Save error:", e);
+      setSaveStatus("error");
+      // Keep local backup so retry on next change has correct data
+      try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+    }
     setSyncing(false);
   }, []);
 
@@ -594,8 +622,33 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          {syncing && <span style={{ ...mono, fontSize:9, color:V.ink4 }}>Saving...</span>}
-          {ts && !syncing && <span style={{ ...mono, color:V.ink4, fontSize:9 }}>{ts.toLocaleTimeString()}</span>}
+          {/* Visible save status — replaces the silent failures.
+              "expired" means the token is invalid (typically because
+              another device logged in under the legacy rotation
+              behavior); the user must sign back in. */}
+          {saveStatus === "syncing" && (
+            <span style={{ ...mono, fontSize:9, color:V.ink3, display:"inline-flex", alignItems:"center", gap:5 }}>
+              <RefreshCw size={9} style={{ animation:"spin 1s linear infinite" }} /> Saving…
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span style={{ ...mono, fontSize:9, color:V.gain, display:"inline-flex", alignItems:"center", gap:4 }}>
+              <CheckCircle size={9} /> Saved
+            </span>
+          )}
+          {saveStatus === "error" && (
+            <span style={{ ...mono, fontSize:9, color:V.loss, display:"inline-flex", alignItems:"center", gap:4 }} title="Save failed - retry by editing any holding">
+              <AlertTriangle size={9} /> Save failed
+            </span>
+          )}
+          {saveStatus === "expired" && (
+            <button onClick={() => { logout(); onSignIn?.(); }}
+              style={{ ...mono, fontSize:9, color:V.loss, background:"rgba(232,68,90,0.10)", border:`1px solid ${V.lossWire}`, padding:"4px 10px", borderRadius:6, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}
+              title="Your sign-in expired - click to sign in again">
+              <AlertTriangle size={9} /> Session expired · Sign in again
+            </button>
+          )}
+          {ts && saveStatus === "idle" && <span style={{ ...mono, color:V.ink4, fontSize:9 }}>{ts.toLocaleTimeString()}</span>}
           {user && (
             <button onClick={logout}
               style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:8, background:"rgba(232,68,90,0.07)", border:`1px solid ${V.lossWire}`, color:V.loss, cursor:"pointer", fontSize:12, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>

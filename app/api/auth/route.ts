@@ -70,8 +70,16 @@ export async function POST(req: NextRequest) {
       if (hash(password, salt) !== storedHash)
         return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
 
-      const token = randomBytes(32).toString("hex");
-      await updateToken(em, token);
+      // Use the existing token instead of regenerating one. Rotating
+      // tokens on every login was invalidating every other signed-in
+      // device the moment one device logged in - which silently broke
+      // portfolio sync. Token only gets generated if missing (legacy
+      // accounts that pre-date this code path).
+      let token = (user.token as string | null | undefined) ?? null;
+      if (!token) {
+        token = randomBytes(32).toString("hex");
+        await updateToken(em, token);
+      }
 
       return NextResponse.json({ success: true, user: { email: em, token }, holdings: user.holdings ?? [] });
     }

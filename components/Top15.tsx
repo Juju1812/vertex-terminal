@@ -390,9 +390,11 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
   const [busy, setBusy] = useState<"add" | "replace" | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
 
   type H = { id: string; ticker: string; shares: number; buyPrice: number };
   type AuthUser = { email: string; token: string };
+  type CloudResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
 
   const getAuthUser = (): AuthUser | null => {
     try {
@@ -403,24 +405,25 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
     } catch { return null; }
   };
 
-  const fetchCloudHoldings = async (u: AuthUser): Promise<H[]> => {
+  const fetchCloudHoldings = async (u: AuthUser): Promise<CloudResult<H[]>> => {
     try {
       const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
-      if (!r.ok) return [];
+      if (!r.ok) return { ok: false, status: r.status, error: r.status === 401 ? "Session expired" : "Network error" };
       const d = await r.json() as { holdings?: H[] };
-      return Array.isArray(d.holdings) ? d.holdings : [];
-    } catch { return []; }
+      return { ok: true, data: Array.isArray(d.holdings) ? d.holdings : [] };
+    } catch { return { ok: false, status: 0, error: "Network error" }; }
   };
 
-  const saveCloudHoldings = async (u: AuthUser, h: H[]): Promise<boolean> => {
+  const saveCloudHoldings = async (u: AuthUser, h: H[]): Promise<CloudResult<true>> => {
     try {
       const r = await fetch("/api/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: u.email, token: u.token, holdings: h }),
       });
-      return r.ok;
-    } catch { return false; }
+      if (!r.ok) return { ok: false, status: r.status, error: r.status === 401 ? "Session expired - sign in again" : "Network error" };
+      return { ok: true, data: true };
+    } catch { return { ok: false, status: 0, error: "Network error" }; }
   };
 
   const buildHoldings = (): H[] => allocs
@@ -436,17 +439,17 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   // for logged-in users — MyStocks overwrites localStorage on mount).
   // Then mirror to localStorage and dispatch synthetic storage event for
   // any mounted MyStocks instance to pick up immediately.
-  const persist = async (next: H[]): Promise<boolean> => {
+  const persist = async (next: H[]): Promise<CloudResult<true>> => {
     const u = getAuthUser();
     if (u) {
-      const ok = await saveCloudHoldings(u, next);
-      if (!ok) return false;
+      const result = await saveCloudHoldings(u, next);
+      if (!result.ok) return result;
     }
     try {
       localStorage.setItem("arbibx-holdings-local", JSON.stringify(next));
       window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
     } catch { /**/ }
-    return true;
+    return { ok: true, data: true };
   };
 
   const addToPortfolio = async () => {
@@ -454,20 +457,28 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
     const newHoldings = buildHoldings();
     if (!newHoldings.length) return;
     setBusy("add");
+    setSaveErr(null);
     try {
       // Use cloud as source of truth for logged-in users; fall back to
       // localStorage for guests.
       const u = getAuthUser();
-      const existing: H[] = u
-        ? await fetchCloudHoldings(u)
-        : (() => { try { return JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as H[]; } catch { return []; } })();
+      let existing: H[] = [];
+      if (u) {
+        const fetched = await fetchCloudHoldings(u);
+        if (!fetched.ok) { setSaveErr(fetched.error); return; }
+        existing = fetched.data;
+      } else {
+        try { existing = JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as H[]; } catch { /**/ }
+      }
       const existingTickers = new Set(existing.map(h => h.ticker));
       const toAdd = newHoldings.filter(h => !existingTickers.has(h.ticker));
       const merged = [...existing, ...toAdd];
-      const ok = await persist(merged);
-      if (ok) {
+      const result = await persist(merged);
+      if (result.ok) {
         setAdded(true);
         setTimeout(() => setAdded(false), 2500);
+      } else {
+        setSaveErr(result.error);
       }
     } finally {
       setBusy(null);
@@ -479,11 +490,14 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
     const newHoldings = buildHoldings();
     if (!newHoldings.length) return;
     setBusy("replace");
+    setSaveErr(null);
     try {
-      const ok = await persist(newHoldings);
-      if (ok) {
+      const result = await persist(newHoldings);
+      if (result.ok) {
         setReplaced(true);
         setTimeout(() => setReplaced(false), 2500);
+      } else {
+        setSaveErr(result.error);
       }
     } finally {
       setBusy(null);
@@ -546,6 +560,11 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
             <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", marginBottom:2 }}>Deployed</p>
             <p style={{ ...mono, fontSize:20, fontWeight:500, color:V.gain }}>{f$(total)}</p>
           </div>
+          {saveErr && (
+            <p style={{ ...mono, fontSize:10, color:V.loss, margin:"0 0 0 auto", padding:"4px 10px", borderRadius:6, background:V.lossDim, border:`1px solid ${V.lossWire}`, display:"inline-flex", alignItems:"center", gap:5 }}>
+              <AlertTriangle size={10}/> {saveErr}
+            </p>
+          )}
           {allocs.length > 0 && (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <button onClick={addToPortfolio} disabled={!!busy}
