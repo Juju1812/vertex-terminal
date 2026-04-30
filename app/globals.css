@@ -441,6 +441,95 @@ body::after {
 /* ── Layout helpers ─────────────────────────────────────────── */
 .vx-main { position: relative; z-index: 1; }
 
+/* ── Desktop side navigation (>=1024px) ─────────────────────
+   Linear/Stripe-style fixed left sidebar. Hidden by default,
+   shown on >=1024px. Pushes main content right via padding on
+   .vx-main and .vx-bottom-nav. */
+.vx-side-nav {
+  display: none;
+  position: fixed;
+  top: 80px;             /* below sticky header (indices 30 + nav 50) */
+  left: 0;
+  bottom: 0;
+  width: 220px;
+  z-index: 90;
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, transparent 0%, var(--gold-glow) 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-theme="light"] .vx-side-nav {
+  background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(120,75,0,0.04) 100%);
+  border-right-color: rgba(120,75,0,0.32);
+  box-shadow: 1px 0 0 rgba(120,75,0,0.08), 4px 0 24px rgba(80,50,0,0.06);
+}
+.vx-side-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--ink2);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+  min-height: 38px;
+}
+.vx-side-nav__item:hover {
+  color: var(--ink0);
+  background: rgba(240, 165, 0, 0.06);
+}
+[data-theme="light"] .vx-side-nav__item:hover {
+  background: rgba(120, 75, 0, 0.08);
+}
+.vx-side-nav__item.is-active {
+  color: var(--gold);
+  font-weight: 700;
+}
+.vx-side-nav__indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(240,165,0,0.18), rgba(240,165,0,0.06));
+  border: 1px solid var(--gold-wire);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(240,165,0,0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+[data-theme="light"] .vx-side-nav__indicator {
+  background: linear-gradient(90deg, rgba(138,82,0,0.16), rgba(138,82,0,0.06));
+  border-color: rgba(138,82,0,0.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 16px rgba(138,82,0,0.14);
+}
+.vx-side-nav__icon,
+.vx-side-nav__label {
+  position: relative;
+  z-index: 1;
+}
+.vx-side-nav__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+.vx-side-nav__label {
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .vx-side-nav { display: block; }
+  /* Hide the horizontal header tabs - sidebar replaces them */
+  .vx-header-tabs { display: none !important; }
+  /* Push main content + bottom edges right of the sidebar */
+  .vx-main { padding-left: 220px !important; }
+}
+
 @media (min-width: 1024px) {
   .vx-two-col {
     display: grid !important;

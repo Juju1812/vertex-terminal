@@ -742,6 +742,42 @@ function GlobalAuthForm({onSuccess}:{onSuccess:()=>void}) {
   );
 }
 
+/* ── DesktopSideNav ───────────────────────────────────────────
+   Fixed-position vertical nav on the left. Linear/Notion/Stripe
+   style: icon + label per tab, springy active indicator that
+   slides between tabs via layoutId, theme-aware styling.
+   Only renders at >=1024px (controlled via CSS). */
+function DesktopSideNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
+  return (
+    <aside className="vx-side-nav" aria-label="Primary navigation">
+      <nav style={{display:"flex",flexDirection:"column",gap:4,padding:"24px 12px"}}>
+        <p style={{...mono,fontSize:9,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.16em",padding:"0 12px 12px",fontWeight:500}}>Terminal</p>
+        {TABS.map(t => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              className={`vx-side-nav__item ${active ? "is-active" : ""}`}
+              aria-current={active ? "page" : undefined}>
+              {active && (
+                <motion.span
+                  layoutId="vx-side-nav-indicator"
+                  aria-hidden
+                  className="vx-side-nav__indicator"
+                  transition={{type:"spring",stiffness:380,damping:30}}
+                />
+              )}
+              <span className="vx-side-nav__icon">
+                <TabIcon id={t.id} size={16} active={active}/>
+              </span>
+              <span className="vx-side-nav__label">{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
 /* ── MobileNav ─────────────────────────────────────────────── */
 function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
   return (
@@ -1209,8 +1245,8 @@ export default function ArbibX() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div style={{display:"flex",alignItems:"center",gap:0,marginLeft:6,flex:1,overflow:"hidden"}}>
+          {/* Horizontal tabs — hidden at >=1024px in favor of left sidebar nav */}
+          <div className="vx-header-tabs" style={{display:"flex",alignItems:"center",gap:0,marginLeft:6,flex:1,overflow:"hidden"}}>
             {TABS.map(t=>{
               const active=tab===t.id;
               return (
@@ -1294,6 +1330,9 @@ export default function ArbibX() {
           </div>
         </div>
       </header>
+
+      {/* ════ DESKTOP SIDE NAV (>=1024px only) ═══════════════ */}
+      <DesktopSideNav tab={tab} setTab={setTab} />
 
       {/* ════ MAIN CONTENT ════════════════════════════════════ */}
       <main className="vx-main" style={{position:"relative",zIndex:1}}>
