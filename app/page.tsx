@@ -43,10 +43,31 @@ const ProUpgradeModal = dynamic(() => import("@/components/ProUpgradeModal"), { 
 
 function PanelSkeleton() {
   return (
-    <div style={{ padding:24, display:"flex", flexDirection:"column", gap:14 }}>
-      {[200, 60, 60, 60, 60].map((h,i) => (
-        <div key={i} className="skel" style={{ height:h }} />
-      ))}
+    <div style={{ maxWidth:1200, margin:"0 auto", padding:"24px 16px", display:"flex", flexDirection:"column", gap:20 }}>
+      {/* Header row: title + toolbar shape */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:16 }}>
+        <div className="skel" style={{ height:32, width:"min(280px, 60%)", borderRadius:8 }} />
+        <div className="skel" style={{ height:32, width:120, borderRadius:8 }} />
+      </div>
+      {/* Stat row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12 }}>
+        {[0,1,2,3].map(i => (
+          <div key={i} className="skel" style={{ height:64, borderRadius:12 }} />
+        ))}
+      </div>
+      {/* Chart-shaped block */}
+      <div className="skel" style={{ height:280, borderRadius:14, position:"relative" }}>
+        {/* Faint ascending bars to hint at chart shape */}
+        <svg viewBox="0 0 400 100" preserveAspectRatio="none" style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0.18, pointerEvents:"none" }}>
+          <path d="M0,80 Q60,60 120,55 T240,35 T360,45 L400,30" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </div>
+      {/* Table rows */}
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {[0,1,2,3,4].map(i => (
+          <div key={i} className="skel" style={{ height:48, borderRadius:10, animationDelay: `${i*0.08}s` }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -913,6 +934,42 @@ export default function ArbibX() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
+  // Keyboard shortcuts. K opens search, T toggles theme, 1-8 switch tabs,
+  // Escape closes search/modals. Skipped while user types in any input/textarea.
+  useEffect(()=>{
+    const isTyping = (el: EventTarget | null): boolean => {
+      const t = el as HTMLElement | null;
+      if (!t) return false;
+      const tag = t.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return; // don't fight browser shortcuts
+      if (isTyping(e.target)) return;
+      if (showLanding) return;
+      const k = e.key.toLowerCase();
+      if (k === "escape") {
+        if (showSearch) { setShowSearch(false); setSearch(""); setResults([]); }
+        if (showCompare) setShowCompare(false);
+        if (showAuthModal) setShowAuthModal(false);
+        if (showProModal) setShowProModal(false);
+        return;
+      }
+      if (k === "k") { e.preventDefault(); setShowSearch(s => !s); return; }
+      if (k === "t") { e.preventDefault(); toggleTheme(); return; }
+      if (k === "/" ) { e.preventDefault(); setShowSearch(true); return; }
+      // Number keys 1-8 → tabs
+      const num = parseInt(k, 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= TABS.length) {
+        e.preventDefault();
+        setTab(TABS[num - 1].id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[showLanding, showSearch, showCompare, showAuthModal, showProModal]);
+
   const go=useCallback((t:string)=>{setTicker(t);setSearch("");setResults([]);setShowSearch(false);setTab("markets");},[]);
   const toggleWatch=useCallback((t:string)=>{
     setWatchlist(w=>{
@@ -1271,6 +1328,15 @@ export default function ArbibX() {
       {/* ════ STOCK COMPARISON MODAL ═════════════════════════ */}
       {showCompare && (
         <StockComparison initialTicker={ticker} onClose={()=>setShowCompare(false)}/>
+      )}
+
+      {/* ════ KEYBOARD SHORTCUT HINT (desktop only) ════════ */}
+      {!showLanding && (
+        <div className="vx-shortcut-hint" aria-hidden>
+          <span style={{...mono,fontSize:9,color:V.ink3,letterSpacing:"0.08em"}}>
+            <kbd>K</kbd> search · <kbd>T</kbd> theme · <kbd>1-8</kbd> tabs · <kbd>Esc</kbd> close
+          </span>
+        </div>
       )}
 
       {/* ════ GLOBAL STYLES ══════════════════════════════════ */}
