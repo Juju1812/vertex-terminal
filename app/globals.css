@@ -918,6 +918,38 @@ body::after {
   }
 }
 
+/* ── Lite/perf mode — disable expensive compositing for older GPUs.
+   Triggered by:
+   - prefers-reduced-motion: reduce (system setting)
+   - max-width 768px (mobile)
+   - [data-perf="low"] (auto-detected via FPS or manually toggled)
+   The 3D scene, particles, cursor spotlight, and animated gradient
+   are unmounted in React when liteMode is true (see page.tsx), so
+   this CSS only needs to handle the styling concerns (backdrop-
+   filter compositing storms, blur filters, large radial gradients
+   that force texture allocations). */
+[data-perf="low"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Solid backgrounds where blurs were the only thing making them
+     read as glass. Light + dark variants below. */
+}
+[data-perf="low"][data-theme="light"] [style*="backdrop-filter"],
+[data-perf="low"][data-theme="light"] [style*="WebkitBackdropFilter"] {
+  background: #ffffff !important;
+}
+[data-perf="low"]:not([data-theme="light"]) [style*="backdrop-filter"],
+[data-perf="low"]:not([data-theme="light"]) [style*="WebkitBackdropFilter"] {
+  background: rgba(8,6,16,0.97) !important;
+}
+[data-perf="low"] body::before,
+[data-perf="low"] body::after { display: none; }
+[data-perf="low"] .vx-marquee-card::after { display: none; }
+[data-perf="low"] .vx-tilt:hover,
+[data-perf="low"] .card-3d:hover {
+  transform: none !important;
+}
+
 @media (max-width: 768px), (prefers-reduced-motion: reduce) {
   * {
     backdrop-filter: none !important;

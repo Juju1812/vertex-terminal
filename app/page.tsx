@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon, Zap,
+  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 import {
@@ -933,6 +933,15 @@ export default function ArbibX() {
   const [theme, setTheme] = useState<"dark"|"light">(() => {
     try { return (localStorage.getItem("arbibx-theme") ?? "dark") as "dark"|"light"; } catch { return "dark"; }
   });
+  // Lite mode: disables heavy WebGL scene, particles, cursor spotlight,
+  // and blur compositing. Auto-detected via FPS measurement on first
+  // load; can be manually overridden via the toggle in the header.
+  // Persisted preferences: "auto" (default), "lite", "full".
+  const [perfMode, setPerfMode] = useState<"auto"|"lite"|"full">(() => {
+    try { return (localStorage.getItem("arbibx-perf") ?? "auto") as "auto"|"lite"|"full"; } catch { return "auto"; }
+  });
+  const [autoDetectedLite, setAutoDetectedLite] = useState(false);
+  const liteMode = perfMode === "lite" || (perfMode === "auto" && autoDetectedLite);
 
   // Check Pro status on mount and login
   useEffect(()=>{
@@ -964,6 +973,46 @@ export default function ArbibX() {
     // Update the module-level V so all components re-render with correct colors
     V = theme === "light" ? LIGHT_V : DARK_V;
   }, [theme]);
+
+  // Sync data-perf attribute + persist preference
+  useEffect(() => {
+    document.documentElement.setAttribute("data-perf", liteMode ? "low" : "high");
+    try { localStorage.setItem("arbibx-perf", perfMode); } catch { /**/ }
+  }, [liteMode, perfMode]);
+
+  // Auto-detect low-power devices via FPS measurement. Skips if user
+  // already set a manual preference. Runs once after a 600ms warm-up
+  // so the initial bundle parse + first-frame layout don't poison the
+  // measurement. Trigger threshold: <45 average fps over 1.5s.
+  useEffect(() => {
+    if (perfMode !== "auto") return;
+    if (autoDetectedLite) return; // already detected
+    let frames = 0;
+    let startTime = 0;
+    let raf = 0;
+    const measure = (t: number) => {
+      if (!startTime) startTime = t;
+      frames++;
+      const elapsed = t - startTime;
+      if (elapsed < 1500) {
+        raf = requestAnimationFrame(measure);
+      } else {
+        const fps = (frames * 1000) / elapsed;
+        if (fps < 45) {
+          setAutoDetectedLite(true);
+          console.log(`[arbibx] auto-detected low-perf device (${fps.toFixed(0)} fps), enabled lite mode`);
+        }
+      }
+    };
+    const warmup = setTimeout(() => { raf = requestAnimationFrame(measure); }, 600);
+    return () => { clearTimeout(warmup); cancelAnimationFrame(raf); };
+  }, [perfMode, autoDetectedLite]);
+
+  // Cycle perf mode: auto -> lite -> full -> auto
+  const cyclePerfMode = useCallback(() => {
+    setPerfMode(p => p === "auto" ? "lite" : p === "lite" ? "full" : "auto");
+    setAutoDetectedLite(false); // reset detection when user picks
+  }, []);
 
   const themeBtnRef = useRef<HTMLButtonElement>(null);
   const toggleTheme = () => {
@@ -1140,20 +1189,25 @@ export default function ArbibX() {
             .feat-card:hover{background:rgba(240,165,0,0.05);border-color:rgba(240,165,0,0.2);transform:translateY(-5px) scale(1.01);box-shadow:0 24px 60px rgba(0,0,0,0.5)}
           `}</style>
 
-          {/* Cinematic background — 3D scene + particles + animated gradient */}
+          {/* Cinematic background — 3D scene + particles + animated gradient.
+              Heavy components are SKIPPED in lite mode (auto-detected on
+              low-power devices, or manually toggled). When skipped they
+              are unmounted, freeing GPU/CPU completely - not just hidden. */}
           <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
-            <AnimatedGradient />
-            <div className="vx-scene-3d" style={{position:"absolute",inset:0}}>
-              <Scene3D />
-            </div>
-            <ParticleField density={110} />
+            {!liteMode && <AnimatedGradient />}
+            {!liteMode && (
+              <div className="vx-scene-3d" style={{position:"absolute",inset:0}}>
+                <Scene3D />
+              </div>
+            )}
+            {!liteMode && <ParticleField density={110} />}
             <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)",backgroundSize:"80px 80px",maskImage:"radial-gradient(ellipse 80% 60% at 50% 0%,black 0%,transparent 100%)",zIndex:2}}/>
             <div style={{position:"absolute",top:0,left:"50%",width:"1px",height:"35%",background:"linear-gradient(180deg,rgba(240,165,0,0.45) 0%,transparent 100%)",zIndex:2}}/>
             <div style={{position:"absolute",top:0,left:"25%",width:"1px",height:"22%",background:"linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 100%)",zIndex:2}}/>
             <div style={{position:"absolute",top:0,left:"75%",width:"1px",height:"18%",background:"linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%)",zIndex:2}}/>
             <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 90% 70% at 50% 60%, transparent 0%, rgba(5,4,7,0.55) 100%)",zIndex:3,pointerEvents:"none"}}/>
           </div>
-          <CursorSpotlight />
+          {!liteMode && <CursorSpotlight />}
 
           {/* Header */}
           <div style={{position:"relative",zIndex:10,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(16px,3vw,24px) clamp(20px,5vw,48px)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
@@ -1398,6 +1452,17 @@ export default function ArbibX() {
               style={{background:"none",border:`1px solid ${theme==="light"?"rgba(140,90,0,0.40)":"transparent"}`,borderRadius:8,cursor:"pointer",color:theme==="dark"?V.ink3:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
               title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>
               {theme==="dark" ? <Sun size={16}/> : <Moon size={16}/>}
+            </button>
+            <button onClick={cyclePerfMode}
+              style={{background:liteMode?V.goldDim:"none",border:`1px solid ${liteMode?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:liteMode?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
+              title={
+                perfMode === "auto"
+                  ? `Performance mode: Auto${autoDetectedLite ? " (lite — your device was detected as low-power)" : " (cinematic)"} · click for Lite`
+                  : perfMode === "lite"
+                    ? "Performance mode: Lite (forced) · click for Cinematic"
+                    : "Performance mode: Cinematic (forced) · click for Auto"
+              }>
+              {liteMode ? <Gauge size={16}/> : <Zap size={16}/>}
             </button>
             <button onClick={()=>setShowSearch(s=>!s)}
               style={{background:showSearch?V.goldDim:"none",border:`1px solid ${showSearch?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
