@@ -31,9 +31,10 @@ function GoldenXSigil() {
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     cloned.position.sub(center);
-    // Scale so the longest axis fits inside ~3.2 world units (sits behind headline)
+    // Scale so the longest axis fits inside ~2.0 world units — subtle
+    // backdrop element, not a dominant centerpiece.
     const longest = Math.max(size.x, size.y, size.z) || 1;
-    const target = 3.2;
+    const target = 2.0;
     const k = target / longest;
     cloned.scale.setScalar(k);
     cloned.traverse((o) => {
@@ -42,13 +43,12 @@ function GoldenXSigil() {
         o.receiveShadow = false;
         const mat = o.material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[];
         const apply = (m: THREE.MeshStandardMaterial) => {
-          // Meshy bakes color into emissive map sometimes; gentle boost keeps it
-          // readable through bloom without blowing it out.
-          m.envMapIntensity = 1.6;
-          if (m.emissiveIntensity != null) m.emissiveIntensity = Math.max(m.emissiveIntensity, 0.4);
+          // Tuned to read cleanly without dominating the hero.
+          m.envMapIntensity = 1.2;
+          if (m.emissiveIntensity != null) m.emissiveIntensity = Math.min(m.emissiveIntensity, 0.18);
           if (!m.emissive || m.emissive.getHex() === 0) {
             m.emissive = new THREE.Color("#ff8e1a");
-            m.emissiveIntensity = 0.25;
+            m.emissiveIntensity = 0.10;
           }
           m.metalness = Math.max(m.metalness ?? 0, 0.85);
           m.roughness = Math.min(m.roughness ?? 1, 0.35);
@@ -66,7 +66,7 @@ function GoldenXSigil() {
   });
 
   return (
-    <group ref={ref} position={[0, 0, -1.2]}>
+    <group ref={ref} position={[0, 0, -2.8]}>
       <primitive object={tuned} />
     </group>
   );
@@ -81,12 +81,12 @@ function HaloRing() {
     }
   });
   return (
-    <mesh ref={ringRef} position={[0, 0, -1.5]}>
-      <torusGeometry args={[2.6, 0.035, 24, 220]} />
+    <mesh ref={ringRef} position={[0, 0, -3.0]}>
+      <torusGeometry args={[1.8, 0.025, 20, 200]} />
       <meshStandardMaterial
         color="#ffbe1a"
         emissive="#f0a500"
-        emissiveIntensity={2.4}
+        emissiveIntensity={1.8}
         roughness={0.18}
         metalness={1}
       />
