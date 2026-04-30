@@ -125,15 +125,15 @@ const DARK_V = {
 };
 
 const LIGHT_V = {
-  void:"#faf8f2", abyss:"#f5f1e8", deep:"#ede8da",
-  surface:"#ffffff", raised:"#f8f5ee",
-  border:"rgba(184,110,0,0.28)", borderHi:"rgba(184,110,0,0.45)",
-  gold:"#b86e00", goldBright:"#d47f00",
-  goldDim:"rgba(184,110,0,0.10)", goldWire:"rgba(184,110,0,0.30)",
-  ember:"#c44010", emberDim:"rgba(196,64,16,0.08)",
-  ink0:"#1c1408", ink1:"#3d2e10", ink2:"#6b5530", ink3:"#9c8558", ink4:"#c4a878",
-  gain:"#006b42", gainDim:"rgba(0,107,66,0.08)", gainWire:"rgba(0,107,66,0.25)",
-  loss:"#b81830", lossDim:"rgba(184,24,48,0.08)", lossWire:"rgba(184,24,48,0.25)",
+  void:"#e8dcb8", abyss:"#ddd0a8", deep:"#d4c69c",
+  surface:"#ffffff", raised:"#fffaed",
+  border:"rgba(140,90,0,0.38)", borderHi:"rgba(140,90,0,0.60)",
+  gold:"#a06000", goldBright:"#c47800",
+  goldDim:"rgba(160,96,0,0.12)", goldWire:"rgba(160,96,0,0.40)",
+  ember:"#b03808", emberDim:"rgba(176,56,8,0.10)",
+  ink0:"#0f0a02", ink1:"#2d1f08", ink2:"#5a4520", ink3:"#8a6f3a", ink4:"#b09660",
+  gain:"#005a38", gainDim:"rgba(0,90,56,0.10)", gainWire:"rgba(0,90,56,0.32)",
+  loss:"#a01428", lossDim:"rgba(160,20,40,0.10)", lossWire:"rgba(160,20,40,0.32)",
 };
 
 // V is set at runtime based on theme — default dark
@@ -145,14 +145,14 @@ function getCard(theme: "dark"|"light", ex?: React.CSSProperties): React.CSSProp
   const v = theme === "light" ? LIGHT_V : DARK_V;
   return {
     background: theme === "light"
-      ? "linear-gradient(145deg,#ffffff 0%,#fdfaf0 100%)"
+      ? "#ffffff"
       : "linear-gradient(145deg,rgba(255,255,255,0.032) 0%,rgba(255,255,255,0.010) 100%)",
     backdropFilter:"blur(20px) saturate(1.4)",
     WebkitBackdropFilter:"blur(20px) saturate(1.4)",
     border:`1px solid ${v.border}`,
     borderRadius:18,
     boxShadow: theme === "light"
-      ? "0 1px 0 rgba(184,110,0,0.06),0 2px 4px rgba(100,60,0,0.04),0 8px 24px rgba(100,60,0,0.10),0 16px 48px rgba(100,60,0,0.06),inset 0 1px 0 rgba(255,255,255,0.9)"
+      ? "0 1px 0 rgba(140,90,0,0.10),0 2px 6px rgba(100,60,0,0.10),0 12px 28px rgba(100,60,0,0.18),0 24px 64px rgba(100,60,0,0.10),inset 0 1px 0 rgba(255,255,255,1)"
       : "0 4px 32px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.045)",
     position:"relative" as const,
     overflow:"hidden",
@@ -1045,7 +1045,7 @@ export default function ArbibX() {
       )}
 
       {/* ════ HEADER ═════════════════════════════════════════ */}
-      <header style={{position:"sticky",top:0,zIndex:100,background:theme==="light"?"rgba(245,240,224,0.92)":"rgba(5,4,7,0.95)",backdropFilter:"blur(40px) saturate(2)",WebkitBackdropFilter:"blur(40px) saturate(2)",borderBottom:`1px solid ${V.border}`}}>
+      <header style={{position:"sticky",top:0,zIndex:100,background:theme==="light"?"rgba(232,220,184,0.92)":"rgba(5,4,7,0.95)",backdropFilter:"blur(40px) saturate(2)",WebkitBackdropFilter:"blur(40px) saturate(2)",borderBottom:`1px solid ${V.border}`}}>
         {/* Subtle glow behind header */}
         <div aria-hidden style={{position:"absolute",inset:"-30% 0 auto 0",height:"160%",pointerEvents:"none",background:"radial-gradient(ellipse 60% 60% at 50% 0%, rgba(240,165,0,0.10) 0%, transparent 70%)",filter:"blur(20px)",zIndex:-1}}/>
         {/* Indices ticker */}
