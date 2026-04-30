@@ -84,12 +84,12 @@ const TICKER_META: Record<string, { name: string; sector: string }> = {
 const POLYGON_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 
 const V = {
-  w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)",
-  ink0:"#F2F6FF", ink1:"#C8D5E8", ink2:"#7A9CBF", ink3:"#3D5A7A", ink4:"#1F3550",
-  gain:"#00C896", gainDim:"rgba(0,200,150,0.08)", gainWire:"rgba(0,200,150,0.20)",
-  loss:"#E8445A", lossDim:"rgba(232,68,90,0.08)",  lossWire:"rgba(232,68,90,0.20)",
+  w1:"var(--border,rgba(130,180,255,0.055))", w2:"var(--border-hi,rgba(130,180,255,0.10))",
+  ink0:"var(--ink0,#F2F6FF)", ink1:"var(--ink1,#C8D5E8)", ink2:"var(--ink2,#7A9CBF)", ink3:"var(--ink3,#3D5A7A)", ink4:"var(--ink4,#1F3550)",
+  gain:"var(--gain,#00C896)", gainDim:"var(--gain-dim,rgba(0,200,150,0.08))", gainWire:"var(--gain-wire,rgba(0,200,150,0.20))",
+  loss:"var(--loss,#E8445A)", lossDim:"var(--loss-dim,rgba(232,68,90,0.08))",  lossWire:"var(--loss-wire,rgba(232,68,90,0.20))",
   arc:"#4F8EF7",  arcDim:"rgba(79,142,247,0.08)",  arcWire:"rgba(79,142,247,0.22)",
-  gold:"#E8A030", goldDim:"rgba(232,160,48,0.08)", goldWire:"rgba(232,160,48,0.20)",
+  gold:"var(--gold,#E8A030)", goldDim:"var(--gold-dim,rgba(232,160,48,0.08))", goldWire:"var(--gold-wire,rgba(232,160,48,0.20))",
   ame:"#9B72F5",  ameDim:"rgba(155,114,245,0.08)", ameWire:"rgba(155,114,245,0.22)",
 };
 const mono: React.CSSProperties = { fontFamily:"'Geist Mono','Courier New',monospace" };

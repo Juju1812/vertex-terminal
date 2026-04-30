@@ -17,21 +17,21 @@ import { RefreshCw, Clock } from "lucide-react";
 const INTERVAL_MS  = 15 * 60 * 1000;   // 15 minutes
 const TOTAL_SECS   = INTERVAL_MS / 1000;
 
-/* ── Design tokens (local copy — no import needed) ── */
+/* ── Design tokens — read from CSS variables for theme adaptation ── */
 const V = {
-  w1: "rgba(130,180,255,0.055)",
-  w2: "rgba(130,180,255,0.10)",
-  w3: "rgba(130,180,255,0.16)",
-  ink0: "#F2F6FF",
-  ink3: "#3D5A7A",
-  ink4: "#1F3550",
-  gain: "#00C896",
-  gainDim: "rgba(0,200,150,0.08)",
-  gainWire: "rgba(0,200,150,0.20)",
+  w1: "var(--border,rgba(130,180,255,0.055))",
+  w2: "var(--border,rgba(130,180,255,0.10))",
+  w3: "var(--border-hi,rgba(130,180,255,0.16))",
+  ink0: "var(--ink0,#F2F6FF)",
+  ink3: "var(--ink3,#3D5A7A)",
+  ink4: "var(--ink4,#1F3550)",
+  gain: "var(--gain,#00C896)",
+  gainDim: "var(--gain-dim,rgba(0,200,150,0.08))",
+  gainWire: "var(--gain-wire,rgba(0,200,150,0.20))",
   arc: "#4F8EF7",
   arcDim: "rgba(79,142,247,0.10)",
   arcWire: "rgba(79,142,247,0.22)",
-  gold: "#E8A030",
+  gold: "var(--gold,#E8A030)",
 };
 const mono: React.CSSProperties = {
   fontFamily: "'Geist Mono','Courier New',monospace",

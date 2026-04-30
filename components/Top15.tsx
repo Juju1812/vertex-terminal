@@ -154,15 +154,29 @@ const f$ = (n: number, d = 2) =>
   new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
-/* ---- Design tokens ----------------------------------------- */
+/* ---- Design tokens — read from CSS variables so they
+       automatically adapt to dark/light themes. The hardcoded
+       hex values are fallbacks for environments where the CSS
+       custom properties haven't loaded yet (e.g. brief SSR flash). */
 const V = {
-  d0:"#050810", dh:"rgba(30,45,64,0.85)",
-  w1:"rgba(130,180,255,0.055)", w2:"rgba(130,180,255,0.10)", w3:"rgba(130,180,255,0.16)",
-  ink0:"#F2F6FF", ink1:"#C8D5E8", ink2:"#7A9CBF", ink3:"#3D5A7A", ink4:"#1F3550",
-  gain:"#00C896", gainDim:"rgba(0,200,150,0.08)", gainWire:"rgba(0,200,150,0.20)",
-  loss:"#E8445A", lossDim:"rgba(232,68,90,0.08)",  lossWire:"rgba(232,68,90,0.20)",
+  d0:"var(--void,#050810)",
+  dh:"var(--raised,rgba(30,45,64,0.85))",
+  w1:"var(--border,rgba(130,180,255,0.055))",
+  w2:"var(--border,rgba(130,180,255,0.10))",
+  w3:"var(--border-hi,rgba(130,180,255,0.16))",
+  ink0:"var(--ink0,#F2F6FF)",
+  ink1:"var(--ink1,#C8D5E8)",
+  ink2:"var(--ink2,#7A9CBF)",
+  ink3:"var(--ink3,#3D5A7A)",
+  ink4:"var(--ink4,#1F3550)",
+  gain:"var(--gain,#00C896)",
+  gainDim:"var(--gain-dim,rgba(0,200,150,0.08))",
+  gainWire:"var(--gain-wire,rgba(0,200,150,0.20))",
+  loss:"var(--loss,#E8445A)",
+  lossDim:"var(--loss-dim,rgba(232,68,90,0.08))",
+  lossWire:"var(--loss-wire,rgba(232,68,90,0.20))",
   arc:"#4F8EF7",  arcDim:"rgba(79,142,247,0.10)",  arcWire:"rgba(79,142,247,0.22)",
-  gold:"#E8A030", ame:"#9B72F5",
+  gold:"var(--gold,#E8A030)", ame:"#9B72F5",
 };
 const mono: React.CSSProperties = { fontFamily:"'Geist Mono','Courier New',monospace" };
 const glass = (ex?: React.CSSProperties): React.CSSProperties => ({
@@ -536,9 +550,8 @@ export default function Top15({ onSelectTicker }: Top15Props) {
         </div>
       </div>
       {[200, 60, 60, 60, 60, 60].map((h, i) => (
-        <div key={i} style={{ background:"linear-gradient(105deg,#0C1220 30%,#151F30 50%,#0C1220 70%)", backgroundSize:"400% 100%", animation:"shimmer 2.2s ease-in-out infinite", borderRadius:12, height:h }} />
+        <div key={i} className="skel" style={{ borderRadius:12, height:h, animationDelay: `${i*0.08}s` }} />
       ))}
-      <style>{`@keyframes shimmer{0%{background-position:-400% 0}100%{background-position:400% 0}}`}</style>
     </div>
   );
 

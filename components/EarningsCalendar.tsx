@@ -70,12 +70,23 @@ const POLYGON_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 
 /* ---- Design tokens ----------------------------------------- */
 const V = {
-  w1:"rgba(60,48,100,0.4)", w2:"rgba(90,72,150,0.5)",
-  ink0:"#f4f0ff", ink1:"#cdc7e0", ink2:"#8a82a8", ink3:"#4a4468", ink4:"#2d2848",
-  gain:"#00e5a0", gainDim:"rgba(0,229,160,0.08)", gainWire:"rgba(0,229,160,0.22)",
-  loss:"#ff4560", lossDim:"rgba(255,69,96,0.08)",  lossWire:"rgba(255,69,96,0.22)",
+  w1:"var(--border,rgba(60,48,100,0.4))",
+  w2:"var(--border-hi,rgba(90,72,150,0.5))",
+  ink0:"var(--ink0,#f4f0ff)",
+  ink1:"var(--ink1,#cdc7e0)",
+  ink2:"var(--ink2,#8a82a8)",
+  ink3:"var(--ink3,#4a4468)",
+  ink4:"var(--ink4,#2d2848)",
+  gain:"var(--gain,#00e5a0)",
+  gainDim:"var(--gain-dim,rgba(0,229,160,0.08))",
+  gainWire:"var(--gain-wire,rgba(0,229,160,0.22))",
+  loss:"var(--loss,#ff4560)",
+  lossDim:"var(--loss-dim,rgba(255,69,96,0.08))",
+  lossWire:"var(--loss-wire,rgba(255,69,96,0.22))",
   arc:"#7eb6ff",  arcDim:"rgba(126,182,255,0.08)", arcWire:"rgba(126,182,255,0.22)",
-  gold:"#f0a500", goldDim:"rgba(240,165,0,0.10)",  goldWire:"rgba(240,165,0,0.28)",
+  gold:"var(--gold,#f0a500)",
+  goldDim:"var(--gold-dim,rgba(240,165,0,0.10))",
+  goldWire:"var(--gold-wire,rgba(240,165,0,0.28))",
 };
 const mono: React.CSSProperties = { fontFamily:"'DM Mono','Courier New',monospace" };
 const glass = (ex?: React.CSSProperties): React.CSSProperties => ({

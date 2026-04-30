@@ -10,12 +10,12 @@ interface Props {
 }
 
 const V = {
-  void:"#050407", surface:"#0d0b16", raised:"#1a1628",
-  border:"rgba(60,48,100,0.5)", borderHi:"rgba(90,72,150,0.6)",
-  ink0:"#f4f0ff", ink1:"#cdc7e0", ink2:"#8a82a8", ink3:"#4a4468", ink4:"#2d2848",
-  gold:"#f0a500", goldDim:"rgba(240,165,0,0.10)", goldWire:"rgba(240,165,0,0.28)",
-  gain:"#00e5a0", gainDim:"rgba(0,229,160,0.08)", gainWire:"rgba(0,229,160,0.22)",
-  loss:"#ff4560",
+  void:"var(--void,#050407)", surface:"var(--surface,#0d0b16)", raised:"var(--raised,#1a1628)",
+  border:"var(--border,rgba(60,48,100,0.5))", borderHi:"var(--border-hi,rgba(90,72,150,0.6))",
+  ink0:"var(--ink0,#f4f0ff)", ink1:"var(--ink1,#cdc7e0)", ink2:"var(--ink2,#8a82a8)", ink3:"var(--ink3,#4a4468)", ink4:"var(--ink4,#2d2848)",
+  gold:"var(--gold,#f0a500)", goldDim:"var(--gold-dim,rgba(240,165,0,0.10))", goldWire:"var(--gold-wire,rgba(240,165,0,0.28))",
+  gain:"var(--gain,#00e5a0)", gainDim:"var(--gain-dim,rgba(0,229,160,0.08))", gainWire:"var(--gain-wire,rgba(0,229,160,0.22))",
+  loss:"var(--loss,#ff4560)",
 };
 const mono: React.CSSProperties = { fontFamily:"'DM Mono','Courier New',monospace" };
 
