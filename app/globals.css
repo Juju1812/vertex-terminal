@@ -570,21 +570,21 @@ body::after {
 /* ── Light mode theme — Warm Gold Parchment ────────────────── */
 [data-theme="light"] {
   /* Warm parchment backgrounds */
-  --void:        #faf8f2;
-  --abyss:       #f5f1e8;
-  --deep:        #ede8da;
+  --void:        #f5f0e0;
+  --abyss:       #f0eadb;
+  --deep:        #e8e0cc;
   --surface:     #ffffff;
-  --raised:      #f8f5ee;
+  --raised:      #fdfaf0;
 
-  /* Rich colored borders */
-  --border:      rgba(196,120,0,0.18);
-  --border-hi:   rgba(196,120,0,0.35);
+  /* Rich colored borders — strong enough to read on white cards */
+  --border:      rgba(184,110,0,0.28);
+  --border-hi:   rgba(184,110,0,0.50);
 
   /* Gold — slightly darker for light bg */
   --gold:        #b86e00;
   --gold-bright: #d47f00;
   --gold-dim:    rgba(184,110,0,0.10);
-  --gold-wire:   rgba(184,110,0,0.30);
+  --gold-wire:   rgba(184,110,0,0.32);
   --gold-glow:   rgba(184,110,0,0.06);
 
   --ember:       #c44010;
@@ -606,9 +606,20 @@ body::after {
   --loss-dim:    rgba(184,24,48,0.08);
   --loss-wire:   rgba(184,24,48,0.25);
 
-  --shadow-card:  0 2px 12px rgba(100,60,0,0.08), 0 1px 0 rgba(255,255,255,0.95) inset;
-  --shadow-gold:  0 0 20px rgba(184,110,0,0.12), 0 2px 12px rgba(100,60,0,0.10);
-  --shadow-float: 0 8px 40px rgba(100,60,0,0.15), 0 1px 0 rgba(255,255,255,0.95) inset;
+  /* Layered warm shadows — cards genuinely lift off the page */
+  --shadow-card:
+    0 1px 0 rgba(184,110,0,0.06),
+    0 2px 4px rgba(100,60,0,0.04),
+    0 8px 24px rgba(100,60,0,0.10),
+    0 16px 48px rgba(100,60,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.95);
+  --shadow-gold:
+    0 0 24px rgba(184,110,0,0.16),
+    0 4px 20px rgba(100,60,0,0.12);
+  --shadow-float:
+    0 4px 12px rgba(100,60,0,0.08),
+    0 16px 56px rgba(100,60,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.95);
 }
 
 [data-theme="light"] body {
@@ -629,11 +640,11 @@ body::after {
     linear-gradient(90deg, rgba(100,60,0,0.04) 1px, transparent 1px);
 }
 
-/* Cards — warm white with gold border */
+/* Cards — warm ivory with visible gold border */
 [data-theme="light"] .glass {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(250,246,238,0.90) 100%);
-  border-color: rgba(196,120,0,0.18);
-  box-shadow: 0 2px 12px rgba(100,60,0,0.08), 0 1px 0 rgba(255,255,255,0.95) inset;
+  background: linear-gradient(145deg, #ffffff 0%, #fdfaf0 100%);
+  border-color: var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 [data-theme="light"] .skel {
@@ -705,12 +716,18 @@ body::after {
 [data-theme="light"] *[style*="background:rgba(255,255,255,0.035)"] { background: rgba(100,60,0,0.05) !important; }
 [data-theme="light"] *[style*="background:rgba(30,45,64"]           { background: rgba(184,110,0,0.08) !important; }
 
-/* Gradient cards */
+/* Gradient cards — warm ivory with layered shadow + visible gold border */
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.028)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.030)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.032)"] {
-  background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(250,246,238,0.90) 100%) !important;
-  border-color: rgba(196,120,0,0.18) !important;
+  background: linear-gradient(145deg, #ffffff 0%, #fdfaf0 100%) !important;
+  border-color: rgba(184,110,0,0.28) !important;
+  box-shadow:
+    0 1px 0 rgba(184,110,0,0.06),
+    0 2px 4px rgba(100,60,0,0.04),
+    0 8px 24px rgba(100,60,0,0.10),
+    0 16px 48px rgba(100,60,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.95) !important;
 }
 
 /* ── Border overrides ───────────────────────────────────────── */
@@ -721,8 +738,12 @@ body::after {
 [data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.5)"]     { border-color: rgba(196,120,0,0.22) !important; }
 [data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.4)"]     { border-color: rgba(196,120,0,0.18) !important; }
 
-/* Header */
-[data-theme="light"] header { background: rgba(250,248,242,0.97) !important; border-bottom-color: rgba(196,120,0,0.20) !important; }
+/* Header — slightly lifted with stronger bottom border */
+[data-theme="light"] header {
+  background: rgba(245,240,224,0.92) !important;
+  border-bottom-color: rgba(184,110,0,0.32) !important;
+  box-shadow: 0 1px 0 rgba(184,110,0,0.06), 0 4px 24px rgba(100,60,0,0.04) !important;
+}
 
 /* Table headers */
 [data-theme="light"] *[style*="background:rgba(5,8,16,0.8)"],
@@ -746,8 +767,18 @@ body::after {
 [data-theme="light"] *[style*="background:rgba(255,69,96,0.08)"] { background: rgba(184,24,48,0.07) !important; }
 [data-theme="light"] *[style*="background:rgba(232,160,48,0.08)"] { background: rgba(184,110,0,0.08) !important; }
 
-/* Quick select buttons */
-[data-theme="light"] *[style*="background:rgba(255,255,255,0.025)"] { background: rgba(255,255,255,0.8) !important; border-color: rgba(196,120,0,0.18) !important; }
+/* Quick select buttons — readable border + subtle shadow */
+[data-theme="light"] *[style*="background:rgba(255,255,255,0.025)"] {
+  background: #ffffff !important;
+  border-color: rgba(184,110,0,0.28) !important;
+  box-shadow: 0 1px 3px rgba(100,60,0,0.06), 0 2px 8px rgba(100,60,0,0.04) !important;
+}
+
+/* Stat micro-cards inside chart panel */
+[data-theme="light"] *[style*="background:rgba(255,255,255,0.03)"] {
+  background: #ffffff !important;
+  border-color: rgba(184,110,0,0.22) !important;
+}
 
 /* Index strip */
 [data-theme="light"] *[style*="background:rgba(5,4,7,0.95)"] { background: rgba(250,248,242,0.97) !important; }
