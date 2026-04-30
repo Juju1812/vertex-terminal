@@ -7,6 +7,154 @@ const POLYGON_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PR
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const POLYGON_BASE = "https://api.polygon.io";
 
+/* ---- Wide universe for pre-screen pipeline ----------------
+   Server-side only (not shipped to client). ~250 liquid US
+   stocks across all major sectors, used as the input pool when
+   the client requests the wide-mode analysis (`wide: true`).
+   The pre-screen stage filters this down to ~30 active names
+   which then go through the full Claude pipeline.
+   To extend: add tickers — order doesn't matter, sector field
+   only used for display. */
+const WIDE_UNI: { t: string; n: string; s: string }[] = [
+  // Mega-cap Tech
+  {t:"NVDA",n:"NVIDIA Corp.",s:"Technology"},{t:"MSFT",n:"Microsoft Corp.",s:"Technology"},
+  {t:"AAPL",n:"Apple Inc.",s:"Technology"},{t:"META",n:"Meta Platforms",s:"Technology"},
+  {t:"GOOGL",n:"Alphabet Inc.",s:"Technology"},{t:"GOOG",n:"Alphabet Class C",s:"Technology"},
+  {t:"AMD",n:"Advanced Micro Dev.",s:"Technology"},{t:"AVGO",n:"Broadcom Inc.",s:"Technology"},
+  {t:"ORCL",n:"Oracle Corp.",s:"Technology"},{t:"CRM",n:"Salesforce Inc.",s:"Technology"},
+  {t:"NOW",n:"ServiceNow Inc.",s:"Technology"},{t:"ADBE",n:"Adobe Inc.",s:"Technology"},
+  {t:"INTC",n:"Intel Corp.",s:"Technology"},{t:"QCOM",n:"Qualcomm Inc.",s:"Technology"},
+  {t:"INTU",n:"Intuit Inc.",s:"Technology"},{t:"IBM",n:"IBM Corp.",s:"Technology"},
+  {t:"CSCO",n:"Cisco Systems",s:"Technology"},{t:"ACN",n:"Accenture plc",s:"Technology"},
+  // Semis
+  {t:"AMAT",n:"Applied Materials",s:"Technology"},{t:"LRCX",n:"Lam Research",s:"Technology"},
+  {t:"KLAC",n:"KLA Corp.",s:"Technology"},{t:"MU",n:"Micron Technology",s:"Technology"},
+  {t:"ARM",n:"Arm Holdings",s:"Technology"},{t:"MRVL",n:"Marvell Technology",s:"Technology"},
+  {t:"NXPI",n:"NXP Semiconductors",s:"Technology"},{t:"ON",n:"ON Semiconductor",s:"Technology"},
+  {t:"ADI",n:"Analog Devices",s:"Technology"},{t:"MCHP",n:"Microchip Technology",s:"Technology"},
+  {t:"SMCI",n:"Super Micro",s:"Technology"},
+  // Cloud / Cyber / SaaS
+  {t:"PLTR",n:"Palantir Tech.",s:"Technology"},{t:"CRWD",n:"CrowdStrike",s:"Technology"},
+  {t:"PANW",n:"Palo Alto Networks",s:"Technology"},{t:"ZS",n:"Zscaler Inc.",s:"Technology"},
+  {t:"FTNT",n:"Fortinet Inc.",s:"Technology"},{t:"OKTA",n:"Okta Inc.",s:"Technology"},
+  {t:"NET",n:"Cloudflare Inc.",s:"Technology"},{t:"SNOW",n:"Snowflake Inc.",s:"Technology"},
+  {t:"DDOG",n:"Datadog Inc.",s:"Technology"},{t:"ANET",n:"Arista Networks",s:"Technology"},
+  {t:"WDAY",n:"Workday Inc.",s:"Technology"},{t:"S",n:"SentinelOne",s:"Technology"},
+  {t:"MDB",n:"MongoDB Inc.",s:"Technology"},{t:"TWLO",n:"Twilio Inc.",s:"Technology"},
+  {t:"TEAM",n:"Atlassian",s:"Technology"},{t:"CDNS",n:"Cadence Design",s:"Technology"},
+  {t:"SNPS",n:"Synopsys Inc.",s:"Technology"},{t:"VEEV",n:"Veeva Systems",s:"Technology"},
+  {t:"ESTC",n:"Elastic NV",s:"Technology"},{t:"AI",n:"C3.ai Inc.",s:"Technology"},
+  {t:"SHOP",n:"Shopify Inc.",s:"Technology"},{t:"PYPL",n:"PayPal Holdings",s:"Financials"},
+  {t:"SQ",n:"Block Inc.",s:"Financials"},{t:"ROKU",n:"Roku Inc.",s:"Technology"},
+  {t:"SPOT",n:"Spotify Tech.",s:"Consumer"},{t:"PINS",n:"Pinterest Inc.",s:"Technology"},
+  {t:"SNAP",n:"Snap Inc.",s:"Technology"},{t:"RBLX",n:"Roblox Corp.",s:"Technology"},
+  {t:"ZM",n:"Zoom Video",s:"Technology"},{t:"DOCU",n:"DocuSign Inc.",s:"Technology"},
+  // Financials
+  {t:"BRK.B",n:"Berkshire Hathaway B",s:"Financials"},{t:"JPM",n:"JPMorgan Chase",s:"Financials"},
+  {t:"V",n:"Visa Inc.",s:"Financials"},{t:"MA",n:"Mastercard Inc.",s:"Financials"},
+  {t:"BAC",n:"Bank of America",s:"Financials"},{t:"WFC",n:"Wells Fargo",s:"Financials"},
+  {t:"C",n:"Citigroup",s:"Financials"},{t:"GS",n:"Goldman Sachs",s:"Financials"},
+  {t:"MS",n:"Morgan Stanley",s:"Financials"},{t:"BLK",n:"BlackRock",s:"Financials"},
+  {t:"BX",n:"Blackstone Inc.",s:"Financials"},{t:"KKR",n:"KKR & Co.",s:"Financials"},
+  {t:"AXP",n:"American Express",s:"Financials"},{t:"SCHW",n:"Charles Schwab",s:"Financials"},
+  {t:"COF",n:"Capital One",s:"Financials"},{t:"USB",n:"US Bancorp",s:"Financials"},
+  {t:"PNC",n:"PNC Financial",s:"Financials"},{t:"TFC",n:"Truist Financial",s:"Financials"},
+  {t:"COIN",n:"Coinbase Global",s:"Financials"},{t:"HOOD",n:"Robinhood Markets",s:"Financials"},
+  {t:"SOFI",n:"SoFi Technologies",s:"Financials"},{t:"PGR",n:"Progressive Corp.",s:"Financials"},
+  {t:"CB",n:"Chubb Limited",s:"Financials"},{t:"AIG",n:"American International",s:"Financials"},
+  {t:"MET",n:"MetLife Inc.",s:"Financials"},{t:"PRU",n:"Prudential Financial",s:"Financials"},
+  {t:"SPGI",n:"S&P Global",s:"Financials"},{t:"MCO",n:"Moody's Corp.",s:"Financials"},
+  {t:"ICE",n:"Intercontinental Exch.",s:"Financials"},{t:"CME",n:"CME Group",s:"Financials"},
+  // Consumer Discretionary
+  {t:"AMZN",n:"Amazon.com",s:"Consumer"},{t:"TSLA",n:"Tesla Inc.",s:"Consumer"},
+  {t:"HD",n:"Home Depot",s:"Consumer"},{t:"LOW",n:"Lowe's Cos.",s:"Consumer"},
+  {t:"NKE",n:"Nike Inc.",s:"Consumer"},{t:"SBUX",n:"Starbucks Corp.",s:"Consumer"},
+  {t:"MCD",n:"McDonald's Corp.",s:"Consumer"},{t:"DIS",n:"Walt Disney Co.",s:"Consumer"},
+  {t:"NFLX",n:"Netflix Inc.",s:"Consumer"},{t:"ABNB",n:"Airbnb Inc.",s:"Consumer"},
+  {t:"UBER",n:"Uber Technologies",s:"Consumer"},{t:"LYFT",n:"Lyft Inc.",s:"Consumer"},
+  {t:"DASH",n:"DoorDash Inc.",s:"Consumer"},{t:"BKNG",n:"Booking Holdings",s:"Consumer"},
+  {t:"MAR",n:"Marriott Intl.",s:"Consumer"},{t:"HLT",n:"Hilton Worldwide",s:"Consumer"},
+  {t:"F",n:"Ford Motor Co.",s:"Consumer"},{t:"GM",n:"General Motors",s:"Consumer"},
+  {t:"RIVN",n:"Rivian Automotive",s:"Consumer"},{t:"LCID",n:"Lucid Group",s:"Consumer"},
+  {t:"YUM",n:"Yum! Brands",s:"Consumer"},{t:"CMG",n:"Chipotle",s:"Consumer"},
+  {t:"TJX",n:"TJX Companies",s:"Consumer"},{t:"ROST",n:"Ross Stores",s:"Consumer"},
+  {t:"ULTA",n:"Ulta Beauty",s:"Consumer"},{t:"BBY",n:"Best Buy",s:"Consumer"},
+  {t:"LULU",n:"Lululemon",s:"Consumer"},{t:"GME",n:"GameStop",s:"Consumer"},
+  {t:"AMC",n:"AMC Entertainment",s:"Consumer"},
+  // Consumer Staples
+  {t:"COST",n:"Costco Wholesale",s:"Consumer"},{t:"WMT",n:"Walmart Inc.",s:"Consumer"},
+  {t:"TGT",n:"Target Corp.",s:"Consumer"},{t:"KO",n:"Coca-Cola Co.",s:"Consumer"},
+  {t:"PEP",n:"PepsiCo Inc.",s:"Consumer"},{t:"PG",n:"Procter & Gamble",s:"Consumer"},
+  {t:"PM",n:"Philip Morris",s:"Consumer"},{t:"MO",n:"Altria Group",s:"Consumer"},
+  {t:"MDLZ",n:"Mondelez Intl.",s:"Consumer"},{t:"CL",n:"Colgate-Palmolive",s:"Consumer"},
+  // Communication
+  {t:"T",n:"AT&T Inc.",s:"Consumer"},{t:"VZ",n:"Verizon Communications",s:"Consumer"},
+  {t:"TMUS",n:"T-Mobile US",s:"Consumer"},{t:"CMCSA",n:"Comcast Corp.",s:"Consumer"},
+  // Healthcare
+  {t:"UNH",n:"UnitedHealth Group",s:"Healthcare"},{t:"LLY",n:"Eli Lilly & Co.",s:"Healthcare"},
+  {t:"JNJ",n:"Johnson & Johnson",s:"Healthcare"},{t:"MRK",n:"Merck & Co.",s:"Healthcare"},
+  {t:"ABBV",n:"AbbVie Inc.",s:"Healthcare"},{t:"PFE",n:"Pfizer Inc.",s:"Healthcare"},
+  {t:"TMO",n:"Thermo Fisher Sci.",s:"Healthcare"},{t:"GILD",n:"Gilead Sciences",s:"Healthcare"},
+  {t:"BMY",n:"Bristol-Myers Squibb",s:"Healthcare"},{t:"CVS",n:"CVS Health",s:"Healthcare"},
+  {t:"AMGN",n:"Amgen Inc.",s:"Healthcare"},{t:"MRNA",n:"Moderna Inc.",s:"Healthcare"},
+  {t:"NVO",n:"Novo Nordisk (ADR)",s:"Healthcare"},{t:"RHHBY",n:"Roche Holding (ADR)",s:"Healthcare"},
+  {t:"DHR",n:"Danaher Corp.",s:"Healthcare"},{t:"ABT",n:"Abbott Labs",s:"Healthcare"},
+  {t:"ISRG",n:"Intuitive Surgical",s:"Healthcare"},{t:"REGN",n:"Regeneron Pharma.",s:"Healthcare"},
+  {t:"VRTX",n:"Vertex Pharma.",s:"Healthcare"},{t:"BIIB",n:"Biogen Inc.",s:"Healthcare"},
+  {t:"HCA",n:"HCA Healthcare",s:"Healthcare"},{t:"ELV",n:"Elevance Health",s:"Healthcare"},
+  {t:"HUM",n:"Humana Inc.",s:"Healthcare"},{t:"CI",n:"Cigna Group",s:"Healthcare"},
+  {t:"ZTS",n:"Zoetis Inc.",s:"Healthcare"},
+  // Industrials
+  {t:"CAT",n:"Caterpillar Inc.",s:"Industrials"},{t:"BA",n:"Boeing Co.",s:"Industrials"},
+  {t:"GE",n:"General Electric",s:"Industrials"},{t:"HON",n:"Honeywell Intl.",s:"Industrials"},
+  {t:"LMT",n:"Lockheed Martin",s:"Industrials"},{t:"RTX",n:"RTX Corp.",s:"Industrials"},
+  {t:"NOC",n:"Northrop Grumman",s:"Industrials"},{t:"GD",n:"General Dynamics",s:"Industrials"},
+  {t:"DE",n:"Deere & Company",s:"Industrials"},{t:"UPS",n:"United Parcel Service",s:"Industrials"},
+  {t:"FDX",n:"FedEx Corp.",s:"Industrials"},{t:"UNP",n:"Union Pacific",s:"Industrials"},
+  {t:"CSX",n:"CSX Corp.",s:"Industrials"},{t:"NSC",n:"Norfolk Southern",s:"Industrials"},
+  {t:"EMR",n:"Emerson Electric",s:"Industrials"},{t:"ETN",n:"Eaton Corp.",s:"Industrials"},
+  {t:"ITW",n:"Illinois Tool Works",s:"Industrials"},{t:"CARR",n:"Carrier Global",s:"Industrials"},
+  // Energy
+  {t:"XOM",n:"ExxonMobil Corp.",s:"Energy"},{t:"CVX",n:"Chevron Corp.",s:"Energy"},
+  {t:"COP",n:"ConocoPhillips",s:"Energy"},{t:"OXY",n:"Occidental Petroleum",s:"Energy"},
+  {t:"EOG",n:"EOG Resources",s:"Energy"},{t:"SLB",n:"Schlumberger",s:"Energy"},
+  {t:"PSX",n:"Phillips 66",s:"Energy"},{t:"MPC",n:"Marathon Petroleum",s:"Energy"},
+  {t:"VLO",n:"Valero Energy",s:"Energy"},{t:"KMI",n:"Kinder Morgan",s:"Energy"},
+  {t:"ENPH",n:"Enphase Energy",s:"Energy"},{t:"FSLR",n:"First Solar",s:"Energy"},
+  // Materials
+  {t:"LIN",n:"Linde plc",s:"Materials"},{t:"APD",n:"Air Products",s:"Materials"},
+  {t:"SHW",n:"Sherwin-Williams",s:"Materials"},{t:"ECL",n:"Ecolab Inc.",s:"Materials"},
+  {t:"NEM",n:"Newmont Corp.",s:"Materials"},{t:"FCX",n:"Freeport-McMoRan",s:"Materials"},
+  {t:"NUE",n:"Nucor Corp.",s:"Materials"},{t:"X",n:"US Steel",s:"Materials"},
+  {t:"CLF",n:"Cleveland-Cliffs",s:"Materials"},{t:"AA",n:"Alcoa Corp.",s:"Materials"},
+  {t:"ACMIF",n:"Allied Critical Metals",s:"Materials"},{t:"CRCUF",n:"Calibre Mining",s:"Materials"},
+  // Utilities
+  {t:"NEE",n:"NextEra Energy",s:"Utilities"},{t:"DUK",n:"Duke Energy",s:"Utilities"},
+  {t:"SO",n:"Southern Company",s:"Utilities"},{t:"AEP",n:"American Electric Power",s:"Utilities"},
+  {t:"D",n:"Dominion Energy",s:"Utilities"},{t:"EXC",n:"Exelon Corp.",s:"Utilities"},
+  {t:"XEL",n:"Xcel Energy",s:"Utilities"},{t:"SRE",n:"Sempra",s:"Utilities"},
+  // REITs
+  {t:"PLD",n:"Prologis Inc.",s:"REITs"},{t:"AMT",n:"American Tower",s:"REITs"},
+  {t:"EQIX",n:"Equinix Inc.",s:"REITs"},{t:"SPG",n:"Simon Property Group",s:"REITs"},
+  {t:"O",n:"Realty Income",s:"REITs"},{t:"WELL",n:"Welltower Inc.",s:"REITs"},
+  {t:"PSA",n:"Public Storage",s:"REITs"},{t:"DLR",n:"Digital Realty",s:"REITs"},
+  // International (ADRs)
+  {t:"TSM",n:"Taiwan Semi (ADR)",s:"Technology"},{t:"ASML",n:"ASML Holding (ADR)",s:"Technology"},
+  {t:"SAP",n:"SAP SE (ADR)",s:"Technology"},{t:"TCEHY",n:"Tencent Holdings (ADR)",s:"Technology"},
+  {t:"BABA",n:"Alibaba Group (ADR)",s:"Consumer"},{t:"BIDU",n:"Baidu Inc. (ADR)",s:"Technology"},
+  {t:"JD",n:"JD.com (ADR)",s:"Consumer"},{t:"PDD",n:"PDD Holdings (ADR)",s:"Consumer"},
+  {t:"NIO",n:"NIO Inc. (ADR)",s:"Consumer"},{t:"XPEV",n:"XPeng (ADR)",s:"Consumer"},
+  {t:"LI",n:"Li Auto (ADR)",s:"Consumer"},{t:"SONY",n:"Sony Group (ADR)",s:"Consumer"},
+  {t:"TM",n:"Toyota Motor (ADR)",s:"Consumer"},{t:"NSRGY",n:"Nestle SA (ADR)",s:"Consumer"},
+  {t:"AZN",n:"AstraZeneca (ADR)",s:"Healthcare"},{t:"NVS",n:"Novartis (ADR)",s:"Healthcare"},
+  // Crypto-adjacent / Speculative
+  {t:"MSTR",n:"MicroStrategy Inc.",s:"Technology"},{t:"GBTC",n:"Grayscale Bitcoin Trust",s:"Financials"},
+  {t:"MARA",n:"Marathon Digital",s:"Financials"},{t:"RIOT",n:"Riot Platforms",s:"Financials"},
+  {t:"CLSK",n:"CleanSpark Inc.",s:"Financials"},{t:"HUT",n:"Hut 8 Mining",s:"Financials"},
+  {t:"BITF",n:"Bitfarms Ltd.",s:"Financials"},{t:"BTQQF",n:"BTQ Technologies",s:"Technology"},
+  {t:"SIRI",n:"Sirius XM Holdings",s:"Consumer"},{t:"NKLA",n:"Nikola Corp.",s:"Consumer"},
+];
+
 /* ---- Server-side cache (shared across all devices) ---------- */
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 let serverCache: { stocks: unknown[]; analyzedAt: string; expiresAt: number } | null = null;
@@ -349,6 +497,81 @@ If the data genuinely supports it, more bearish picks are welcome. Do not give e
   }
 }
 
+/* ---- Pre-screen: rank a wide universe by snapshot heuristics
+   to find the ~30 most "active" candidates worth deep AI analysis.
+   Heuristics use only data available from a bulk-snapshot call
+   (no per-ticker API calls), so this stage is essentially free
+   in latency and cost regardless of universe size.
+
+   Score components (higher = more interesting to analyze):
+   - abs(changePct) * 2          big moves matter (up or down)
+   - min(volumeRatio, 5) * 5      volume surge vs prev day (capped)
+   - intradayRange %              today's volatility
+   - abs(closeStrength - 0.5)*10  closes strong (near high) or weak
+                                  (near low) — both are signals
+   - abs(gap %)                   overnight news / catalysts
+*/
+interface PreScreenSnap {
+  ticker: string;
+  day:     { c: number; o: number; h: number; l: number; v: number };
+  prevDay: { c: number; v?: number };
+}
+
+async function preScreen(
+  universe: { t: string; n: string; s: string }[],
+  topN = 30,
+): Promise<{ tickers: { t: string; n: string; s: string }[]; totalScreened: number }> {
+  // Polygon's bulk snapshot accepts comma-separated tickers in the URL.
+  // 250 tickers × ~7 chars = ~1750 char URL — well under the practical
+  // ~2000 char limit. If the universe grows past ~280 we'd need to chunk.
+  const tickerCsv = universe.map(t => t.t).join(",");
+  const r = await fetch(
+    `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickerCsv}&apiKey=${POLYGON_KEY}`
+  ).catch(() => null);
+  if (!r || !r.ok) {
+    console.warn("[preScreen] snapshot fetch failed, falling back to first N");
+    return { tickers: universe.slice(0, topN), totalScreened: 0 };
+  }
+  const data = await r.json() as { tickers?: PreScreenSnap[] };
+  const snaps = data.tickers ?? [];
+
+  // Build lookup map for the static metadata (name, sector)
+  const meta = new Map(universe.map(u => [u.t, u]));
+
+  // Score each ticker that has usable snapshot data
+  type Scored = { t: string; n: string; s: string; score: number };
+  const scored: Scored[] = [];
+  for (const snap of snaps) {
+    const m = meta.get(snap.ticker);
+    if (!m) continue;
+    const day = snap.day, prev = snap.prevDay;
+    if (!day?.c || !prev?.c) continue;
+
+    const changePct = (day.c - prev.c) / prev.c * 100;
+    const volRatio  = prev.v && prev.v > 0 ? day.v / prev.v : 1;
+    const range     = day.h > day.l ? (day.h - day.l) / day.o * 100 : 0;
+    const closePos  = day.h > day.l ? (day.c - day.l) / (day.h - day.l) : 0.5;
+    const gapPct    = (day.o - prev.c) / prev.c * 100;
+
+    const score =
+      Math.abs(changePct) * 2 +
+      Math.min(volRatio, 5) * 5 +
+      range +
+      Math.abs(closePos - 0.5) * 10 +
+      Math.abs(gapPct);
+
+    scored.push({ t: m.t, n: m.n, s: m.s, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.slice(0, topN);
+  console.log(`[preScreen] screened ${scored.length}/${universe.length} stocks, top ${top.length} candidates: ${top.map(x => x.t).join(", ")}`);
+  return {
+    tickers: top.map(({ t, n, s }) => ({ t, n, s })),
+    totalScreened: scored.length,
+  };
+}
+
 /* ---- Score calculation ------------------------------------- */
 function calcScore(
   rsi: number, momentum5d: number, momentum20d: number,
@@ -372,7 +595,12 @@ function calcScore(
 /* ---- Main API handler -------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
-    const { tickers, force } = await req.json() as { tickers: { t: string; n: string; s: string }[]; force?: boolean };
+    const body = await req.json() as {
+      tickers?: { t: string; n: string; s: string }[];
+      force?: boolean;
+      wide?: boolean;
+    };
+    const { tickers: clientTickers, force, wide } = body;
 
     if (!ANTHROPIC_KEY) {
       return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
@@ -387,6 +615,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Pre-screen pipeline: filter the WIDE_UNI down to ~30 most active
+    // names before running the expensive Claude analysis. Falls back to
+    // client-provided tickers if `wide` flag isn't set (legacy path).
+    let tickers: { t: string; n: string; s: string }[];
+    let preScreenInfo: { totalScreened: number } | null = null;
+    if (wide) {
+      const result = await preScreen(WIDE_UNI, 30);
+      tickers = result.tickers;
+      preScreenInfo = { totalScreened: result.totalScreened };
+      console.log(`[analyze] wide mode: pre-screened ${result.totalScreened} stocks → ${tickers.length} candidates`);
+    } else {
+      tickers = clientTickers ?? [];
+    }
+    if (!tickers.length) {
+      return NextResponse.json({ error: "No tickers to analyze" }, { status: 400 });
+    }
     const tickerList = tickers.map(t => t.t);
 
     // Step 1: Bulk snapshot for ALL tickers in ONE request (fast)
@@ -520,7 +764,13 @@ export async function POST(req: NextRequest) {
     const finalStocks = stocks.slice(0, 15);
     const analyzedAt = new Date().toISOString();
     setCache(finalStocks, analyzedAt);
-    return NextResponse.json({ stocks: finalStocks, analyzedAt });
+    return NextResponse.json({
+      stocks: finalStocks,
+      analyzedAt,
+      preScreen: preScreenInfo
+        ? { totalScreened: preScreenInfo.totalScreened, candidatesAnalyzed: tickers.length }
+        : undefined,
+    });
 
   } catch (err) {
     console.error("Analyze error:", err);

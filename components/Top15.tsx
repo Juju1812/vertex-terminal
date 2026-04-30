@@ -556,13 +556,26 @@ export default function Top15({ onSelectTicker }: Top15Props) {
   const runAnalysis = useCallback(async (force = false) => {
     setAnalyzing(true);
     try {
+      // wide:true triggers the server-side pre-screen pipeline:
+      // ~250 liquid stocks scored by snapshot heuristics, top 30
+      // candidates sent to Claude for deep analysis. Strictly
+      // better than client-supplied UNI: wider coverage, lower
+      // cost, faster runtime.
       const r = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickers: UNI, force }),
+        body: JSON.stringify({ wide: true, force }),
       });
       if (!r.ok) throw new Error("Analysis failed");
-      const d = await r.json() as { stocks: Stock[]; analyzedAt: string; fromCache?: boolean };
+      const d = await r.json() as {
+        stocks: Stock[];
+        analyzedAt: string;
+        fromCache?: boolean;
+        preScreen?: { totalScreened: number; candidatesAnalyzed: number };
+      };
+      if (d.preScreen) {
+        console.log(`[arbibx] pre-screened ${d.preScreen.totalScreened} stocks → analyzed top ${d.preScreen.candidatesAnalyzed} candidates`);
+      }
       if (d.stocks?.length) {
         setStocks(d.stocks);
         saveCache(d.stocks, d.analyzedAt);
@@ -618,8 +631,8 @@ export default function Top15({ onSelectTicker }: Top15Props) {
       <div style={{ ...glass({ padding:20, display:"flex", alignItems:"center", gap:14 }) }}>
         <Brain size={22} color="#9B72F5" />
         <div>
-          <p style={{ color:"var(--ink0,#F2F6FF)", fontWeight:600, fontSize:14, margin:0 }}>AI is analyzing {UNI.length} stocks...</p>
-          <p style={{ color:"var(--ink3,#3D5A7A)", fontSize:12, margin:0, marginTop:4 }}>Fetching price data, news, and running Claude analysis. This takes ~20-30 seconds.</p>
+          <p style={{ color:"var(--ink0,#F2F6FF)", fontWeight:600, fontSize:14, margin:0 }}>AI is screening 250+ stocks for the best opportunities…</p>
+          <p style={{ color:"var(--ink3,#3D5A7A)", fontSize:12, margin:0, marginTop:4 }}>Pre-screening by momentum, volume, and breakout signals → deep AI analysis on the top 30 candidates. Takes ~25-35 seconds.</p>
         </div>
       </div>
       {[200, 60, 60, 60, 60, 60].map((h, i) => (
