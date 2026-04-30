@@ -30,8 +30,14 @@ interface Alloc {
 
 interface Top15Props { onSelectTicker?: (ticker: string) => void; }
 
-/* ---- Universe of 60 stocks --------------------------------- */
+/* ---- Universe of ~100 stocks ---------------------------------
+   Expanded from 57 to ~102 to cover sectors that were thin or
+   missing: industrials, communication services, consumer staples,
+   semis/cloud equipment, REITs/utilities-adjacent, additional
+   financials and healthcare giants, and more high-vol movers.
+   Order is roughly grouped by sector for readability. */
 const UNI = [
+  /* ── Mega-cap Tech ── */
   { t:"NVDA",  n:"NVIDIA Corp.",           s:"Technology"  },
   { t:"MSFT",  n:"Microsoft Corp.",         s:"Technology"  },
   { t:"AAPL",  n:"Apple Inc.",              s:"Technology"  },
@@ -45,55 +51,122 @@ const UNI = [
   { t:"ADBE",  n:"Adobe Inc.",              s:"Technology"  },
   { t:"INTC",  n:"Intel Corp.",             s:"Technology"  },
   { t:"QCOM",  n:"Qualcomm Inc.",           s:"Technology"  },
+  { t:"INTU",  n:"Intuit Inc.",             s:"Technology"  },
+  /* ── Semis (additions) ── */
+  { t:"AMAT",  n:"Applied Materials",       s:"Technology"  },
+  { t:"LRCX",  n:"Lam Research",            s:"Technology"  },
+  { t:"KLAC",  n:"KLA Corp.",               s:"Technology"  },
+  { t:"MU",    n:"Micron Technology",       s:"Technology"  },
+  { t:"ARM",   n:"Arm Holdings",            s:"Technology"  },
+  /* ── Cloud / Cyber / SaaS ── */
+  { t:"PLTR",  n:"Palantir Tech.",          s:"Technology"  },
+  { t:"CRWD",  n:"CrowdStrike",             s:"Technology"  },
+  { t:"PANW",  n:"Palo Alto Networks",      s:"Technology"  },
+  { t:"ZS",    n:"Zscaler Inc.",            s:"Technology"  },
+  { t:"NET",   n:"Cloudflare Inc.",         s:"Technology"  },
+  { t:"SNOW",  n:"Snowflake Inc.",          s:"Technology"  },
+  { t:"DDOG",  n:"Datadog Inc.",            s:"Technology"  },
+  { t:"ANET",  n:"Arista Networks",         s:"Technology"  },
+  { t:"WDAY",  n:"Workday Inc.",            s:"Technology"  },
+  { t:"S",     n:"SentinelOne",             s:"Technology"  },
+  /* ── Financials (mega-cap + high-vol) ── */
   { t:"JPM",   n:"JPMorgan Chase",          s:"Financials"  },
   { t:"V",     n:"Visa Inc.",               s:"Financials"  },
   { t:"MA",    n:"Mastercard Inc.",         s:"Financials"  },
   { t:"BAC",   n:"Bank of America",         s:"Financials"  },
+  { t:"WFC",   n:"Wells Fargo",             s:"Financials"  },
+  { t:"C",     n:"Citigroup",               s:"Financials"  },
   { t:"GS",    n:"Goldman Sachs",           s:"Financials"  },
+  { t:"MS",    n:"Morgan Stanley",          s:"Financials"  },
+  { t:"BLK",   n:"BlackRock",               s:"Financials"  },
+  { t:"BX",    n:"Blackstone Inc.",         s:"Financials"  },
+  { t:"AXP",   n:"American Express",        s:"Financials"  },
+  { t:"SCHW",  n:"Charles Schwab",          s:"Financials"  },
   { t:"COIN",  n:"Coinbase Global",         s:"Financials"  },
+  { t:"HOOD",  n:"Robinhood Markets",       s:"Financials"  },
+  { t:"SOFI",  n:"SoFi Technologies",       s:"Financials"  },
+  /* ── Consumer Discretionary ── */
   { t:"AMZN",  n:"Amazon.com",              s:"Consumer"    },
   { t:"TSLA",  n:"Tesla Inc.",              s:"Consumer"    },
+  { t:"HD",    n:"Home Depot",              s:"Consumer"    },
+  { t:"LOW",   n:"Lowe's Cos.",             s:"Consumer"    },
   { t:"NKE",   n:"Nike Inc.",               s:"Consumer"    },
   { t:"SBUX",  n:"Starbucks Corp.",         s:"Consumer"    },
+  { t:"MCD",   n:"McDonald's Corp.",        s:"Consumer"    },
+  { t:"DIS",   n:"Walt Disney Co.",         s:"Consumer"    },
+  { t:"NFLX",  n:"Netflix Inc.",            s:"Consumer"    },
+  { t:"ABNB",  n:"Airbnb Inc.",             s:"Consumer"    },
+  { t:"UBER",  n:"Uber Technologies",       s:"Consumer"    },
+  { t:"F",     n:"Ford Motor Co.",          s:"Consumer"    },
   { t:"RIVN",  n:"Rivian Automotive",       s:"Consumer"    },
   { t:"LCID",  n:"Lucid Group",             s:"Consumer"    },
+  /* ── Consumer Staples ── */
+  { t:"COST",  n:"Costco Wholesale",        s:"Consumer"    },
+  { t:"WMT",   n:"Walmart Inc.",            s:"Consumer"    },
+  { t:"TGT",   n:"Target Corp.",            s:"Consumer"    },
+  { t:"KO",    n:"Coca-Cola Co.",           s:"Consumer"    },
+  { t:"PEP",   n:"PepsiCo Inc.",            s:"Consumer"    },
+  /* ── Communication Services ── */
+  { t:"T",     n:"AT&T Inc.",               s:"Consumer"    },
+  { t:"VZ",    n:"Verizon Communications",  s:"Consumer"    },
+  { t:"TMUS",  n:"T-Mobile US",             s:"Consumer"    },
+  /* ── Healthcare ── */
   { t:"UNH",   n:"UnitedHealth Group",      s:"Healthcare"  },
   { t:"LLY",   n:"Eli Lilly & Co.",         s:"Healthcare"  },
-  { t:"PFE",   n:"Pfizer Inc.",             s:"Healthcare"  },
-  { t:"MRNA",  n:"Moderna Inc.",            s:"Healthcare"  },
+  { t:"JNJ",   n:"Johnson & Johnson",       s:"Healthcare"  },
+  { t:"MRK",   n:"Merck & Co.",             s:"Healthcare"  },
   { t:"ABBV",  n:"AbbVie Inc.",             s:"Healthcare"  },
+  { t:"PFE",   n:"Pfizer Inc.",             s:"Healthcare"  },
+  { t:"TMO",   n:"Thermo Fisher Sci.",      s:"Healthcare"  },
+  { t:"GILD",  n:"Gilead Sciences",         s:"Healthcare"  },
+  { t:"BMY",   n:"Bristol-Myers Squibb",    s:"Healthcare"  },
+  { t:"CVS",   n:"CVS Health",              s:"Healthcare"  },
+  { t:"MRNA",  n:"Moderna Inc.",            s:"Healthcare"  },
   { t:"NVO",   n:"Novo Nordisk (ADR)",      s:"Healthcare"  },
-  { t:"PLTR",  n:"Palantir Tech.",          s:"Technology"  },
-  { t:"CRWD",  n:"CrowdStrike",             s:"Technology"  },
-  { t:"PANW",  n:"Palo Alto Networks",      s:"Technology"  },
-  { t:"S",     n:"SentinelOne",             s:"Technology"  },
-  { t:"NET",   n:"Cloudflare Inc.",         s:"Technology"  },
-  { t:"SNOW",  n:"Snowflake Inc.",          s:"Technology"  },
+  { t:"RHHBY", n:"Roche Holding (ADR)",     s:"Healthcare"  },
+  /* ── Industrials ── */
+  { t:"CAT",   n:"Caterpillar Inc.",        s:"Industrials" },
+  { t:"BA",    n:"Boeing Co.",              s:"Industrials" },
+  { t:"GE",    n:"General Electric",        s:"Industrials" },
+  { t:"HON",   n:"Honeywell Intl.",         s:"Industrials" },
+  { t:"LMT",   n:"Lockheed Martin",         s:"Industrials" },
+  { t:"RTX",   n:"RTX Corp.",               s:"Industrials" },
+  { t:"DE",    n:"Deere & Company",         s:"Industrials" },
+  /* ── Energy ── */
   { t:"XOM",   n:"ExxonMobil Corp.",        s:"Energy"      },
   { t:"CVX",   n:"Chevron Corp.",           s:"Energy"      },
+  { t:"COP",   n:"ConocoPhillips",          s:"Energy"      },
   { t:"OXY",   n:"Occidental Petroleum",    s:"Energy"      },
-  { t:"TCEHY", n:"Tencent Holdings (ADR)",  s:"Technology"  },
-  { t:"BABA",  n:"Alibaba Group (ADR)",     s:"Consumer"    },
-  { t:"BIDU",  n:"Baidu Inc. (ADR)",        s:"Technology"  },
+  { t:"ENPH",  n:"Enphase Energy",          s:"Energy"      },
+  /* ── Materials ── */
+  { t:"NEM",   n:"Newmont Corp.",           s:"Materials"   },
+  { t:"FCX",   n:"Freeport-McMoRan",        s:"Materials"   },
+  { t:"ACMIF", n:"Allied Critical Metals",  s:"Materials"   },
+  { t:"CRCUF", n:"Calibre Mining",          s:"Materials"   },
+  /* ── International (ADRs) ── */
   { t:"TSM",   n:"Taiwan Semi (ADR)",       s:"Technology"  },
   { t:"ASML",  n:"ASML Holding (ADR)",      s:"Technology"  },
   { t:"SAP",   n:"SAP SE (ADR)",            s:"Technology"  },
+  { t:"TCEHY", n:"Tencent Holdings (ADR)",  s:"Technology"  },
+  { t:"BABA",  n:"Alibaba Group (ADR)",     s:"Consumer"    },
+  { t:"BIDU",  n:"Baidu Inc. (ADR)",        s:"Technology"  },
   { t:"SONY",  n:"Sony Group (ADR)",        s:"Consumer"    },
   { t:"TM",    n:"Toyota Motor (ADR)",      s:"Consumer"    },
   { t:"NSRGY", n:"Nestle SA (ADR)",         s:"Consumer"    },
-  { t:"RHHBY", n:"Roche Holding (ADR)",     s:"Healthcare"  },
-  { t:"ACMIF", n:"Allied Critical Metals",  s:"Materials"   },
-  { t:"BTQQF", n:"BTQ Technologies",        s:"Technology"  },
-  { t:"CRCUF", n:"Calibre Mining",          s:"Materials"   },
-  { t:"GBTC",  n:"Grayscale Bitcoin Trust", s:"Financials"  },
+  /* ── Crypto-adjacent / Speculative high-vol ── */
   { t:"MSTR",  n:"MicroStrategy Inc.",      s:"Technology"  },
+  { t:"GBTC",  n:"Grayscale Bitcoin Trust", s:"Financials"  },
+  { t:"MARA",  n:"Marathon Digital",        s:"Financials"  },
+  { t:"RIOT",  n:"Riot Platforms",          s:"Financials"  },
+  { t:"BTQQF", n:"BTQ Technologies",        s:"Technology"  },
   { t:"SIRI",  n:"Sirius XM Holdings",      s:"Consumer"    },
   { t:"NKLA",  n:"Nikola Corp.",            s:"Consumer"    },
 ];
 
 const SECTOR_HUE: Record<string, string> = {
   Technology:"#4F8EF7", Financials:"#9B72F5",
-  Healthcare:"#00C896",  Consumer:"#E8A030",
+  Healthcare:"#00C896", Consumer:"#E8A030",
+  Industrials:"#06B6D4", Energy:"#F97316", Materials:"#84CC16",
 };
 
 const SIGNAL_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
