@@ -203,6 +203,9 @@ interface StockAnalysis {
   score: number;
   floor: number;
   ceiling: number;
+  /** Days until next expected earnings, or null if unknown.
+   *  Used to render an earnings badge in the Top 15 row. */
+  earningsDays: number | null;
 }
 
 /* ---- Technical Analysis ------------------------------------ */
@@ -313,6 +316,37 @@ async function fetchBars(ticker: string, days = 60): Promise<AggBar[]> {
   } catch { return []; }
 }
 
+/* Fetch the next expected earnings date for a ticker.
+   Uses Polygon's financials endpoint to find the most recent quarterly
+   filing, then projects forward by the average filing interval (~91 days).
+   Returns days-until-earnings (0 = today, 1 = tomorrow), or null if we
+   can't determine. Same approach as the EarningsCalendar component. */
+async function fetchNextEarnings(ticker: string): Promise<number | null> {
+  try {
+    const r = await fetch(
+      `${POLYGON_BASE}/vX/reference/financials?ticker=${ticker}&timeframe=quarterly&limit=4&sort=filing_date&order=desc&apiKey=${POLYGON_KEY}`
+    );
+    if (!r.ok) return null;
+    const d = await r.json() as { results?: Array<{ filing_date: string }> };
+    const results = d.results ?? [];
+    if (!results.length) return null;
+    let avgInterval = 91;
+    if (results.length >= 2) {
+      const intervals: number[] = [];
+      for (let i = 0; i < results.length - 1; i++) {
+        const a = new Date(results[i].filing_date).getTime();
+        const b = new Date(results[i + 1].filing_date).getTime();
+        intervals.push((a - b) / 86_400_000);
+      }
+      if (intervals.length) avgInterval = Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length);
+    }
+    const last = new Date(results[0].filing_date).getTime();
+    const next = last + avgInterval * 86_400_000;
+    const days = Math.round((next - Date.now()) / 86_400_000);
+    return days >= 0 ? days : null;
+  } catch { return null; }
+}
+
 async function fetchNews(ticker: string): Promise<string[]> {
   try {
     const r = await fetch(
@@ -381,6 +415,7 @@ async function runClaudeAnalysis(stocks: {
   volumeRatio: number; momentum5d: number; momentum20d: number;
   support: number; resistance: number;
   atr14: number; w52High: number; w52Low: number; w52Days: number; w52Pct: number;
+  earningsDays: number | null;
   news: string[];
 }[]): Promise<Record<string, {
   signal: string; confidence: number; targetPrice: number;
@@ -410,6 +445,9 @@ Support: $${s.support} | Resistance: $${s.resistance}
 ATR(14): $${s.atr14} (${atrPctOfPrice}% of price — typical daily move)
 ${s.w52Days}-day high: $${s.w52High} (${distFromHigh}% from current) | ${s.w52Days}-day low: $${s.w52Low} (${distFromLow}% from current)
 Range position: ${s.w52Pct}% (0 = at low, 100 = at high)
+${s.earningsDays != null
+  ? `Earnings: expected in ~${s.earningsDays} day${s.earningsDays === 1 ? "" : "s"}${s.earningsDays <= 3 ? " — IMMINENT, factor binary outcome risk into target/confidence" : s.earningsDays <= 14 ? " — within the 30-day target window, expect elevated IV" : ""}`
+  : `Earnings: no quarterly filing data found`}
 Recent News:
 ${s.news.length ? s.news.map((n, i) => `  ${i + 1}. ${n}`).join("\n") : "  No recent news available"}
 `;
@@ -437,6 +475,8 @@ Guidelines:
 - ATR is the typical daily dollar move — target prices should be a realistic multiple of ATR away (e.g., 30-day target ~5-10x ATR)
 - Range position > 90% = near 52w high, breakout watch / overextended risk
 - Range position < 10% = near 52w low, oversold / breakdown risk
+- Earnings within 3 days = binary event risk, lower confidence by 15+ points unless thesis is specifically about the print
+- Earnings 4-14 days out = elevated implied vol, target prices should account for the catalyst window
 - Strong negative momentum = bearish, strong positive = bullish
 - Weight news sentiment heavily — bad news overrides good technicals
 - Confidence 80-95 = very strong conviction, 60-79 = moderate, 40-59 = low
@@ -674,12 +714,15 @@ export async function POST(req: NextRequest) {
       return bars.length >= 1;
     });
 
-    // Fetch news in parallel for all priced stocks
-    const newsResults = await Promise.all(
-      hasPrice.map(t => fetchNews(t).then(news => ({ t, news })))
-    );
+    // Fetch news + next-earnings dates in parallel for all priced stocks
+    const [newsResults, earningsResults] = await Promise.all([
+      Promise.all(hasPrice.map(t => fetchNews(t).then(news => ({ t, news })))),
+      Promise.all(hasPrice.map(t => fetchNextEarnings(t).then(days => ({ t, days })))),
+    ]);
     const allNews: Record<string, string[]> = {};
     for (const { t, news } of newsResults) allNews[t] = news;
+    const allEarnings: Record<string, number | null> = {};
+    for (const { t, days } of earningsResults) allEarnings[t] = days;
 
     // Step 4: Calculate technical indicators
     const techData = tickers.map(({ t, n, s }) => {
@@ -720,6 +763,7 @@ export async function POST(req: NextRequest) {
         price, change, changePct, high, low, open, volume,
         rsi, sma20, sma50, volumeRatio, momentum5d, momentum20d,
         support, resistance, atr14, w52High: w52.high, w52Low: w52.low, w52Days: w52.days, w52Pct,
+        earningsDays: allEarnings[t] ?? null,
         news: allNews[t] ?? [],
         bars,
       };

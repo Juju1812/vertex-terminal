@@ -21,6 +21,7 @@ interface Stock {
   confidence: number; targetPrice: number;
   thesis: string; risks: string; tags: string[];
   score: number; floor: number; ceiling: number;
+  earningsDays?: number | null;
 }
 
 interface Alloc {
@@ -885,10 +886,24 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                     <td style={{ padding:"13px 10px", whiteSpace:"nowrap" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                         <div>
-                          <p style={{ ...mono, fontSize:13, fontWeight:500, color: isH ? "#93C5FD" : "#7EB6FF" }}>{s.ticker}</p>
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <p style={{ ...mono, fontSize:13, fontWeight:500, color: isH ? "#93C5FD" : "var(--ticker-blue,#7EB6FF)", margin:0 }}>{s.ticker}</p>
+                            {s.earningsDays != null && s.earningsDays <= 14 && (() => {
+                              const d = s.earningsDays;
+                              const urgent = d <= 3;
+                              const color = urgent ? "var(--loss,#E8445A)" : d <= 7 ? "var(--gold,#E8A030)" : "var(--ticker-blue,#7EB6FF)";
+                              const label = d === 0 ? "EARN today" : d === 1 ? "EARN tmrw" : `EARN ${d}d`;
+                              return (
+                                <span title={`Earnings expected in ~${d} day${d === 1 ? "" : "s"} — high-volatility catalyst window`}
+                                  style={{ ...mono, fontSize:8, padding:"1px 5px", borderRadius:4, background:`${color === "var(--loss,#E8445A)" ? "rgba(232,68,90,0.10)" : color === "var(--gold,#E8A030)" ? "rgba(232,160,48,0.10)" : "rgba(79,142,247,0.10)"}`, color, border:`1px solid ${color === "var(--loss,#E8445A)" ? "rgba(232,68,90,0.30)" : color === "var(--gold,#E8A030)" ? "rgba(232,160,48,0.30)" : "rgba(79,142,247,0.30)"}`, fontWeight:600, letterSpacing:"0.04em", whiteSpace:"nowrap" }}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                          </div>
                           <span style={{ ...mono, fontSize:8, padding:"1px 5px", borderRadius:4, background:`${sc}15`, color:sc, border:`1px solid ${sc}22` }}>{s.sector}</span>
                         </div>
-                        {isH && <ArrowRight size={13} color="#7EB6FF" style={{ flexShrink:0 }} />}
+                        {isH && <ArrowRight size={13} color="var(--ticker-blue,#7EB6FF)" style={{ flexShrink:0 }} />}
                       </div>
                     </td>
                     <td style={{ padding:"13px 10px", fontSize:12, color:V.ink2, maxWidth:120 }}>
