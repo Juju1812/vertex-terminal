@@ -128,13 +128,13 @@ const DARK_V = {
 const LIGHT_V = {
   void:"#e8dcb8", abyss:"#ddd0a8", deep:"#d4c69c",
   surface:"#ffffff", raised:"#fffaed",
-  border:"rgba(140,90,0,0.38)", borderHi:"rgba(140,90,0,0.60)",
-  gold:"#a06000", goldBright:"#c47800",
-  goldDim:"rgba(160,96,0,0.12)", goldWire:"rgba(160,96,0,0.40)",
-  ember:"#b03808", emberDim:"rgba(176,56,8,0.10)",
-  ink0:"#0f0a02", ink1:"#2d1f08", ink2:"#5a4520", ink3:"#8a6f3a", ink4:"#b09660",
-  gain:"#005a38", gainDim:"rgba(0,90,56,0.10)", gainWire:"rgba(0,90,56,0.32)",
-  loss:"#a01428", lossDim:"rgba(160,20,40,0.10)", lossWire:"rgba(160,20,40,0.32)",
+  border:"rgba(120,75,0,0.45)", borderHi:"rgba(120,75,0,0.70)",
+  gold:"#8a5200", goldBright:"#a06200",
+  goldDim:"rgba(138,82,0,0.14)", goldWire:"rgba(138,82,0,0.45)",
+  ember:"#9a2a04", emberDim:"rgba(154,42,4,0.12)",
+  ink0:"#0a0500", ink1:"#1f1505", ink2:"#3a2a0a", ink3:"#5c4218", ink4:"#7a5a2a",
+  gain:"#004a2c", gainDim:"rgba(0,74,44,0.12)", gainWire:"rgba(0,74,44,0.38)",
+  loss:"#8a0a1c", lossDim:"rgba(138,10,28,0.12)", lossWire:"rgba(138,10,28,0.38)",
 };
 
 // V is set at runtime based on theme — default dark

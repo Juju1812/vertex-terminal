@@ -616,27 +616,27 @@ body::after {
   --surface:     #ffffff;
   --raised:      #fffaed;
 
-  /* Rich colored borders — bold enough to read on real cream */
-  --border:      rgba(140,90,0,0.38);
-  --border-hi:   rgba(140,90,0,0.60);
+  /* Borders — strong, readable warm gold edges */
+  --border:      rgba(120,75,0,0.45);
+  --border-hi:   rgba(120,75,0,0.70);
 
-  /* Gold — slightly darker for light bg */
-  --gold:        #b86e00;
-  --gold-bright: #d47f00;
-  --gold-dim:    rgba(184,110,0,0.10);
-  --gold-wire:   rgba(184,110,0,0.32);
-  --gold-glow:   rgba(184,110,0,0.06);
+  /* Gold — deep enough to read on cream */
+  --gold:        #8a5200;
+  --gold-bright: #a06200;
+  --gold-dim:    rgba(138,82,0,0.12);
+  --gold-wire:   rgba(138,82,0,0.45);
+  --gold-glow:   rgba(138,82,0,0.08);
 
-  --ember:       #c44010;
-  --ember-dim:   rgba(196,64,16,0.08);
-  --ember-wire:  rgba(196,64,16,0.22);
+  --ember:       #9a2a04;
+  --ember-dim:   rgba(154,42,4,0.10);
+  --ember-wire:  rgba(154,42,4,0.30);
 
-  /* Rich dark ink on warm bg */
-  --ink0:        #1c1408;
-  --ink1:        #3d2e10;
-  --ink2:        #6b5530;
-  --ink3:        #9c8558;
-  --ink4:        #c4a878;
+  /* Rich dark ink — high contrast on cream */
+  --ink0:        #0a0500;
+  --ink1:        #1f1505;
+  --ink2:        #3a2a0a;
+  --ink3:        #5c4218;
+  --ink4:        #7a5a2a;
 
   /* Signals — rich on light */
   --gain:        #006b42;
@@ -648,17 +648,17 @@ body::after {
 
   /* Strong warm shadows — cards genuinely lift off the cream page */
   --shadow-card:
-    0 1px 0 rgba(140,90,0,0.10),
-    0 2px 6px rgba(100,60,0,0.10),
-    0 12px 28px rgba(100,60,0,0.18),
-    0 24px 64px rgba(100,60,0,0.10),
+    0 1px 0 rgba(120,75,0,0.14),
+    0 2px 6px rgba(80,50,0,0.12),
+    0 12px 28px rgba(80,50,0,0.20),
+    0 24px 64px rgba(80,50,0,0.12),
     inset 0 1px 0 rgba(255,255,255,1);
   --shadow-gold:
-    0 0 28px rgba(184,110,0,0.22),
-    0 6px 24px rgba(100,60,0,0.16);
+    0 0 28px rgba(138,82,0,0.24),
+    0 6px 24px rgba(80,50,0,0.18);
   --shadow-float:
-    0 6px 18px rgba(100,60,0,0.16),
-    0 24px 72px rgba(100,60,0,0.24),
+    0 6px 18px rgba(80,50,0,0.18),
+    0 24px 72px rgba(80,50,0,0.26),
     inset 0 1px 0 rgba(255,255,255,1);
 }
 
@@ -723,35 +723,57 @@ body::after {
   background: rgba(196,120,0,0.25);
 }
 
-/* ── Text color overrides — high-contrast on cream ───────── */
-[data-theme="light"] *[style*="color:#F2F6FF"] { color: #0f0a02 !important; }
-[data-theme="light"] *[style*="color:#f4f0ff"] { color: #0f0a02 !important; }
-[data-theme="light"] *[style*="color:#C8D5E8"] { color: #2d1f08 !important; }
-[data-theme="light"] *[style*="color:#cdc7e0"] { color: #2d1f08 !important; }
-[data-theme="light"] *[style*="color:#7A9CBF"] { color: #5a4520 !important; }
-[data-theme="light"] *[style*="color:#8a82a8"] { color: #5a4520 !important; }
-[data-theme="light"] *[style*="color:#3D5A7A"] { color: #8a6f3a !important; }
-[data-theme="light"] *[style*="color:#4a4468"] { color: #8a6f3a !important; }
-[data-theme="light"] *[style*="color:#1F3550"] { color: #b09660 !important; }
-[data-theme="light"] *[style*="color:#2d2848"] { color: #b09660 !important; }
+/* ── Text color overrides — strong contrast on cream ──────
+   Every shade darkened so text reads cleanly on #e8dcb8 page.
+   Also covers spaced variants (`color: #...`) some libs emit. */
+[data-theme="light"] *[style*="color:#F2F6FF"],
+[data-theme="light"] *[style*="color: #F2F6FF"]   { color: #0a0500 !important; }
+[data-theme="light"] *[style*="color:#f4f0ff"],
+[data-theme="light"] *[style*="color: #f4f0ff"]   { color: #0a0500 !important; }
+[data-theme="light"] *[style*="color:#C8D5E8"],
+[data-theme="light"] *[style*="color: #C8D5E8"]   { color: #1a1004 !important; }
+[data-theme="light"] *[style*="color:#cdc7e0"],
+[data-theme="light"] *[style*="color: #cdc7e0"]   { color: #1a1004 !important; }
+[data-theme="light"] *[style*="color:#7A9CBF"],
+[data-theme="light"] *[style*="color: #7A9CBF"]   { color: #2d1d05 !important; }
+[data-theme="light"] *[style*="color:#8a82a8"],
+[data-theme="light"] *[style*="color: #8a82a8"]   { color: #2d1d05 !important; }
+[data-theme="light"] *[style*="color:#3D5A7A"],
+[data-theme="light"] *[style*="color: #3D5A7A"]   { color: #4a3308 !important; }
+[data-theme="light"] *[style*="color:#4a4468"],
+[data-theme="light"] *[style*="color: #4a4468"]   { color: #4a3308 !important; }
+[data-theme="light"] *[style*="color:#1F3550"],
+[data-theme="light"] *[style*="color: #1F3550"]   { color: #6b4a14 !important; }
+[data-theme="light"] *[style*="color:#2d2848"],
+[data-theme="light"] *[style*="color: #2d2848"]   { color: #6b4a14 !important; }
 
-/* Gain/loss colors */
-[data-theme="light"] *[style*="color:#00C896"] { color: #006b42 !important; }
-[data-theme="light"] *[style*="color:#00e5a0"] { color: #006b42 !important; }
-[data-theme="light"] *[style*="color:#E8445A"] { color: #b81830 !important; }
-[data-theme="light"] *[style*="color:#ff4560"] { color: #b81830 !important; }
+/* Gain/loss — bold on cream */
+[data-theme="light"] *[style*="color:#00C896"],
+[data-theme="light"] *[style*="color: #00C896"]   { color: #004a2c !important; }
+[data-theme="light"] *[style*="color:#00e5a0"],
+[data-theme="light"] *[style*="color: #00e5a0"]   { color: #004a2c !important; }
+[data-theme="light"] *[style*="color:#E8445A"],
+[data-theme="light"] *[style*="color: #E8445A"]   { color: #8a0a1c !important; }
+[data-theme="light"] *[style*="color:#ff4560"],
+[data-theme="light"] *[style*="color: #ff4560"]   { color: #8a0a1c !important; }
 
-/* Gold — deeper for better contrast on cream */
-[data-theme="light"] *[style*="color:#E8A030"] { color: #a06000 !important; }
-[data-theme="light"] *[style*="color:#f0a500"] { color: #a06000 !important; }
-[data-theme="light"] *[style*="color:#ffbe1a"] { color: #c47800 !important; }
+/* Gold — deep enough to read on cream */
+[data-theme="light"] *[style*="color:#E8A030"],
+[data-theme="light"] *[style*="color: #E8A030"]   { color: #8a5200 !important; }
+[data-theme="light"] *[style*="color:#f0a500"],
+[data-theme="light"] *[style*="color: #f0a500"]   { color: #8a5200 !important; }
+[data-theme="light"] *[style*="color:#ffbe1a"],
+[data-theme="light"] *[style*="color: #ffbe1a"]   { color: #a06200 !important; }
 
-/* Blue accent */
-[data-theme="light"] *[style*="color:#7EB6FF"] { color: #2563a8 !important; }
-[data-theme="light"] *[style*="color:#4F8EF7"] { color: #1d5fa8 !important; }
+/* Blue accent (used heavily for tickers across components) */
+[data-theme="light"] *[style*="color:#7EB6FF"],
+[data-theme="light"] *[style*="color: #7EB6FF"]   { color: #0d3d8a !important; }
+[data-theme="light"] *[style*="color:#4F8EF7"],
+[data-theme="light"] *[style*="color: #4F8EF7"]   { color: #0d3d8a !important; }
 
 /* Purple accent */
-[data-theme="light"] *[style*="color:#9B72F5"] { color: #6d3fc0 !important; }
+[data-theme="light"] *[style*="color:#9B72F5"],
+[data-theme="light"] *[style*="color: #9B72F5"]   { color: #4a1a9c !important; }
 
 /* ── Background overrides ───────────────────────────────────── */
 [data-theme="light"] *[style*="background:#050810"],
@@ -780,22 +802,29 @@ body::after {
 [data-theme="light"] *[style*="background:linear-gradient(145deg,#ffffff"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.9)"] {
   background: #ffffff !important;
-  border-color: rgba(140,90,0,0.38) !important;
+  border-color: rgba(120,75,0,0.45) !important;
   box-shadow:
-    0 1px 0 rgba(140,90,0,0.10),
-    0 2px 6px rgba(100,60,0,0.10),
-    0 12px 28px rgba(100,60,0,0.18),
-    0 24px 64px rgba(100,60,0,0.10),
+    0 1px 0 rgba(120,75,0,0.14),
+    0 2px 6px rgba(80,50,0,0.12),
+    0 12px 28px rgba(80,50,0,0.20),
+    0 24px 64px rgba(80,50,0,0.12),
     inset 0 1px 0 rgba(255,255,255,1) !important;
 }
 
-/* ── Border overrides — strong gold edges throughout ─────── */
-[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.055)"] { border-color: rgba(140,90,0,0.32) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.10)"]  { border-color: rgba(140,90,0,0.36) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.16)"]  { border-color: rgba(140,90,0,0.40) !important; }
-[data-theme="light"] *[style*="borderColor:rgba(130,180,255"]             { border-color: rgba(140,90,0,0.36) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.5)"]     { border-color: rgba(140,90,0,0.38) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.4)"]     { border-color: rgba(140,90,0,0.32) !important; }
+/* ── Border overrides — strong, readable gold edges ─────── */
+[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.055)"] { border-color: rgba(120,75,0,0.40) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.10)"]  { border-color: rgba(120,75,0,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.16)"]  { border-color: rgba(120,75,0,0.50) !important; }
+[data-theme="light"] *[style*="borderColor:rgba(130,180,255"]             { border-color: rgba(120,75,0,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.5)"]     { border-color: rgba(120,75,0,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.4)"]     { border-color: rgba(120,75,0,0.40) !important; }
+/* Catch additional border patterns the components use */
+[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.18)"]  { border-color: rgba(120,75,0,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.22)"]  { border-color: rgba(120,75,0,0.55) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.18)"]   { border-color: rgba(120,75,0,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.20)"]   { border-color: rgba(120,75,0,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.22)"]   { border-color: rgba(120,75,0,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.40)"]   { border-color: rgba(120,75,0,0.55) !important; }
 
 /* Header — clearly distinct from page bg with strong bottom border */
 [data-theme="light"] header {
