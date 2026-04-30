@@ -816,13 +816,17 @@ export default function ArbibX() {
     const btn = themeBtnRef.current;
     const next = theme === "dark" ? "light" : "dark";
     // Circular reveal animation from the toggle button.
-    // Falls back to instant swap when View Transitions API isn't supported
-    // or the user prefers reduced motion.
+    // Falls back to instant swap when View Transitions API isn't supported,
+    // user prefers reduced motion, OR the device is mobile / coarse-pointer
+    // (the snapshot+blend cost of VT runs at ~3fps on mid-range mobile GPUs
+    // and the animation is barely visible at touch-screen sizes anyway).
     const reduce = typeof window !== "undefined"
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile = typeof window !== "undefined"
+      && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768);
     type DocWithVT = Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void> } };
     const doc = document as DocWithVT;
-    if (!btn || !doc.startViewTransition || reduce) {
+    if (!btn || !doc.startViewTransition || reduce || isMobile) {
       setTheme(next);
       return;
     }

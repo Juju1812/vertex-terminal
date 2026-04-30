@@ -586,9 +586,24 @@ body::after {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
-  [style*="backdrop-filter"],
-  [style*="WebkitBackdropFilter"] {
+  /* Dark theme: force opaque dark fallback where blur was relied on */
+  [data-theme="dark"] [style*="backdrop-filter"],
+  [data-theme="dark"] [style*="WebkitBackdropFilter"],
+  html:not([data-theme]) [style*="backdrop-filter"],
+  html:not([data-theme]) [style*="WebkitBackdropFilter"] {
     background: rgba(8, 6, 16, 0.97) !important;
+  }
+  /* Light theme: force opaque cream/white fallback - this is the bug fix.
+     Without this, mobile light mode showed dark card interiors because
+     the dark fallback above hit every card with backdrop-filter. */
+  [data-theme="light"] [style*="backdrop-filter"],
+  [data-theme="light"] [style*="WebkitBackdropFilter"] {
+    background: #ffffff !important;
+    border-color: rgba(120,75,0,0.45) !important;
+    box-shadow:
+      0 1px 0 rgba(120,75,0,0.10),
+      0 4px 12px rgba(80,50,0,0.10),
+      0 12px 28px rgba(80,50,0,0.14) !important;
   }
   body::after { display: none; }
   /* Disable expensive 3D scene on small / reduced-motion clients */
@@ -818,13 +833,25 @@ body::after {
 [data-theme="light"] *[style*="borderColor:rgba(130,180,255"]             { border-color: rgba(120,75,0,0.45) !important; }
 [data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.5)"]     { border-color: rgba(120,75,0,0.45) !important; }
 [data-theme="light"] *[style*="border:1px solid rgba(60,48,100,0.4)"]     { border-color: rgba(120,75,0,0.40) !important; }
-/* Catch additional border patterns the components use */
+/* Category borders — preserve color identity per category instead of
+   gold-flattening everything. Blue ticker borders stay blue, gain borders
+   stay green, etc. Just darkened for cream contrast. */
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.18)"]   { border-color: rgba(13,61,138,0.40) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.20)"]   { border-color: rgba(13,61,138,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.22)"]   { border-color: rgba(13,61,138,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.40)"]   { border-color: rgba(13,61,138,0.55) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(0,200,150,0.20)"]    { border-color: rgba(0,90,56,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(0,200,150,0.22)"]    { border-color: rgba(0,90,56,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(0,200,150,0.30)"]    { border-color: rgba(0,90,56,0.55) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(0,200,150,0.40)"]    { border-color: rgba(0,90,56,0.60) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(232,68,90,0.20)"]    { border-color: rgba(138,10,28,0.50) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(232,68,90,0.30)"]    { border-color: rgba(138,10,28,0.55) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(155,114,245,0.18)"]  { border-color: rgba(74,26,156,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(192,132,252,0.22)"]  { border-color: rgba(74,26,156,0.45) !important; }
+[data-theme="light"] *[style*="border:1px solid rgba(255,107,53,0.25)"]   { border-color: rgba(154,42,4,0.50) !important; }
+/* Generic blue/lavender borders that don't have a category identity stay gold */
 [data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.18)"]  { border-color: rgba(120,75,0,0.50) !important; }
 [data-theme="light"] *[style*="border:1px solid rgba(130,180,255,0.22)"]  { border-color: rgba(120,75,0,0.55) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.18)"]   { border-color: rgba(120,75,0,0.45) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.20)"]   { border-color: rgba(120,75,0,0.50) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.22)"]   { border-color: rgba(120,75,0,0.50) !important; }
-[data-theme="light"] *[style*="border:1px solid rgba(79,142,247,0.40)"]   { border-color: rgba(120,75,0,0.55) !important; }
 
 /* Header — clearly distinct from page bg with strong bottom border */
 [data-theme="light"] header {
@@ -853,12 +880,30 @@ body::after {
 [data-theme="light"] *[style*="background:rgba(0,0,0,0.85)"],
 [data-theme="light"] *[style*="background:rgba(0,0,0,0.88)"] { background: rgba(0,0,0,0.7) !important; }
 
-/* Dim backgrounds for gain/loss sections */
+/* Category-tint backgrounds — bumped opacity so each color is visible
+   on the cream page (was 0.07 → invisible). Now each tab/badge keeps
+   its color identity (green for gains, red for losses, blue for tickers,
+   purple for analytics, etc.) instead of all looking gold-tinted. */
 [data-theme="light"] *[style*="background:rgba(0,200,150,0.08)"],
-[data-theme="light"] *[style*="background:rgba(0,229,160,0.08)"] { background: rgba(0,107,66,0.07) !important; }
+[data-theme="light"] *[style*="background:rgba(0,229,160,0.08)"] { background: rgba(0,90,56,0.14) !important; }
+[data-theme="light"] *[style*="background:rgba(0,200,150,0.10)"],
+[data-theme="light"] *[style*="background:rgba(0,229,160,0.10)"] { background: rgba(0,90,56,0.16) !important; }
 [data-theme="light"] *[style*="background:rgba(232,68,90,0.08)"],
-[data-theme="light"] *[style*="background:rgba(255,69,96,0.08)"] { background: rgba(184,24,48,0.07) !important; }
-[data-theme="light"] *[style*="background:rgba(232,160,48,0.08)"] { background: rgba(184,110,0,0.08) !important; }
+[data-theme="light"] *[style*="background:rgba(255,69,96,0.08)"] { background: rgba(138,10,28,0.14) !important; }
+[data-theme="light"] *[style*="background:rgba(232,68,90,0.12)"],
+[data-theme="light"] *[style*="background:rgba(255,69,96,0.12)"] { background: rgba(138,10,28,0.18) !important; }
+[data-theme="light"] *[style*="background:rgba(232,160,48,0.08)"] { background: rgba(138,82,0,0.16) !important; }
+/* Ticker blue dim - keep BLUE identity, don't gold-flatten it */
+[data-theme="light"] *[style*="background:rgba(79,142,247,0.08)"]  { background: rgba(13,61,138,0.10) !important; }
+[data-theme="light"] *[style*="background:rgba(79,142,247,0.10)"]  { background: rgba(13,61,138,0.12) !important; }
+[data-theme="light"] *[style*="background:rgba(79,142,247,0.15)"]  { background: rgba(13,61,138,0.16) !important; }
+[data-theme="light"] *[style*="background:rgba(79,142,247,0.18)"]  { background: rgba(13,61,138,0.18) !important; }
+/* Analytics purple dim */
+[data-theme="light"] *[style*="background:rgba(155,114,245,0.08)"] { background: rgba(74,26,156,0.12) !important; }
+[data-theme="light"] *[style*="background:rgba(192,132,252,0.08)"] { background: rgba(74,26,156,0.12) !important; }
+/* Ember dim - keep ember as ember, not gold */
+[data-theme="light"] *[style*="background:rgba(255,107,53,0.10)"]  { background: rgba(154,42,4,0.14) !important; }
+[data-theme="light"] *[style*="background:rgba(255,107,53,0.08)"]  { background: rgba(154,42,4,0.12) !important; }
 
 /* Quick select buttons — readable border + clear shadow */
 [data-theme="light"] *[style*="background:rgba(255,255,255,0.025)"] {
