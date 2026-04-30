@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles,
+  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 import {
@@ -34,6 +34,7 @@ const CursorSpotlight = dynamic(() => import("@/components/landing/CursorSpotlig
 const OnboardingTour    = dynamic(() => import("@/components/OnboardingTour"),         { ssr:false, loading:() => null });
 const GlobalAlertsRunner = dynamic(() => import("@/components/GlobalAlertsRunner"),    { ssr:false, loading:() => null });
 const SectorHeatmap      = dynamic(() => import("@/components/SectorHeatmap"),         { ssr:false, loading:() => null });
+const SettingsModal      = dynamic(() => import("@/components/SettingsModal"),         { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -931,7 +932,16 @@ export default function ArbibX() {
   const [search,    setSearch]    = useState("");
   const [results,   setResults]   = useState<{ticker:string;name:string}[]>([]);
   const [loading,   setLoading]   = useState(false);
-  const [tab,       setTab]       = useState<Tab>("markets");
+  const [tab,       setTab]       = useState<Tab>(() => {
+    // Honor user-configured default tab from Settings (falls back to "markets")
+    try {
+      const saved = localStorage.getItem("arbibx-default-tab") as Tab | null;
+      const valid: Tab[] = ["markets","top15","portfolio","earnings","news","screener","analytics","watchlist"];
+      if (saved && valid.includes(saved)) return saved;
+    } catch { /* */ }
+    return "markets";
+  });
+  const [showSettings, setShowSettings] = useState(false);
   const [searching, setSearching] = useState(false);
   const [showSearch,setShowSearch]= useState(false);
   const [livePrices,setLivePrices]= useState<Record<string,{price:number;changePct:number}>>({});
@@ -1477,6 +1487,11 @@ export default function ArbibX() {
               }>
               {liteMode ? <Gauge size={16}/> : <Sparkles size={16}/>}
             </button>
+            <button onClick={()=>setShowSettings(true)}
+              title="Settings"
+              style={{background:"none",border:"1px solid transparent",borderRadius:8,cursor:"pointer",color:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
+              <SettingsIcon size={16}/>
+            </button>
             <button onClick={()=>setShowSearch(s=>!s)}
               style={{background:showSearch?V.goldDim:"none",border:`1px solid ${showSearch?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
               <Search size={16}/>
@@ -1546,6 +1561,9 @@ export default function ArbibX() {
       {showCompare && (
         <StockComparison initialTicker={ticker} onClose={()=>setShowCompare(false)}/>
       )}
+
+      {/* ════ SETTINGS MODAL ═════════════════════════════════ */}
+      <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)}/>
 
       {/* ════ ONBOARDING TOUR (first visit, after landing) ═══ */}
       <OnboardingTour active={!showLanding} />
