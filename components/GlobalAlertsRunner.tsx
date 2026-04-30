@@ -66,7 +66,15 @@ export default function GlobalAlertsRunner({ active }: { active: boolean }) {
       if (Date.now() - lastRunRef.current < 30_000) return;
       lastRunRef.current = Date.now();
 
-      // Load alerts from localStorage
+      // For logged-in users, the Vercel cron job hits Supabase every 5
+      // minutes during market hours and fires their alerts directly —
+      // skipping the in-app poller entirely avoids double-firing emails
+      // or pushes when both run within the same window.
+      try {
+        if (localStorage.getItem("arbibx-auth-user")) return;
+      } catch { /* */ }
+
+      // Load alerts from localStorage (guests only at this point)
       let alerts: PriceAlert[] = [];
       try { alerts = JSON.parse(localStorage.getItem(ALERTS_KEY) ?? "[]") as PriceAlert[]; } catch { return; }
       const pending = alerts.filter(a => !a.triggered);

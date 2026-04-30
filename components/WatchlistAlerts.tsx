@@ -304,17 +304,62 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
     }
   }, [watchlist.length, loadPrices]);
 
-  const addAlert = (alert: Omit<PriceAlert,"id"|"triggered"|"createdAt">) => {
+  // For logged-in users: persist to Supabase so the Vercel cron job can
+  // fire alerts even when no tab is open. localStorage stays as a UI
+  // cache for instant display. Guests stay localStorage-only since they
+  // have no account to email/push to.
+  const getAuthUser = (): { email: string; token: string } | null => {
+    try {
+      const s = localStorage.getItem("arbibx-auth-user");
+      if (!s) return null;
+      const u = JSON.parse(s) as { email: string; token: string };
+      return u.email && u.token ? u : null;
+    } catch { return null; }
+  };
+
+  const addAlert = async (alert: Omit<PriceAlert,"id"|"triggered"|"createdAt">) => {
+    const u = getAuthUser();
+    let serverId: string | null = null;
+    if (u) {
+      try {
+        const r = await fetch("/api/alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: u.email, token: u.token,
+            ticker: alert.ticker,
+            condition: alert.condition,
+            targetPrice: alert.targetPrice,
+          }),
+        });
+        if (r.ok) {
+          const d = await r.json() as { alert?: { id: string } };
+          serverId = d.alert?.id ?? null;
+        }
+      } catch { /* fall through to local-only */ }
+    }
     const newAlert: PriceAlert = {
       ...alert,
-      id:`${Date.now()}-${Math.random()}`,
-      triggered:false,
-      createdAt:new Date().toISOString(),
+      id: serverId ?? `${Date.now()}-${Math.random()}`,
+      triggered: false,
+      createdAt: new Date().toISOString(),
     };
     saveAlerts([...alertsRef.current, newAlert]);
   };
 
-  const removeAlert = (id: string) => saveAlerts(alertsRef.current.filter(a=>a.id!==id));
+  const removeAlert = async (id: string) => {
+    const u = getAuthUser();
+    if (u) {
+      try {
+        await fetch("/api/alerts", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: u.email, token: u.token, id }),
+        });
+      } catch { /* */ }
+    }
+    saveAlerts(alertsRef.current.filter(a => a.id !== id));
+  };
 
   const testAlert = async (alert: PriceAlert) => {
     setSendingAlert(alert.id);
