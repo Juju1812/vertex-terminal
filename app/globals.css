@@ -532,6 +532,21 @@ body::after {
   50%       { border-color: var(--gold-wire); }
 }
 
+/* ── View Transitions — circular reveal for theme toggle ──── */
+@supports (view-transition-name: root) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root) {
+    z-index: 0;
+  }
+  ::view-transition-new(root) {
+    z-index: 1;
+  }
+}
+
 /* ── Performance — disable heavy effects on low-power devices ─ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -791,7 +791,44 @@ export default function ArbibX() {
     V = theme === "light" ? LIGHT_V : DARK_V;
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+  const themeBtnRef = useRef<HTMLButtonElement>(null);
+  const toggleTheme = () => {
+    const btn = themeBtnRef.current;
+    const next = theme === "dark" ? "light" : "dark";
+    // Circular reveal animation from the toggle button.
+    // Falls back to instant swap when View Transitions API isn't supported
+    // or the user prefers reduced motion.
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    type DocWithVT = Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void> } };
+    const doc = document as DocWithVT;
+    if (!btn || !doc.startViewTransition || reduce) {
+      setTheme(next);
+      return;
+    }
+    const r = btn.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const radius = Math.hypot(
+      Math.max(cx, window.innerWidth - cx),
+      Math.max(cy, window.innerHeight - cy),
+    );
+    document.documentElement.style.setProperty("--vt-x", `${cx}px`);
+    document.documentElement.style.setProperty("--vt-y", `${cy}px`);
+    document.documentElement.style.setProperty("--vt-r", `${radius}px`);
+    const transition = doc.startViewTransition(() => setTheme(next));
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0 at ${cx}px ${cy}px)`,
+            `circle(${radius}px at ${cx}px ${cy}px)`,
+          ],
+        },
+        { duration: 600, easing: "cubic-bezier(0.4, 0, 0.2, 1)", pseudoElement: "::view-transition-new(root)" },
+      );
+    }).catch(() => { /* swallow — already transitioning */ });
+  };
 
   // Recompute V synchronously for this render
   V = theme === "light" ? LIGHT_V : DARK_V;
@@ -1127,8 +1164,8 @@ export default function ArbibX() {
                 <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.gain,letterSpacing:"0.06em"}}>SIGNED IN</span>
               </div>
             )}
-            <button onClick={toggleTheme}
-              style={{background:"none",border:`1px solid ${theme==="light"?"rgba(196,120,0,0.28)":"transparent"}`,borderRadius:8,cursor:"pointer",color:theme==="dark"?V.ink3:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
+            <button ref={themeBtnRef} onClick={toggleTheme}
+              style={{background:"none",border:`1px solid ${theme==="light"?"rgba(140,90,0,0.40)":"transparent"}`,borderRadius:8,cursor:"pointer",color:theme==="dark"?V.ink3:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
               title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>
               {theme==="dark" ? <Sun size={16}/> : <Moon size={16}/>}
             </button>
