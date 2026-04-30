@@ -1,21 +1,98 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, MeshDistortMaterial, Environment } from "@react-three/drei";
+import { Float, MeshDistortMaterial, Environment, useGLTF } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction, KernelSize } from "postprocessing";
 import * as THREE from "three";
 
 /* ── Cinematic 3D scene ────────────────────────────────────────
-   - Centerpiece: large glowing torus ring + emissive sphere
-     (the "financial sigil" anchoring the headline)
-   - Orbit cluster: cubes / spheres / octahedrons / icosahedra
-     in gold + obsidian, with subtle distortion on spheres
+   - Centerpiece: GoldenX (Meshy-generated .glb sigil) framed by a
+     slow-rotating gold halo torus, sitting behind the headline
+   - Orbit cluster: cubes / spheres / octahedrons / icosahedra in
+     gold + obsidian, orbit the centerpiece
    - Mouse parallax rig: whole scene tilts toward cursor
-   - Post: bloom for the glow, vignette for cinema, light
+   - Post: bloom for the gold glow, vignette for cinema, light
      chromatic aberration at edges for premium feel
 */
+
+const HERO_MODEL = "/models/GoldenX.glb";
+
+function GoldenXSigil() {
+  const ref = useRef<THREE.Group>(null);
+  const { scene } = useGLTF(HERO_MODEL);
+
+  // Memoize a cloned + tuned copy of the loaded scene so we don't mutate
+  // the cached gltf and so we can boost emissive on every gold material.
+  const tuned = useMemo(() => {
+    const cloned = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(cloned);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    cloned.position.sub(center);
+    // Scale so the longest axis fits inside ~3.2 world units (sits behind headline)
+    const longest = Math.max(size.x, size.y, size.z) || 1;
+    const target = 3.2;
+    const k = target / longest;
+    cloned.scale.setScalar(k);
+    cloned.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.castShadow = false;
+        o.receiveShadow = false;
+        const mat = o.material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[];
+        const apply = (m: THREE.MeshStandardMaterial) => {
+          // Meshy bakes color into emissive map sometimes; gentle boost keeps it
+          // readable through bloom without blowing it out.
+          m.envMapIntensity = 1.6;
+          if (m.emissiveIntensity != null) m.emissiveIntensity = Math.max(m.emissiveIntensity, 0.4);
+          if (!m.emissive || m.emissive.getHex() === 0) {
+            m.emissive = new THREE.Color("#ff8e1a");
+            m.emissiveIntensity = 0.25;
+          }
+          m.metalness = Math.max(m.metalness ?? 0, 0.85);
+          m.roughness = Math.min(m.roughness ?? 1, 0.35);
+          m.needsUpdate = true;
+        };
+        if (Array.isArray(mat)) mat.forEach(apply); else apply(mat);
+      }
+    });
+    return cloned;
+  }, [scene]);
+
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    ref.current.rotation.y += delta * 0.18; // slow continuous Y rotation
+  });
+
+  return (
+    <group ref={ref} position={[0, 0, -1.2]}>
+      <primitive object={tuned} />
+    </group>
+  );
+}
+
+function HaloRing() {
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame((_, delta) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.x += delta * 0.05;
+      ringRef.current.rotation.z += delta * 0.10;
+    }
+  });
+  return (
+    <mesh ref={ringRef} position={[0, 0, -1.5]}>
+      <torusGeometry args={[2.6, 0.035, 24, 220]} />
+      <meshStandardMaterial
+        color="#ffbe1a"
+        emissive="#f0a500"
+        emissiveIntensity={2.4}
+        roughness={0.18}
+        metalness={1}
+      />
+    </mesh>
+  );
+}
 
 interface ShapeProps {
   position: [number, number, number];
@@ -80,63 +157,6 @@ function Shape({
   );
 }
 
-function Centerpiece() {
-  const ringRef = useRef<THREE.Mesh>(null);
-  const ring2Ref = useRef<THREE.Mesh>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
-  useFrame((state, delta) => {
-    if (ringRef.current) {
-      ringRef.current.rotation.x += delta * 0.18;
-      ringRef.current.rotation.y += delta * 0.12;
-    }
-    if (ring2Ref.current) {
-      ring2Ref.current.rotation.x -= delta * 0.10;
-      ring2Ref.current.rotation.z += delta * 0.16;
-    }
-    if (coreRef.current) {
-      const s = 1 + Math.sin(state.clock.elapsedTime * 1.1) * 0.05;
-      coreRef.current.scale.setScalar(s);
-    }
-  });
-  return (
-    <group position={[0, 0, -1.5]}>
-      {/* Outer torus — dramatic gold halo */}
-      <mesh ref={ringRef}>
-        <torusGeometry args={[2.0, 0.045, 24, 200]} />
-        <meshStandardMaterial
-          color="#ffbe1a"
-          emissive="#f0a500"
-          emissiveIntensity={2.2}
-          roughness={0.15}
-          metalness={1}
-        />
-      </mesh>
-      {/* Inner counter-rotating torus — ember accent */}
-      <mesh ref={ring2Ref} rotation={[Math.PI / 3, 0, 0]}>
-        <torusGeometry args={[1.45, 0.022, 16, 160]} />
-        <meshStandardMaterial
-          color="#ff6b35"
-          emissive="#ff6b35"
-          emissiveIntensity={1.6}
-          roughness={0.2}
-          metalness={1}
-        />
-      </mesh>
-      {/* Glowing core */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[0.18, 32, 32]} />
-        <meshStandardMaterial
-          color="#ffd066"
-          emissive="#ffbe1a"
-          emissiveIntensity={3.5}
-          roughness={0.0}
-          metalness={0.5}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 function ParallaxRig({ children }: { children: React.ReactNode }) {
   const group = useRef<THREE.Group>(null);
   useFrame((state) => {
@@ -148,15 +168,16 @@ function ParallaxRig({ children }: { children: React.ReactNode }) {
   return <group ref={group}>{children}</group>;
 }
 
+// Orbit cluster — pushed wider so the centerpiece reads clearly
 const SHAPES: ShapeProps[] = [
-  { position: [-3.4, 1.6, -2],   type: "cube",   scale: 0.7,  color: "#1a1430", emissive: "#f0a500", emissiveIntensity: 0.25, speed: 0.9, rotSpeed: [0.10, 0.12, 0.04] },
-  { position: [ 3.2, -1.2, -3],  type: "sphere", scale: 0.9,  color: "#ffbe1a", emissive: "#f0a500", emissiveIntensity: 0.6,  speed: 1.1, rotSpeed: [0.05, 0.08, 0.02] },
-  { position: [-2.8, -2.0, -1],  type: "octa",   scale: 0.55, color: "#ff6b35", emissive: "#ff6b35", emissiveIntensity: 0.8,  speed: 1.3, rotSpeed: [0.18, 0.06, 0.10] },
-  { position: [ 2.6, 2.4, -2.5], type: "icos",   scale: 0.6,  color: "#2a1f48", emissive: "#5a3aa0", emissiveIntensity: 0.20, speed: 0.8, rotSpeed: [0.07, 0.14, 0.05] },
-  { position: [ 0.0, 3.2, -4],   type: "cube",   scale: 0.45, color: "#1a1430",                                              speed: 1.0, rotSpeed: [0.09, 0.05, 0.11] },
-  { position: [-1.4, 0.4, -5],   type: "sphere", scale: 1.4,  color: "#0d0820",                                              speed: 0.6, rotSpeed: [0.03, 0.04, 0.02] },
-  { position: [ 4.2, 0.8, -4.5], type: "icos",   scale: 0.5,  color: "#f0a500", emissive: "#f0a500", emissiveIntensity: 0.5, speed: 1.2, rotSpeed: [0.12, 0.10, 0.07] },
-  { position: [-4.0, -0.4, -3.5], type: "octa",  scale: 0.7,  color: "#241a40", emissive: "#3d2080", emissiveIntensity: 0.18, speed: 0.95, rotSpeed: [0.08, 0.13, 0.04] },
+  { position: [-4.4, 1.8, -2.5],   type: "cube",   scale: 0.6,  color: "#1a1430", emissive: "#f0a500", emissiveIntensity: 0.25, speed: 0.9, rotSpeed: [0.10, 0.12, 0.04] },
+  { position: [ 4.2, -1.4, -3.5],  type: "sphere", scale: 0.7,  color: "#ffbe1a", emissive: "#f0a500", emissiveIntensity: 0.6,  speed: 1.1, rotSpeed: [0.05, 0.08, 0.02] },
+  { position: [-3.6, -2.4, -2],    type: "octa",   scale: 0.5,  color: "#ff6b35", emissive: "#ff6b35", emissiveIntensity: 0.8,  speed: 1.3, rotSpeed: [0.18, 0.06, 0.10] },
+  { position: [ 3.4, 2.6, -3],     type: "icos",   scale: 0.55, color: "#2a1f48", emissive: "#5a3aa0", emissiveIntensity: 0.20, speed: 0.8, rotSpeed: [0.07, 0.14, 0.05] },
+  { position: [ 0.6, 3.6, -4.5],   type: "cube",   scale: 0.4,  color: "#1a1430",                                              speed: 1.0, rotSpeed: [0.09, 0.05, 0.11] },
+  { position: [-1.6, -3.4, -5],    type: "sphere", scale: 1.0,  color: "#0d0820",                                              speed: 0.6, rotSpeed: [0.03, 0.04, 0.02] },
+  { position: [ 5.2, 1.0, -5],     type: "icos",   scale: 0.45, color: "#f0a500", emissive: "#f0a500", emissiveIntensity: 0.5, speed: 1.2, rotSpeed: [0.12, 0.10, 0.07] },
+  { position: [-5.0, -0.6, -4],    type: "octa",   scale: 0.6,  color: "#241a40", emissive: "#3d2080", emissiveIntensity: 0.18, speed: 0.95, rotSpeed: [0.08, 0.13, 0.04] },
 ];
 
 export default function Scene3D() {
@@ -168,19 +189,22 @@ export default function Scene3D() {
       style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
     >
       <ambientLight intensity={0.35} />
-      <directionalLight position={[5, 5, 5]} intensity={1.6} color="#ffd066" />
-      <directionalLight position={[-5, -3, -2]} intensity={0.8} color="#ff6b35" />
-      <pointLight position={[0, 0, 3]} intensity={1.4} color="#f0a500" />
-      <pointLight position={[0, 0, -1.5]} intensity={2.0} color="#ffbe1a" distance={6} decay={2} />
+      <directionalLight position={[5, 5, 5]} intensity={1.8} color="#ffd066" />
+      <directionalLight position={[-5, -3, -2]} intensity={0.9} color="#ff6b35" />
+      <pointLight position={[0, 0, 3]} intensity={1.6} color="#f0a500" />
+      <pointLight position={[0, 0, -1.2]} intensity={2.4} color="#ffbe1a" distance={6} decay={2} />
       <Environment preset="night" />
       <ParallaxRig>
-        <Centerpiece />
+        <Suspense fallback={null}>
+          <GoldenXSigil />
+        </Suspense>
+        <HaloRing />
         {SHAPES.map((s, i) => <Shape key={i} {...s} />)}
       </ParallaxRig>
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={1.1}
-          luminanceThreshold={0.4}
+          intensity={1.0}
+          luminanceThreshold={0.45}
           luminanceSmoothing={0.85}
           mipmapBlur
           kernelSize={KernelSize.LARGE}
@@ -196,3 +220,6 @@ export default function Scene3D() {
     </Canvas>
   );
 }
+
+// Preload hint so the asset starts downloading the moment the bundle parses
+useGLTF.preload(HERO_MODEL);
