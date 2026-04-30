@@ -58,15 +58,31 @@ interface StockAnalysis {
 }
 
 /* ---- Technical Analysis ------------------------------------ */
+/* Wilder's RSI — the canonical implementation used by TradingView,
+   Yahoo Finance, Polygon's own indicator endpoint, and every charting
+   platform. Previous implementation used a single simple-average over
+   the most recent N bars, which produces values that drift from any
+   reference platform. Wilder's smoothing seeds with an SMA over the
+   first `period` deltas, then exponentially smooths each subsequent
+   delta with weight 1/period. */
 function calcRSI(closes: number[], period = 14): number {
   if (closes.length < period + 1) return 50;
   let gains = 0, losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff; else losses -= diff;
+  // Seed: simple average over the first `period` deltas
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gains += d; else losses -= d;
   }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  // Wilder's exponential smoothing for the rest
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    const g = d > 0 ? d : 0;
+    const l = d < 0 ? -d : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+  }
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
   return Math.round(100 - 100 / (1 + rs));
@@ -95,6 +111,44 @@ function calcResistance(bars: AggBar[]): number {
   if (!bars.length) return 0;
   const highs = bars.slice(-20).map(b => b.h).filter(v => v > 0);
   return highs.length ? +Math.max(...highs).toFixed(2) : 0;
+}
+
+/* Average True Range — Wilder smoothed.
+   ATR is the canonical volatility measure: it tells you the typical
+   daily price move in dollars. We hand this to the model so target
+   prices and stops can be vol-aware (e.g., a $0.50 move means a lot
+   on a $5 stock and nothing on a $500 stock — ATR makes that explicit). */
+function calcATR(bars: AggBar[], period = 14): number {
+  if (bars.length < period + 1) return 0;
+  const trs: number[] = [];
+  for (let i = 1; i < bars.length; i++) {
+    const h = bars[i].h, l = bars[i].l, prevC = bars[i - 1].c;
+    const tr = Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
+    trs.push(tr);
+  }
+  if (trs.length < period) return 0;
+  // Seed: simple average of first `period` TRs
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  // Wilder's smoothing
+  for (let i = period; i < trs.length; i++) {
+    atr = (atr * (period - 1) + trs[i]) / period;
+  }
+  return +atr.toFixed(2);
+}
+
+/* 52-week high/low (or as much history as we have). Polygon bars
+   default to ~60 days here, but we'll use whatever's available
+   and label it accordingly so the model knows the lookback window. */
+function calc52w(bars: AggBar[]): { high: number; low: number; days: number } {
+  if (!bars.length) return { high: 0, low: 0, days: 0 };
+  const window = bars.slice(-252); // ~252 trading days = 1 year
+  const highs = window.map(b => b.h).filter(v => v > 0);
+  const lows = window.map(b => b.l).filter(v => v > 0);
+  return {
+    high: highs.length ? +Math.max(...highs).toFixed(2) : 0,
+    low: lows.length ? +Math.min(...lows).toFixed(2) : 0,
+    days: window.length,
+  };
 }
 
 /* ---- Polygon helpers --------------------------------------- */
@@ -178,25 +232,40 @@ async function runClaudeAnalysis(stocks: {
   rsi: number; sma20: number; sma50: number;
   volumeRatio: number; momentum5d: number; momentum20d: number;
   support: number; resistance: number;
+  atr14: number; w52High: number; w52Low: number; w52Days: number; w52Pct: number;
   news: string[];
 }[]): Promise<Record<string, {
   signal: string; confidence: number; targetPrice: number;
   thesis: string; risks: string; tags: string[];
 }>> {
 
+  // Distribution constraint scaled to batch size — combats the model's
+  // natural tendency toward bullish helpfulness. At least ~25% must be
+  // neutral or bearish; at least one must be SELL or STRONG SELL.
+  const minHoldOrWorse = Math.max(1, Math.ceil(stocks.length * 0.25));
+  const minSell = Math.max(1, Math.floor(stocks.length * 0.10));
+
   const prompt = `You are a senior quantitative analyst at a top hedge fund. Analyze these ${stocks.length} stocks using the provided technical data and recent news. Give a rigorous, data-driven assessment for each.
 
 STOCKS DATA:
-${stocks.map(s => `
+${stocks.map(s => {
+  const atrPctOfPrice = s.price > 0 ? +(s.atr14 / s.price * 100).toFixed(2) : 0;
+  const distFromHigh = s.w52High > 0 ? +(((s.price - s.w52High) / s.w52High) * 100).toFixed(1) : 0;
+  const distFromLow  = s.w52Low > 0 ? +(((s.price - s.w52Low) / s.w52Low) * 100).toFixed(1) : 0;
+  return `
 --- ${s.ticker} (${s.name}, ${s.sector}) ---
 Price: $${s.price} | Change: ${s.changePct}%
-RSI(14): ${s.rsi} | SMA20: $${s.sma20} | SMA50: $${s.sma50}
+RSI(14, Wilder): ${s.rsi} | SMA20: $${s.sma20} | SMA50: $${s.sma50}
 Volume Ratio vs 20d avg: ${s.volumeRatio}x
 5-day momentum: ${s.momentum5d}% | 20-day momentum: ${s.momentum20d}%
 Support: $${s.support} | Resistance: $${s.resistance}
+ATR(14): $${s.atr14} (${atrPctOfPrice}% of price — typical daily move)
+${s.w52Days}-day high: $${s.w52High} (${distFromHigh}% from current) | ${s.w52Days}-day low: $${s.w52Low} (${distFromLow}% from current)
+Range position: ${s.w52Pct}% (0 = at low, 100 = at high)
 Recent News:
 ${s.news.length ? s.news.map((n, i) => `  ${i + 1}. ${n}`).join("\n") : "  No recent news available"}
-`).join("\n")}
+`;
+}).join("\n")}
 
 For EACH stock respond in this EXACT JSON format (no extra text, just valid JSON):
 {
@@ -206,7 +275,7 @@ For EACH stock respond in this EXACT JSON format (no extra text, just valid JSON
       "signal": "STRONG BUY|BUY|HOLD|SELL|STRONG SELL",
       "confidence": 0-100,
       "targetPrice": 0.00,
-      "thesis": "2-3 sentence specific thesis citing the actual data above. Reference specific numbers (RSI, momentum, price vs SMA, news). Be precise and quantitative.",
+      "thesis": "2-3 sentence specific thesis citing the actual data above. Reference specific numbers (RSI, momentum, ATR, price vs SMA, distance from 52w hi/lo, news). Be precise and quantitative.",
       "risks": "1-2 sentence key downside risk specific to this stock right now.",
       "tags": ["Tag1", "Tag2", "Tag3"]
     }
@@ -214,16 +283,24 @@ For EACH stock respond in this EXACT JSON format (no extra text, just valid JSON
 }
 
 Guidelines:
-- RSI > 70 = overbought (bearish signal), RSI < 30 = oversold (bullish signal)
-- Price above SMA20 and SMA50 = bullish trend
-- Volume ratio > 1.5 = unusual volume (amplifies the price direction signal)
-- Strong negative momentum = bearish, strong positive = bullish  
-- Weight news sentiment heavily - bad news overrides good technicals
-- Be contrarian when appropriate - not everything should be a BUY
-- Confidence 80-95 = very strong conviction, 60-79 = moderate, 40-59 = low conviction
-- Target price should be realistic 30-day target based on support/resistance levels
-- Tags should be short (2-3 words max): e.g. "RSI Oversold", "Volume Surge", "News Catalyst", "Trend Break", "Momentum Strong"
-- Do NOT give generic analyses. Every thesis must reference the specific numbers provided.`;
+- RSI > 70 = overbought (bearish), RSI < 30 = oversold (bullish)
+- Price above SMA20 and SMA50 = bullish trend; below both = bearish trend
+- Volume ratio > 1.5 = unusual volume (amplifies price direction signal)
+- ATR is the typical daily dollar move — target prices should be a realistic multiple of ATR away (e.g., 30-day target ~5-10x ATR)
+- Range position > 90% = near 52w high, breakout watch / overextended risk
+- Range position < 10% = near 52w low, oversold / breakdown risk
+- Strong negative momentum = bearish, strong positive = bullish
+- Weight news sentiment heavily — bad news overrides good technicals
+- Confidence 80-95 = very strong conviction, 60-79 = moderate, 40-59 = low
+
+CRITICAL DISTRIBUTION REQUIREMENT:
+You MUST avoid bullish bias. Of these ${stocks.length} stocks:
+- At LEAST ${minHoldOrWorse} must be HOLD, SELL, or STRONG SELL
+- At LEAST ${minSell} must be SELL or STRONG SELL
+If the data genuinely supports it, more bearish picks are welcome. Do not give every stock a BUY signal — that's lazy analysis. Identify the actually weak names and call them.
+
+- Tags should be short (2-3 words): e.g. "RSI Oversold", "Volume Surge", "News Catalyst", "Trend Break", "52w Breakout", "ATR Compression"
+- Every thesis MUST reference specific numbers from above. No generic analyses.`;
 
   try {
     const response = await callClaudeWithFallback(prompt);
@@ -386,6 +463,11 @@ export async function POST(req: NextRequest) {
       const momentum20d = calcMomentum(closes, 20);
       const support     = calcSupport(bars);
       const resistance  = calcResistance(bars);
+      const atr14       = calcATR(bars);
+      const w52         = calc52w(bars);
+      const w52Pct      = price > 0 && w52.high > 0 && w52.low > 0
+        ? +(((price - w52.low) / (w52.high - w52.low)) * 100).toFixed(1)
+        : 50;
       const volAvg20    = volumes.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, volumes.length || 1);
       const volumeRatio = volAvg20 > 0 ? +(volume / volAvg20).toFixed(2) : 1;
 
@@ -393,7 +475,8 @@ export async function POST(req: NextRequest) {
         ticker: t, name: n, sector: s,
         price, change, changePct, high, low, open, volume,
         rsi, sma20, sma50, volumeRatio, momentum5d, momentum20d,
-        support, resistance, news: allNews[t] ?? [],
+        support, resistance, atr14, w52High: w52.high, w52Low: w52.low, w52Days: w52.days, w52Pct,
+        news: allNews[t] ?? [],
         bars,
       };
     }).filter(s => s.price > 0);
