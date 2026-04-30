@@ -31,7 +31,8 @@ import { motion, AnimatePresence } from "framer-motion";
 const Scene3D         = dynamic(() => import("@/components/landing/Scene3D"),         { ssr:false, loading:() => null });
 const ParticleField   = dynamic(() => import("@/components/landing/ParticleField"),   { ssr:false, loading:() => null });
 const CursorSpotlight = dynamic(() => import("@/components/landing/CursorSpotlight"), { ssr:false, loading:() => null });
-const OnboardingTour  = dynamic(() => import("@/components/OnboardingTour"),          { ssr:false, loading:() => null });
+const OnboardingTour    = dynamic(() => import("@/components/OnboardingTour"),         { ssr:false, loading:() => null });
+const GlobalAlertsRunner = dynamic(() => import("@/components/GlobalAlertsRunner"),    { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -1544,6 +1545,9 @@ export default function ArbibX() {
 
       {/* ════ ONBOARDING TOUR (first visit, after landing) ═══ */}
       <OnboardingTour active={!showLanding} />
+
+      {/* ════ GLOBAL PRICE-ALERT POLLER (any tab, any time) ═══ */}
+      <GlobalAlertsRunner active={!showLanding} />
 
       {/* ════ KEYBOARD SHORTCUT HINT (desktop only) ════════ */}
       {!showLanding && (
