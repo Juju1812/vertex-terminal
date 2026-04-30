@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
-  Info, Mail, LogOut, Eye, EyeOff, X, Download,
+  Info, Mail, LogOut, Eye, EyeOff, X, Download, Share2, Copy,
 } from "lucide-react";
 
 /* ---- Types -------------------------------------------------- */
@@ -611,6 +611,50 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
     };
   });
 
+  /* Share dialog state — generates a /p/[id] snapshot link */
+  const [shareOpen,    setShareOpen]    = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareUrl,     setShareUrl]     = useState<string | null>(null);
+  const [shareCopied,  setShareCopied]  = useState(false);
+  const [shareErr,     setShareErr]     = useState<string | null>(null);
+  const [shareShowAmounts, setShareShowAmounts] = useState(false);
+
+  const generateShareLink = useCallback(async () => {
+    if (!user) { setShareErr("Sign in to share your portfolio."); return; }
+    if (!holdings.length) { setShareErr("Add at least one position first."); return; }
+    setShareLoading(true);
+    setShareErr(null);
+    setShareUrl(null);
+    setShareCopied(false);
+    try {
+      const r = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email, token: user.token,
+          holdings, showAmounts: shareShowAmounts,
+        }),
+      });
+      const d = await r.json() as { id?: string; error?: string };
+      if (!r.ok || !d.id) {
+        setShareErr(d.error ?? "Failed to create share link");
+        return;
+      }
+      const url = `${window.location.origin}/p/${d.id}`;
+      setShareUrl(url);
+      // Auto-copy to clipboard if available
+      try {
+        await navigator.clipboard?.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2500);
+      } catch { /* */ }
+    } catch {
+      setShareErr("Network error - try again");
+    } finally {
+      setShareLoading(false);
+    }
+  }, [user, holdings, shareShowAmounts]);
+
   /* CSV export — opens a download with a single-shot Blob URL.
      Includes: ticker, name, shares, buy price, current price,
      cost basis, market value, P&L $, P&L %, today's day change %.
@@ -703,6 +747,14 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
             <button onClick={logout}
               style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:8, background:"rgba(232,68,90,0.07)", border:`1px solid ${V.lossWire}`, color:V.loss, cursor:"pointer", fontSize:12, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
               <LogOut size={12} /> Sign out
+            </button>
+          )}
+          {user && (
+            <button onClick={() => { setShareOpen(true); setShareUrl(null); setShareErr(null); setShareCopied(false); }}
+              disabled={!holdings.length}
+              title="Generate a public share link for this portfolio"
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background: holdings.length ? "rgba(155,114,245,0.10)" : "rgba(255,255,255,0.03)", border: `1px solid ${holdings.length ? V.ameWire : V.w1}`, color: holdings.length ? V.ame : V.ink3, cursor: holdings.length ? "pointer" : "not-allowed", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
+              <Share2 size={12} /> Share
             </button>
           )}
           <button onClick={exportCSV} disabled={!holdings.length}
@@ -894,6 +946,74 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
         @keyframes spin     { to{transform:rotate(360deg)} }
         @media(max-width:640px) { .add-grid { grid-template-columns:1fr 1fr !important; } }
       `}</style>
+
+      {/* ── Share modal ──────────────────────────────────────── */}
+      {shareOpen && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShareOpen(false); }}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
+          <div style={{ background:"rgba(8,6,16,0.97)", border:`1px solid ${V.w2}`, borderRadius:18, width:"100%", maxWidth:440, padding:0, overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.7), 0 0 32px rgba(155,114,245,0.10)" }}>
+            <div style={{ height:2, background:"linear-gradient(90deg,#9B72F5,#f0a500,#9B72F5)" }}/>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 22px", borderBottom:`1px solid ${V.w1}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <Share2 size={16} color={V.ame}/>
+                <h2 style={{ fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", fontSize:16, fontWeight:700, color:V.ink0, margin:0 }}>Share portfolio</h2>
+              </div>
+              <button onClick={()=>setShareOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:4, display:"flex" }}><X size={16}/></button>
+            </div>
+            <div style={{ padding:"18px 22px", display:"flex", flexDirection:"column", gap:14 }}>
+              <p style={{ fontSize:13, color:V.ink2, margin:0, lineHeight:1.55 }}>
+                Generate a public, read-only snapshot of your current portfolio. Anyone with the link can see the tickers and returns. <strong>This is a moment-in-time snapshot</strong> — it doesn&apos;t update if you change your portfolio later.
+              </p>
+
+              {/* Show $ amounts toggle */}
+              <label style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", borderRadius:9, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, cursor:"pointer" }}>
+                <input type="checkbox" checked={shareShowAmounts}
+                  onChange={e=>setShareShowAmounts(e.target.checked)}
+                  style={{ marginTop:2, accentColor:V.ame }}/>
+                <div>
+                  <p style={{ fontSize:12, fontWeight:600, color:V.ink0, margin:0 }}>Show dollar amounts</p>
+                  <p style={{ fontSize:11, color:V.ink3, margin:"3px 0 0", lineHeight:1.4 }}>
+                    Off: only ticker names + return % are visible. <br/>
+                    On: shares, cost basis, and market value are visible.
+                  </p>
+                </div>
+              </label>
+
+              {!shareUrl && (
+                <button onClick={generateShareLink} disabled={shareLoading}
+                  style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"11px 18px", borderRadius:10, background: shareLoading ? "rgba(155,114,245,0.20)" : "linear-gradient(135deg,#9B72F5,#7E5BD8)", color:"#fff", border:"none", cursor: shareLoading ? "wait" : "pointer", fontSize:13, fontWeight:700, fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", opacity: shareLoading ? 0.7 : 1, boxShadow:"0 4px 24px rgba(155,114,245,0.32)" }}>
+                  <Share2 size={14}/> {shareLoading ? "Generating link..." : "Create share link"}
+                </button>
+              )}
+
+              {shareUrl && (
+                <div>
+                  <p style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Your share URL</p>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <input readOnly value={shareUrl}
+                      onFocus={e=>e.currentTarget.select()}
+                      style={{ flex:1, ...mono, fontSize:12, padding:"10px 12px", borderRadius:9, background:"rgba(155,114,245,0.06)", border:`1px solid ${V.ameWire}`, color:V.ink0, outline:"none" }}/>
+                    <button onClick={()=>{ navigator.clipboard?.writeText(shareUrl); setShareCopied(true); setTimeout(()=>setShareCopied(false),2000); }}
+                      style={{ display:"flex", alignItems:"center", gap:5, padding:"10px 14px", borderRadius:9, background: shareCopied ? "rgba(0,229,160,0.12)" : "rgba(155,114,245,0.10)", border:`1px solid ${shareCopied ? V.gainWire : V.ameWire}`, color: shareCopied ? V.gain : V.ame, cursor:"pointer", ...mono, fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>
+                      {shareCopied ? <><CheckCircle size={11}/> Copied</> : <><Copy size={11}/> Copy</>}
+                    </button>
+                  </div>
+                  <p style={{ fontSize:11, color:V.ink3, marginTop:8, lineHeight:1.5 }}>
+                    Visit the link to preview, or share it anywhere. <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{ color:V.ame, textDecoration:"underline" }}>Open share page →</a>
+                  </p>
+                </div>
+              )}
+
+              {shareErr && (
+                <div style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 12px", borderRadius:8, background:V.lossDim, border:`1px solid ${V.lossWire}` }}>
+                  <AlertTriangle size={13} color={V.loss} style={{ flexShrink:0, marginTop:1 }}/>
+                  <p style={{ fontSize:12, color:V.loss, margin:0 }}>{shareErr}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
