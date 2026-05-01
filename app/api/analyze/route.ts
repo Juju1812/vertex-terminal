@@ -182,14 +182,63 @@ const WIDE_UNI: { t: string; n: string; s: string }[] = [
   {t:"SIRI",n:"Sirius XM Holdings",s:"Consumer"},{t:"NKLA",n:"Nikola Corp.",s:"Consumer"},
 ];
 
-/* ---- Server-side cache (shared across all devices) ---------- */
+/* ---- Two-tier cache: per-instance memory (L1) + Supabase (L2)
+   ---------------------------------------------------------------
+   Vercel serverless instances each have their own memory, so an
+   in-memory cache alone made phone vs desktop hit different
+   instances and see different picks. The L2 read pulls the most
+   recent row from `analysis_snapshots` (which we already write
+   on every fresh analysis) — so every device, every region, every
+   instance, sees the same Top 15 within the TTL window.
+
+   Read order: L1 → L2 → cache miss (run Claude). Write order:
+   L1 set on cache miss; L2 is populated as a side-effect of
+   persistSnapshot which runs after every fresh analysis. */
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 let serverCache: { stocks: unknown[]; analyzedAt: string; expiresAt: number } | null = null;
 
-function getCached() {
-  if (!serverCache) return null;
-  if (Date.now() > serverCache.expiresAt) { serverCache = null; return null; }
-  return serverCache;
+async function getCached(): Promise<{ stocks: unknown[]; analyzedAt: string; source: "L1" | "L2" } | null> {
+  // L1 — per-instance memory (fast, ~1ms)
+  if (serverCache && Date.now() < serverCache.expiresAt) {
+    return { stocks: serverCache.stocks, analyzedAt: serverCache.analyzedAt, source: "L1" };
+  }
+  serverCache = null;
+
+  // L2 — Supabase (shared across all serverless workers)
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/analysis_snapshots?order=created_at.desc&limit=1&select=created_at,picks`,
+      {
+        headers: {
+          "apikey":        SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+        },
+        // Don't let a slow Supabase call block the user — fall through
+        // to a fresh analysis if it's not ready quickly.
+        signal: AbortSignal.timeout(3000),
+      }
+    );
+    if (!r.ok) return null;
+    const rows = await r.json() as Array<{ created_at: string; picks: unknown[] }>;
+    const latest = rows[0];
+    if (!latest?.picks || !Array.isArray(latest.picks)) return null;
+
+    const createdMs = new Date(latest.created_at).getTime();
+    const ageMs     = Date.now() - createdMs;
+    if (ageMs > CACHE_TTL) return null;
+
+    // Populate L1 so subsequent calls on this instance skip the Supabase round-trip
+    serverCache = {
+      stocks: latest.picks,
+      analyzedAt: latest.created_at,
+      expiresAt: createdMs + CACHE_TTL,
+    };
+    return { stocks: latest.picks, analyzedAt: latest.created_at, source: "L2" };
+  } catch (err) {
+    console.warn("[analyze] L2 cache read failed:", err);
+    return null;
+  }
 }
 
 function setCache(stocks: unknown[], analyzedAt: string) {
@@ -675,9 +724,9 @@ export async function POST(req: NextRequest) {
 
     // Return cached result if available and not forced refresh
     if (!force) {
-      const cached = getCached();
+      const cached = await getCached();
       if (cached) {
-        console.log("Returning server-cached analysis from", cached.analyzedAt);
+        console.log(`[analyze] cache hit (${cached.source}) from ${cached.analyzedAt}`);
         return NextResponse.json({ stocks: cached.stocks, analyzedAt: cached.analyzedAt, fromCache: true });
       }
     }
