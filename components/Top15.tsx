@@ -222,62 +222,52 @@ function nextMarketOpen(): string {
 function simulate(stocks: Stock[], cash: number): Alloc[] {
   const buys = stocks.filter(s => {
     const sig = (s.signal ?? "").toString().trim().toUpperCase();
-    return (sig === "STRONG BUY" || sig === "BUY") && s.price > 0 && !isNaN(s.price);
+    const price = Number(s.price);
+    return (sig === "STRONG BUY" || sig === "BUY") && Number.isFinite(price) && price > 0;
   }).slice(0, 8);
-  // Diagnostic: when the simulator returns nothing despite a Top 15
-  // list being on screen, this log tells us exactly which constraint
-  // failed (signal text, price, score, etc.) so we can iterate.
-  if (!buys.length) {
-    console.warn("[simulate] No BUYs after filter. Sample of stocks:",
-      stocks.slice(0, 5).map(s => ({
-        ticker: s.ticker,
-        signal: s.signal,
-        signalRaw: JSON.stringify(s.signal),
-        price: s.price,
-        priceType: typeof s.price,
-        score: s.score,
-        confidence: s.confidence,
-      })));
-    return [];
-  }
-  console.log(`[simulate] ${buys.length} BUYs, sample:`, buys.slice(0, 3).map(p => ({
-    ticker: p.ticker, price: p.price, score: p.score, confidence: p.confidence,
-  })));
+  if (!buys.length) return [];
 
   // Defensive: a single NaN/missing score or confidence used to
   // poison the total-weight sum and silently empty the simulator
   // even when there were 11 valid BUYs. Sanitize with fallbacks
   // (50 confidence, 50 score) so weights are always finite.
-  const safeConf  = (p: Stock) => Number.isFinite(p.confidence) ? p.confidence : 50;
-  const safeScore = (p: Stock) => Number.isFinite(p.score)      ? p.score      : 50;
+  // Coerce every numeric Stock field to a finite Number up-front.
+  // Claude occasionally returns prices/scores as strings ("985.00")
+  // and string * number / .toFixed() on string both broke the math.
+  const safeNum   = (v: unknown, fallback: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const priceOf   = (p: Stock) => safeNum(p.price, 0);
+  const safeConf  = (p: Stock) => safeNum(p.confidence, 50);
+  const safeScore = (p: Stock) => safeNum(p.score, 50);
   const rawWeight = (p: Stock) => safeConf(p) * Math.max(safeScore(p), 1);
 
   let tw = buys.reduce((s, p) => s + rawWeight(p), 0);
-  // Final safety net — if the math still produces a non-positive
-  // total, fall back to equal weighting so the user at least sees
-  // something instead of an empty simulator.
   if (!Number.isFinite(tw) || tw <= 0) tw = buys.length;
   const useEqualWeight = !buys.every(p => Number.isFinite(rawWeight(p)) && rawWeight(p) > 0);
 
   // Pass 1: floor to whole shares from the weighted target
   type Row = { p: typeof buys[number]; weight: number; shares: number };
   const rows: Row[] = buys.map(p => {
-    const weight = useEqualWeight ? (1 / buys.length) : (rawWeight(p) / tw);
+    const weight  = useEqualWeight ? (1 / buys.length) : (rawWeight(p) / tw);
+    const price   = priceOf(p);
     const planned = cash * weight;
-    const shares = p.price > 0 ? Math.floor(planned / p.price) : 0;
+    const shares  = price > 0 ? Math.floor(planned / price) : 0;
     return { p, weight, shares };
   });
 
   // Pass 2: greedily add whole shares from leftover, prioritizing
   // the highest-weight stocks. Stops when no stock can afford
   // another share. Guarantees we never over-spend cash.
-  const remaining = () => cash - rows.reduce((s, r) => s + r.shares * r.p.price, 0);
+  const remaining = () => cash - rows.reduce((s, r) => s + r.shares * priceOf(r.p), 0);
   const order = [...rows].sort((a, b) => b.weight - a.weight);
   let progress = true;
   while (progress) {
     progress = false;
     for (const r of order) {
-      if (r.p.price > 0 && r.p.price <= remaining()) {
+      const price = priceOf(r.p);
+      if (price > 0 && price <= remaining()) {
         r.shares += 1;
         progress = true;
       }
@@ -286,22 +276,28 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
 
   // Build the display rows. Drop any 0-share allocations (allocation
   // too small to buy even one share at this price).
-  console.log("[simulate] rows after pass2:", rows.map(r => ({ tk: r.p.ticker, sh: r.shares, w: r.weight, price: r.p.price })), "cash:", cash, "tw:", tw, "useEqualWeight:", useEqualWeight);
-
-  const result = rows
+  return rows
     .filter(r => r.shares > 0)
     .map(r => {
-      const dollars = +(r.shares * r.p.price).toFixed(2);
-      const actualPct = cash > 0 ? +(dollars / cash * 100).toFixed(1) : 0;
+      // Coerce numeric fields — Claude sometimes returns prices/targets
+      // as strings, which broke .toFixed() and silently emptied the
+      // simulator. Number() handles both string and number input.
+      const price       = Number(r.p.price);
+      const targetPrice = Number(r.p.targetPrice);
+      const conf        = Number(r.p.confidence);
+      const dollars     = +(r.shares * price).toFixed(2);
+      const actualPct   = cash > 0 ? +(dollars / cash * 100).toFixed(1) : 0;
+      const targetStr   = Number.isFinite(targetPrice) && targetPrice > 0
+        ? "target $" + targetPrice.toFixed(0)
+        : "no target";
+      const confStr     = Number.isFinite(conf) ? `${conf}% conf` : "no conf";
       return {
-        ticker: r.p.ticker, name: r.p.name, price: r.p.price,
+        ticker: r.p.ticker, name: r.p.name, price,
         dollars, shares: r.shares, pct: actualPct,
-        note: `${actualPct}% — ${r.p.targetPrice > 0 && !isNaN(r.p.targetPrice) ? "target $" + r.p.targetPrice.toFixed(0) : "no target"} — ${r.p.confidence}% conf`,
+        note: `${actualPct}% — ${targetStr} — ${confStr}`,
       };
     })
     .sort((a, b) => b.dollars - a.dollars);
-  console.log("[simulate] returning", result.length, "allocs");
-  return result;
 }
 
 /* ---- Formatters -------------------------------------------- */
@@ -468,7 +464,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   const [replaced, setReplaced] = useState(false);
   const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   let allocs: Alloc[] = [];
-  try { allocs = simulate(stocks, num); } catch (err) { console.error("[SimModal] simulate threw:", err); allocs = []; }
+  try { allocs = simulate(stocks, num); } catch { allocs = []; }
   const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
   const [busy, setBusy] = useState<"add" | "replace" | null>(null);

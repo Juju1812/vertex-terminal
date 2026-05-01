@@ -860,8 +860,13 @@ export async function POST(req: NextRequest) {
     const stocks: StockAnalysis[] = techData.map(s => {
       const ai = aiResults[s.ticker];
       const signal     = (ai?.signal as StockAnalysis["signal"]) ?? "HOLD";
-      const confidence = ai?.confidence ?? 50;
-      const rawTarget  = ai?.targetPrice ?? 0;
+      // Coerce numeric fields from Claude — the model occasionally
+      // returns numbers as JSON strings ("985.00") which broke
+      // .toFixed() and silently emptied the simulator on the client.
+      const confRaw    = Number(ai?.confidence);
+      const confidence = Number.isFinite(confRaw) ? confRaw : 50;
+      const targetRaw  = Number(ai?.targetPrice);
+      const rawTarget  = Number.isFinite(targetRaw) ? targetRaw : 0;
       const targetPrice = rawTarget > 0 ? rawTarget : +(s.price * 1.05).toFixed(2);
       const thesis    = ai?.thesis ?? "Insufficient data for analysis.";
       const risks     = ai?.risks ?? "Market risk and macro uncertainty.";
