@@ -956,7 +956,7 @@ function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
                 return (
                   <button key={id} onClick={()=>pick(id)}
                     className={`vx-more-sheet__item ${active ? "is-active" : ""}`}>
-                    <span className="vx-more-sheet__icon"><TabIcon id={id} size={20} active={active}/></span>
+                    <span className="vx-more-sheet__icon"><TabIcon id={id} size={18} active={active}/></span>
                     <span className="vx-more-sheet__label">{t.label}</span>
                   </button>
                 );
@@ -989,8 +989,8 @@ function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
                 )}
                 <span className="vx-bottom-nav__icon">
                   {isMore
-                    ? <MoreIcon size={22} active={active}/>
-                    : <TabIcon id={slot.id as Tab} size={22} active={active}/>}
+                    ? <MoreIcon size={24} active={active}/>
+                    : <TabIcon id={slot.id as Tab} size={24} active={active}/>}
                 </span>
                 <span className="vx-bottom-nav__label">{slot.label}</span>
               </button>

@@ -434,58 +434,70 @@ body::after {
    Premium glass nav. 5 buttons (4 primary tabs + More).
    Larger touch targets, springy active indicator pill, real
    safe-area padding for iOS notch + home indicator. */
+/* ── Mobile bottom nav (iOS/Android-style) ────────────────────
+   5-column tab bar with subtle active state. Replaced the old
+   heavy gold-pill design — labels were too small (9px) and the
+   pill ate half the button. New look: bigger icons, legible
+   labels, a small gold dot above the active icon (single visual
+   anchor), and more breathing room.
+*/
 .vx-bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 99;
-  background: rgba(5,4,7,0.85);
-  backdrop-filter: blur(32px) saturate(2);
-  -webkit-backdrop-filter: blur(32px) saturate(2);
-  border-top: 1px solid rgba(240,165,0,0.18);
-  box-shadow: 0 -1px 0 rgba(240,165,0,0.08), 0 -8px 32px rgba(0,0,0,0.45);
-  padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  background: rgba(8,6,12,0.92);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 6px calc(env(safe-area-inset-bottom, 0px) + 4px);
 }
 .vx-bottom-nav__row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   position: relative;
-  gap: 4px;
+  gap: 2px;
 }
 .vx-bottom-nav__btn {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 4px;
-  padding: 8px 4px;
-  min-height: 60px;
+  padding: 10px 2px 6px;
+  min-height: 58px;
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--ink3);
-  font-family: var(--font-display);
-  transition: color 0.2s;
+  color: rgba(180,170,210,0.72);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  transition: color 0.18s ease;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .vx-bottom-nav__btn:active {
-  transform: scale(0.94);
-  transition: transform 0.1s;
+  transform: scale(0.92);
+  transition: transform 0.08s ease;
+  color: var(--gold);
 }
 .vx-bottom-nav__btn.is-active {
   color: var(--gold);
 }
+/* Small dot above the active icon — single subtle indicator
+   instead of the heavy pill that used to fill the button. */
 .vx-bottom-nav__indicator {
   position: absolute;
-  inset: 4px 8px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(240,165,0,0.18) 0%, rgba(240,165,0,0.08) 100%);
-  border: 1px solid rgba(240,165,0,0.32);
-  box-shadow: 0 0 16px rgba(240,165,0,0.20), inset 0 1px 0 rgba(255,255,255,0.05);
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(240,165,0,0.7);
   pointer-events: none;
   z-index: 0;
 }
@@ -495,38 +507,47 @@ body::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 26px;
+}
+.vx-bottom-nav__btn.is-active .vx-bottom-nav__icon {
+  transform: translateY(-1px);
+  transition: transform 0.18s ease;
 }
 .vx-bottom-nav__label {
   position: relative;
   z-index: 1;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  line-height: 1;
 }
 .vx-bottom-nav__btn.is-active .vx-bottom-nav__label {
-  font-weight: 700;
+  font-weight: 600;
 }
 
-/* Light mode bottom nav */
+/* Light mode */
 [data-theme="light"] .vx-bottom-nav {
-  background: rgba(245,240,224,0.92);
-  border-top-color: rgba(120,75,0,0.32);
-  box-shadow: 0 -1px 0 rgba(120,75,0,0.10), 0 -8px 32px rgba(80,50,0,0.10);
+  background: rgba(252,250,244,0.96);
+  border-top-color: rgba(120,80,0,0.14);
+  box-shadow: 0 -1px 8px rgba(80,50,0,0.06);
 }
-[data-theme="light"] .vx-bottom-nav__indicator {
-  background: linear-gradient(180deg, rgba(138,82,0,0.16) 0%, rgba(138,82,0,0.08) 100%);
-  border-color: rgba(138,82,0,0.45);
-  box-shadow: 0 0 16px rgba(138,82,0,0.18), inset 0 1px 0 rgba(255,255,255,0.6);
+[data-theme="light"] .vx-bottom-nav__btn {
+  color: rgba(80,60,30,0.55);
 }
+[data-theme="light"] .vx-bottom-nav__btn:active,
+[data-theme="light"] .vx-bottom-nav__btn.is-active { color: var(--gold); }
 
-/* ── More sheet (slides up from bottom nav) ───────────────── */
+/* ── More sheet (slides up from bottom nav) ─────────────────
+   Native-feeling bottom sheet. Single column with full-width
+   list items so the labels are legible and the touch targets
+   are big. */
 .vx-more-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 100;
 }
 .vx-more-sheet {
@@ -535,90 +556,106 @@ body::after {
   right: 0;
   bottom: 0;
   z-index: 101;
-  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 88px);
-  background: rgba(8,6,16,0.97);
+  padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 84px);
+  background: rgba(10,8,18,0.98);
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border-top: 1px solid rgba(240,165,0,0.22);
+  border-top: 1px solid rgba(255,255,255,0.08);
   border-radius: 20px 20px 0 0;
-  box-shadow: 0 -16px 60px rgba(0,0,0,0.65);
+  box-shadow: 0 -16px 60px rgba(0,0,0,0.7);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
 }
 .vx-more-sheet__handle {
-  width: 40px;
+  width: 36px;
   height: 4px;
-  margin: 0 auto 16px;
+  margin: 0 auto 14px;
   border-radius: 99px;
-  background: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.20);
 }
 .vx-more-sheet__title {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ink0);
-  margin-bottom: 14px;
-  letter-spacing: -0.02em;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(180,170,210,0.55);
+  margin: 0 6px 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
 }
 .vx-more-sheet__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .vx-more-sheet__item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(240,165,0,0.18);
-  border-radius: 14px;
+  gap: 14px;
+  padding: 14px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--ink1);
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   text-align: left;
-  transition: all 0.2s;
+  transition: background 0.15s ease;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  width: 100%;
 }
-.vx-more-sheet__item:active { transform: scale(0.97); }
+.vx-more-sheet__item:active {
+  background: rgba(255,255,255,0.06);
+  transform: scale(0.99);
+}
 .vx-more-sheet__item.is-active {
-  background: rgba(240,165,0,0.12);
-  border-color: rgba(240,165,0,0.45);
+  background: rgba(240,165,0,0.10);
   color: var(--gold);
 }
 .vx-more-sheet__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  background: rgba(240,165,0,0.10);
-  border: 1px solid rgba(240,165,0,0.22);
-  color: var(--gold);
+  background: rgba(255,255,255,0.05);
+  color: rgba(200,190,230,0.85);
   flex-shrink: 0;
+  transition: all 0.15s ease;
 }
-.vx-more-sheet__label { white-space: nowrap; }
+.vx-more-sheet__item.is-active .vx-more-sheet__icon {
+  background: rgba(240,165,0,0.14);
+  color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(240,165,0,0.30);
+}
+.vx-more-sheet__label { white-space: nowrap; flex: 1; }
 
 [data-theme="light"] .vx-more-sheet {
-  background: rgba(255,253,247,0.97);
-  border-top-color: rgba(120,75,0,0.32);
-  box-shadow: 0 -16px 60px rgba(80,50,0,0.20);
+  background: rgba(252,250,244,0.98);
+  border-top-color: rgba(120,75,0,0.14);
+  box-shadow: 0 -16px 60px rgba(80,50,0,0.16);
 }
-[data-theme="light"] .vx-more-sheet__handle { background: rgba(120,75,0,0.30); }
+[data-theme="light"] .vx-more-sheet__handle { background: rgba(120,75,0,0.28); }
+[data-theme="light"] .vx-more-sheet__title { color: rgba(80,55,15,0.55); }
 [data-theme="light"] .vx-more-sheet__item {
-  background: #ffffff;
-  border-color: rgba(120,75,0,0.28);
-  color: var(--ink1);
+  background: transparent;
+  color: rgba(45,30,5,0.92);
+}
+[data-theme="light"] .vx-more-sheet__item:active {
+  background: rgba(80,50,0,0.06);
 }
 [data-theme="light"] .vx-more-sheet__item.is-active {
   background: rgba(138,82,0,0.10);
-  border-color: rgba(138,82,0,0.55);
+  color: var(--gold);
 }
 [data-theme="light"] .vx-more-sheet__icon {
-  background: rgba(138,82,0,0.08);
-  border-color: rgba(138,82,0,0.30);
+  background: rgba(80,50,0,0.06);
+  color: rgba(60,40,10,0.65);
+}
+[data-theme="light"] .vx-more-sheet__item.is-active .vx-more-sheet__icon {
+  background: rgba(138,82,0,0.14);
+  color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(138,82,0,0.30);
 }
 
 /* ── Layout helpers ─────────────────────────────────────────── */
@@ -724,7 +761,7 @@ body::after {
 }
 
 @media (max-width: 767px) {
-  .vx-main { padding-bottom: calc(64px + env(safe-area-inset-bottom,0px)) !important; }
+  .vx-main { padding-bottom: calc(76px + env(safe-area-inset-bottom,0px)) !important; }
   .vx-chart-main { height: 160px !important; }
   .vx-bottom-nav { display: flex !important; }
 }
