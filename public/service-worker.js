@@ -1,4 +1,4 @@
-const CACHE_NAME = "arbibx-v2";
+const CACHE_NAME = "arbibx-v3";
 
 const PRECACHE = [
   "/",
