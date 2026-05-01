@@ -10,21 +10,25 @@ export const metadata: Metadata = {
   keywords: ["stocks", "trading", "AI", "portfolio", "market data", "Claude AI"],
   manifest: "/manifest.json",
 
-  // Open Graph (for link previews)
+  metadataBase: new URL("https://www.arbibx.com"),
+
+  // Open Graph (for link previews) — uses dynamic OG image so the
+  // root site card has the same polish as ticker / portfolio cards.
   openGraph: {
-    title: "ArbibX Terminal",
-    description: "AI-powered stock intelligence terminal",
+    title: "ArbibX · AI-powered stock terminal",
+    description: "Live charts, AI Top 15, earnings, news, and portfolio analytics — powered by Claude AI.",
     type: "website",
     url: "https://www.arbibx.com",
-    images: [{ url: "/logo.png", width: 512, height: 512, alt: "ArbibX" }],
+    siteName: "ArbibX",
+    images: [{ url: "/api/og?type=default", width: 1200, height: 630, alt: "ArbibX — AI-powered stock terminal" }],
   },
 
-  // Twitter card
+  // Twitter card — large image so the dynamic OG actually shows up
   twitter: {
-    card: "summary",
-    title: "ArbibX Terminal",
-    description: "AI-powered stock intelligence terminal",
-    images: ["/logo.png"],
+    card: "summary_large_image",
+    title: "ArbibX · AI-powered stock terminal",
+    description: "Live charts, AI Top 15, earnings, news, and portfolio analytics — powered by Claude AI.",
+    images: ["/api/og?type=default"],
   },
 
   // Apple PWA

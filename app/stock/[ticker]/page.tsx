@@ -125,13 +125,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       url:         `https://www.arbibx.com/stock/${ticker}`,
       siteName:    "ArbibX",
       locale:      "en_US",
-      images: [{ url: "/logo.png", width: 512, height: 512, alt: `${ticker} on ArbibX` }],
+      images: [{ url: `https://www.arbibx.com/api/og?type=ticker&t=${ticker}`, width: 1200, height: 630, alt: `${ticker} on ArbibX` }],
     },
     twitter: {
       card:        "summary_large_image",
       title,
       description,
-      images:      ["/logo.png"],
+      images:      [`https://www.arbibx.com/api/og?type=ticker&t=${ticker}`],
     },
     robots: {
       index:  true,
