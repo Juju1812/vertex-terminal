@@ -851,9 +851,25 @@ export default function Top15({ onSelectTicker, isPro = true, onUpgrade }: Top15
             </p>
           </div>
         </div>
-        <button onClick={() => setShowSim(true)}
-          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background:"linear-gradient(135deg,rgba(79,142,247,0.15),rgba(79,142,247,0.08))", border:`1px solid ${V.arcWire}`, color:"var(--ticker-blue,#7EB6FF)", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0 }}>
+        <button onClick={() => isPro ? setShowSim(true) : onUpgrade?.()}
+          title={isPro ? "Open the AI portfolio simulator" : "Pro feature — click to upgrade"}
+          style={{
+            display:"flex", alignItems:"center", gap:6,
+            padding:"9px 16px", borderRadius:9,
+            background: isPro
+              ? "linear-gradient(135deg,rgba(79,142,247,0.15),rgba(79,142,247,0.08))"
+              : "linear-gradient(135deg,rgba(240,165,0,0.14),rgba(240,165,0,0.08))",
+            border: `1px solid ${isPro ? V.arcWire : "rgba(240,165,0,0.40)"}`,
+            color: isPro ? "var(--ticker-blue,#7EB6FF)" : "var(--gold,#f0a500)",
+            cursor:"pointer", fontSize:12, fontWeight:600,
+            fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0,
+          }}>
           <DollarSign size={13} /> Simulate Portfolio
+          {!isPro && (
+            <span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 99, background: "rgba(240,165,0,0.18)", color: "var(--gold,#f0a500)", border: "1px solid rgba(240,165,0,0.40)", letterSpacing: "0.10em", textTransform: "uppercase", fontFamily: "'DM Mono',monospace", marginLeft: 2 }}>
+              Pro
+            </span>
+          )}
         </button>
       </div>
 

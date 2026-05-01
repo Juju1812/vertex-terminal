@@ -13,6 +13,7 @@ import {
   Activity, Target, Shield, BarChart2, AlertTriangle,
 } from "lucide-react";
 import AnimatedPrice from "@/components/motion/AnimatedPrice";
+import AdSlot from "@/components/AdSlot";
 
 /* ── Types & API helpers (mirrors patterns from app/page.tsx) ── */
 interface Bar { date: string; close: number; }
@@ -465,6 +466,10 @@ export default function TickerView({ ticker }: { ticker: string }) {
             <p style={{ fontSize: 13, color: V.ink2, lineHeight: 1.65 }}>{details.description}</p>
           </div>
         )}
+
+        {/* Ad slot — non-Pro only. Placed before footer actions so
+            it's visible after the user has consumed the page content. */}
+        <AdSlot label="ticker-page" />
 
         {/* Footer actions */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center", padding: "16px 0 0" }}>

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ThemeInit from "@/components/ThemeInit";
+import AdSenseLoader from "@/components/AdSenseLoader";
 
 export const metadata: Metadata = {
   title: "ArbibX Terminal",
@@ -69,12 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* Google AdSense */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2690222846295907"
-          crossOrigin="anonymous"
-        />
+        {/* AdSense script is now loaded conditionally via
+            <AdSenseLoader/> in the body — Pro users get an ad-free
+            experience because the script never injects. */}
 
         {/* Apple-specific PWA tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -97,6 +95,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             including /stock/[ticker] and /p/[id] which don't run
             the main page's useEffect. */}
         <ThemeInit />
+        {/* Loads Google AdSense only for non-Pro users so paying
+            members get a fully ad-free experience. */}
+        <AdSenseLoader />
         {children}
 
         {/* Service worker registration */}
