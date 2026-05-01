@@ -35,9 +35,13 @@ const TOUR_KEY        = "arbibx-tour-seen";
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When false, the daily digest toggle is locked behind an
+      upgrade prompt instead of being directly toggleable. */
+  isPro?:    boolean;
+  onUpgrade?: () => void;
 }
 
-export default function SettingsModal({ open, onClose }: Props) {
+export default function SettingsModal({ open, onClose, isPro = true, onUpgrade }: Props) {
   const [defaultTab, setDefaultTab] = useState<string>("markets");
   const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -72,6 +76,11 @@ export default function SettingsModal({ open, onClose }: Props) {
 
   const toggleDigest = async () => {
     if (!authUser || digestState.saving) return;
+    // Pro gate: free users can't enable the digest.
+    if (!isPro && !digestState.enabled) {
+      onUpgrade?.();
+      return;
+    }
     const next = !digestState.enabled;
     setDigestState(s => ({ ...s, saving: true, error: null, enabled: next })); // optimistic
     try {
@@ -239,8 +248,13 @@ export default function SettingsModal({ open, onClose }: Props) {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
                       <Mail size={14} color={digestState.enabled ? "var(--gold,#f0a500)" : "var(--ink3,#3D5A7A)"} />
                       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink0,#f4f0ff)", fontFamily: "'Cabinet Grotesk',system-ui,sans-serif" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink0,#f4f0ff)", fontFamily: "'Cabinet Grotesk',system-ui,sans-serif", display: "inline-flex", alignItems: "center", gap: 6 }}>
                           Daily AI brief
+                          {!isPro && (
+                            <span style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 99, background: "rgba(240,165,0,0.14)", color: "var(--gold,#f0a500)", border: "1px solid rgba(240,165,0,0.32)", letterSpacing: "0.10em", textTransform: "uppercase", fontFamily: "'DM Mono',monospace" }}>
+                              Pro
+                            </span>
+                          )}
                         </span>
                         <span style={{ fontSize: 11, color: "var(--ink3,#3D5A7A)" }}>
                           A morning summary of your portfolio, news on your holdings, and what to watch — delivered to {authUser.email}

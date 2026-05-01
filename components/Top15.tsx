@@ -35,7 +35,13 @@ interface Alloc {
   dollars: number; shares: number; pct: number; note: string;
 }
 
-interface Top15Props { onSelectTicker?: (ticker: string) => void; }
+interface Top15Props {
+  onSelectTicker?: (ticker: string) => void;
+  /** When false, only the first 5 picks are visible; the rest
+      are blurred behind an upgrade overlay. */
+  isPro?:    boolean;
+  onUpgrade?: () => void;
+}
 
 /* ---- Universe of ~100 stocks ---------------------------------
    Expanded from 57 to ~102 to cover sectors that were thin or
@@ -700,7 +706,7 @@ function saveCache(stocks: Stock[], analyzedAt: string) {
   } catch { /**/ }
 }
 
-export default function Top15({ onSelectTicker }: Top15Props) {
+export default function Top15({ onSelectTicker, isPro = true, onUpgrade }: Top15Props) {
   const cached = loadCache();
   const [stocks,    setStocks]    = useState<Stock[]>(cached?.stocks ?? []);
   const [loading,   setLoading]   = useState(!cached);
@@ -917,10 +923,24 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                 const isH = hovRow === s.ticker;
                 return (
                   <tr key={s.ticker}
-                    onClick={() => onSelectTicker ? onSelectTicker(s.ticker) : setSelected(s)}
+                    onClick={() => {
+                      // Free users: rows 6+ are gated. Click triggers upgrade flow
+                      // instead of opening the ticker.
+                      if (!isPro && idx >= 5) { onUpgrade?.(); return; }
+                      onSelectTicker ? onSelectTicker(s.ticker) : setSelected(s);
+                    }}
                     onMouseEnter={() => setHovRow(s.ticker)}
                     onMouseLeave={() => setHovRow(null)}
-                    style={{ borderBottom:"1px solid rgba(130,180,255,0.04)", background: isH ? V.dh : "transparent", transition:"background 0.15s", cursor:"pointer" }}>
+                    style={{
+                      borderBottom:"1px solid rgba(130,180,255,0.04)",
+                      background: isH ? V.dh : "transparent",
+                      transition:"background 0.15s, filter 0.2s",
+                      cursor:"pointer",
+                      // Gate visual: blur + dim picks 6-15 for free users
+                      filter:  !isPro && idx >= 5 ? "blur(4px)" : "none",
+                      opacity: !isPro && idx >= 5 ? 0.55      : 1,
+                      pointerEvents: !isPro && idx >= 5 ? "none" : "auto",
+                    }}>
                     <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <span style={{ ...mono, fontSize:12, color: idx < 3 ? V.gold : V.ink4, fontWeight:500 }}>
                         {idx === 0 ? "1st" : idx === 1 ? "2nd" : idx === 2 ? "3rd" : `#${s.rank}`}
@@ -993,6 +1013,50 @@ export default function Top15({ onSelectTicker }: Top15Props) {
             </tbody>
           </table>
         </div>
+        {/* Free-tier paywall — sits below the blurred rows 6-15
+            and converts users who got value from the first 5 picks
+            and want to see the rest. */}
+        {!isPro && sorted.length > 5 && (
+          <div style={{
+            margin: "0 16px 16px",
+            padding: "16px 18px",
+            borderRadius: 12,
+            background: "linear-gradient(135deg, rgba(240,165,0,0.10) 0%, rgba(155,114,245,0.08) 100%)",
+            border: "1px solid rgba(240,165,0,0.32)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <p style={{ ...mono, fontSize: 9, color: V.gold, textTransform: "uppercase", letterSpacing: "0.14em", margin: "0 0 4px", fontWeight: 600 }}>
+                Pro · {sorted.length - 5} more picks locked
+              </p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: V.ink0, margin: 0, lineHeight: 1.4 }}>
+                Unlock the full AI Top {sorted.length} ranking
+              </p>
+              <p style={{ fontSize: 11, color: V.ink2, margin: "4px 0 0", lineHeight: 1.5 }}>
+                Plus unlimited Ask Claude, daily AI brief emails, earnings reminders, and AI portfolio grading.
+              </p>
+            </div>
+            <button onClick={() => onUpgrade?.()}
+              style={{
+                padding: "10px 18px",
+                borderRadius: 9,
+                background: "linear-gradient(135deg,#f0a500,#ffbe1a)",
+                color: "#0a0800",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 800,
+                fontFamily: "inherit",
+                boxShadow: "0 4px 14px rgba(240,165,0,0.40)",
+              }}>
+              Upgrade to Pro
+            </button>
+          </div>
+        )}
         <div style={{ padding:"10px 16px", borderTop:`1px solid ${V.w1}`, display:"flex", alignItems:"center", gap:6 }}>
           <Brain size={11} color={V.ink4} />
           <span style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.08em" }}>

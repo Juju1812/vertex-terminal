@@ -1737,7 +1737,7 @@ export default function ArbibX() {
       {/* ════ MAIN CONTENT ════════════════════════════════════ */}
       <main className="vx-main" style={{position:"relative",zIndex:1}}>
         <AnimatedTab tabKey={tab}>
-          {tab==="top15"     && <Top15 onSelectTicker={go}/>}
+          {tab==="top15"     && <Top15 onSelectTicker={go} isPro={isPro} onUpgrade={()=>{setProReason("Unlock all 15 AI picks"); setShowProModal(true);}}/>}
           {tab==="earnings"  && <EarningsCal onSelectTicker={go}/>}
           {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
           {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
@@ -1773,7 +1773,7 @@ export default function ArbibX() {
       )}
 
       {/* ════ SETTINGS MODAL ═════════════════════════════════ */}
-      <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)}/>
+      <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)} isPro={isPro} onUpgrade={()=>{setShowSettings(false); setProReason("Unlock daily AI brief emails"); setShowProModal(true);}}/>
 
       {/* ════ ADMIN PANEL (owner-only) ═══════════════════════ */}
       {isAdmin && <AdminPanel open={showAdmin} onClose={()=>setShowAdmin(false)}/>}
@@ -1786,7 +1786,7 @@ export default function ArbibX() {
 
       {/* ════ ASK CLAUDE (AI chat) ═══════════════════════════ */}
       {!showLanding && (
-        <AskClaude ticker={ticker} watchlistTickers={watchlist} tab={tab}/>
+        <AskClaude ticker={ticker} watchlistTickers={watchlist} tab={tab} isPro={isPro} onUpgrade={()=>{setProReason("Unlock unlimited AI conversations"); setShowProModal(true);}}/>
       )}
 
       {/* ════ KEYBOARD SHORTCUT HINT (desktop only) ════════ */}

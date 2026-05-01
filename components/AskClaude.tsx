@@ -28,10 +28,35 @@ interface Props {
   ticker?:           string | null;
   watchlistTickers?: string[];
   tab?:              string;
+  /** Free users get 5 messages per UTC day. Pro is unlimited. */
+  isPro?:    boolean;
+  onUpgrade?: () => void;
 }
 
 const STORAGE_KEY  = "arbibx-ask-claude-history";
 const HOLDINGS_KEY = "arbibx-holdings-local";
+const QUOTA_KEY    = "arbibx-ask-claude-quota";
+const FREE_QUOTA   = 5;
+
+/* Per-day client-side message-count tracker. Resets at UTC
+   midnight automatically by storing the date alongside the count. */
+function readQuota(): { date: string; count: number } {
+  try {
+    const raw = localStorage.getItem(QUOTA_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as { date: string; count: number };
+      const today = new Date().toISOString().split("T")[0];
+      if (p.date === today) return p;
+    }
+  } catch { /* */ }
+  return { date: new Date().toISOString().split("T")[0], count: 0 };
+}
+function bumpQuota() {
+  try {
+    const q = readQuota();
+    localStorage.setItem(QUOTA_KEY, JSON.stringify({ date: q.date, count: q.count + 1 }));
+  } catch { /* */ }
+}
 
 /* Holdings live inside MyStocks rather than page.tsx, so we read
    them straight from localStorage when assembling chat context.
@@ -141,7 +166,7 @@ function extractTickers(text: string): string[] {
   return [...found].slice(0, 5);
 }
 
-export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
+export default function AskClaude({ ticker, watchlistTickers, tab, isPro = true, onUpgrade }: Props) {
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput]       = useState("");
@@ -200,6 +225,15 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
+    // Free-tier quota check — Pro users skip entirely.
+    if (!isPro) {
+      const q = readQuota();
+      if (q.count >= FREE_QUOTA) {
+        onUpgrade?.();
+        return;
+      }
+      bumpQuota();
+    }
     setError(null);
     setInput("");
 
@@ -265,7 +299,7 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, streaming, effectiveTicker, watchlistTickers, tab]);
+  }, [messages, streaming, effectiveTicker, watchlistTickers, tab, isPro, onUpgrade]);
 
   const stop = () => { abortRef.current?.abort(); };
   const clear = () => {
@@ -532,9 +566,29 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
                     </button>
                   )}
                 </div>
-                <p style={{ margin: "8px 4px 0", fontSize: 9, fontFamily: "'DM Mono',monospace", color: "var(--ink4,#1F3550)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Enter to send · Shift+Enter for newline · Esc to close
-                </p>
+                <div style={{ margin: "8px 4px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: 9, fontFamily: "'DM Mono',monospace", color: "var(--ink4,#1F3550)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                    Enter to send · Shift+Enter for newline · Esc to close
+                  </p>
+                  {!isPro && (() => {
+                    const q = readQuota();
+                    const remaining = Math.max(0, FREE_QUOTA - q.count);
+                    return (
+                      <button onClick={() => onUpgrade?.()}
+                        style={{
+                          background: remaining === 0 ? "linear-gradient(135deg,#f0a500,#ffbe1a)" : "rgba(240,165,0,0.10)",
+                          color:      remaining === 0 ? "#0a0800" : "var(--gold,#f0a500)",
+                          border:     remaining === 0 ? "none" : "1px solid rgba(240,165,0,0.32)",
+                          padding: "3px 9px", borderRadius: 99, cursor: "pointer",
+                          fontSize: 9, fontWeight: 700, fontFamily: "'DM Mono',monospace",
+                          textTransform: "uppercase", letterSpacing: "0.10em",
+                        }}
+                        title={remaining === 0 ? "Daily limit reached — upgrade for unlimited" : `${remaining} of ${FREE_QUOTA} messages left today`}>
+                        {remaining === 0 ? "Upgrade for unlimited" : `${remaining}/${FREE_QUOTA} left · Pro`}
+                      </button>
+                    );
+                  })()}
+                </div>
               </div>
             </motion.aside>
           </motion.div>

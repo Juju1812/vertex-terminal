@@ -109,8 +109,10 @@ async function bulkFetchEarnings(tickers: string[]): Promise<Record<string, stri
 
 async function fetchOptedInUsers(): Promise<OptedInUser[]> {
   if (!SUPABASE_URL) return [];
+  // Pro-only on the server side. Free users who tamper with the
+  // client-side toggle still don't receive emails.
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/portfolios?digest_optin=eq.true&select=email,holdings`,
+    `${SUPABASE_URL}/rest/v1/portfolios?digest_optin=eq.true&subscription_status=eq.pro&select=email,holdings`,
     { headers: HDR }
   );
   if (!r.ok) return [];

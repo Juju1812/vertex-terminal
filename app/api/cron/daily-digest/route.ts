@@ -24,8 +24,10 @@ interface PriceMap { [ticker: string]: { price: number; changePct: number; prevC
 
 async function fetchOptedInUsers(): Promise<OptedInUser[]> {
   if (!SUPABASE_URL) return [];
+  // Server-side Pro gate: even if a free user flips digest_optin via
+  // tampered localStorage, the cron only ships to subscription_status="pro".
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/portfolios?digest_optin=eq.true&select=email,holdings`,
+    `${SUPABASE_URL}/rest/v1/portfolios?digest_optin=eq.true&subscription_status=eq.pro&select=email,holdings`,
     { headers: HDR }
   );
   if (!r.ok) {
