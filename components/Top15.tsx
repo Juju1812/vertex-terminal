@@ -224,7 +224,25 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
     const sig = (s.signal ?? "").toString().trim().toUpperCase();
     return (sig === "STRONG BUY" || sig === "BUY") && s.price > 0 && !isNaN(s.price);
   }).slice(0, 8);
-  if (!buys.length) return [];
+  // Diagnostic: when the simulator returns nothing despite a Top 15
+  // list being on screen, this log tells us exactly which constraint
+  // failed (signal text, price, score, etc.) so we can iterate.
+  if (!buys.length) {
+    console.warn("[simulate] No BUYs after filter. Sample of stocks:",
+      stocks.slice(0, 5).map(s => ({
+        ticker: s.ticker,
+        signal: s.signal,
+        signalRaw: JSON.stringify(s.signal),
+        price: s.price,
+        priceType: typeof s.price,
+        score: s.score,
+        confidence: s.confidence,
+      })));
+    return [];
+  }
+  console.log(`[simulate] ${buys.length} BUYs, sample:`, buys.slice(0, 3).map(p => ({
+    ticker: p.ticker, price: p.price, score: p.score, confidence: p.confidence,
+  })));
 
   // Defensive: a single NaN/missing score or confidence used to
   // poison the total-weight sum and silently empty the simulator
