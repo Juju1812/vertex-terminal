@@ -104,6 +104,61 @@ async function fetchPolygonTickers(): Promise<string[]> {
   return out;
 }
 
+/* Comparison pairs to seed the sitemap with. Mostly same-sector
+   peers since "X vs Y" search demand concentrates there
+   (NVDA vs AMD, MSFT vs GOOGL, JPM vs BAC, etc.). Hand-picked
+   over generating cross-product because (a) most random pairs
+   have zero search demand and (b) Google penalises thin pages.
+   ~120 high-intent pairs is the sweet spot. */
+const COMPARISON_PAIRS: [string, string][] = [
+  // Mega-cap tech
+  ["NVDA","AMD"], ["NVDA","INTC"], ["AMD","INTC"], ["NVDA","TSM"],
+  ["AAPL","MSFT"], ["AAPL","GOOGL"], ["MSFT","GOOGL"], ["AAPL","META"],
+  ["MSFT","ORCL"], ["GOOGL","META"], ["META","SNAP"], ["GOOGL","PINS"],
+  ["AMZN","WMT"], ["AMZN","COST"], ["AMZN","SHOP"],
+  // Cloud / SaaS
+  ["CRM","ORCL"], ["NOW","CRM"], ["SNOW","DDOG"], ["MDB","SNOW"],
+  ["CRWD","PANW"], ["ZS","NET"], ["OKTA","CRWD"], ["FTNT","PANW"],
+  ["SHOP","SQ"], ["SQ","PYPL"], ["PYPL","V"], ["V","MA"],
+  // Semis
+  ["AMAT","LRCX"], ["LRCX","KLAC"], ["AVGO","QCOM"], ["MU","WDC"],
+  ["NXPI","ADI"], ["MCHP","ON"], ["MRVL","NXPI"], ["ARM","QCOM"],
+  ["SMCI","DELL"], ["ANET","CSCO"],
+  // EVs / auto
+  ["TSLA","RIVN"], ["TSLA","LCID"], ["TSLA","NIO"], ["F","GM"],
+  ["F","TSLA"], ["RIVN","LCID"],
+  // Banks / fintech
+  ["JPM","BAC"], ["JPM","GS"], ["BAC","WFC"], ["GS","MS"],
+  ["C","WFC"], ["JPM","C"], ["BLK","SCHW"], ["COIN","HOOD"],
+  ["AXP","V"], ["AXP","MA"],
+  // Healthcare
+  ["LLY","NVO"], ["JNJ","PFE"], ["PFE","MRK"], ["UNH","CVS"],
+  ["ABBV","BMY"], ["AMGN","GILD"], ["REGN","VRTX"], ["MRNA","BNTX"],
+  ["ISRG","DXCM"], ["LLY","UNH"],
+  // Consumer / retail
+  ["NKE","LULU"], ["NKE","ADIDAS"], ["SBUX","MCD"], ["CMG","MCD"],
+  ["HD","LOW"], ["WMT","TGT"], ["COST","WMT"], ["DIS","NFLX"],
+  ["NFLX","SPOT"], ["ROKU","NFLX"], ["UBER","LYFT"], ["UBER","DASH"],
+  ["DASH","UBER"], ["ABNB","BKNG"],
+  // Energy
+  ["XOM","CVX"], ["XOM","COP"], ["OXY","EOG"], ["SLB","HAL"],
+  ["XOM","SHEL"],
+  // Industrials
+  ["BA","LMT"], ["LMT","RTX"], ["CAT","DE"], ["UPS","FDX"],
+  ["GE","HON"], ["BA","RTX"],
+  // Crypto / digital assets
+  ["COIN","HOOD"], ["MSTR","COIN"], ["MARA","RIOT"], ["RIOT","CLSK"],
+  // Communications
+  ["T","VZ"], ["VZ","TMUS"], ["T","TMUS"], ["CMCSA","CHTR"],
+  // Travel
+  ["BKNG","ABNB"], ["AAL","UAL"], ["UAL","DAL"], ["LUV","JBLU"],
+  // ETF comparisons (huge search volume)
+  ["SPY","QQQ"], ["SPY","VOO"], ["QQQ","VTI"], ["VTI","VOO"],
+  ["VOO","VTI"], ["SPY","DIA"], ["IWM","QQQ"], ["VEA","VWO"],
+  ["XLK","QQQ"], ["XLF","KRE"], ["GLD","SLV"], ["TLT","IEF"],
+  ["ARKK","QQQ"], ["VUG","VTV"], ["TQQQ","QQQ"],
+];
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
   const polygon = await fetchPolygonTickers();
@@ -123,6 +178,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority:        0.7,
   }));
 
+  // Comparison pages — dedupe pairs that don't include both tickers
+  // in our active list (prevents 404s in the sitemap)
+  const comparisonEntries: MetadataRoute.Sitemap = COMPARISON_PAIRS
+    .filter(([a, b]) => set.has(a) && set.has(b))
+    .map(([a, b]) => ({
+      url:             `https://www.arbibx.com/compare/${a}-vs-${b}`,
+      lastModified:    now,
+      changeFrequency: "daily",
+      priority:        0.6,
+    }));
+
   return [
     {
       url:             "https://www.arbibx.com",
@@ -131,5 +197,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority:        1.0,
     },
     ...tickerEntries,
+    ...comparisonEntries,
   ];
 }
