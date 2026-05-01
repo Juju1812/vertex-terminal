@@ -1510,7 +1510,7 @@ body::after {
 .vx-stagger > *:nth-child(16) { animation-delay: 480ms; }
 .vx-stagger > *:nth-child(17) { animation-delay: 512ms; }
 .vx-stagger > *:nth-child(18) { animation-delay: 544ms; }
-[data-perf="low"] .vx-stagger > *,
+[data-perf="low"] .vx-stagger > * { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .vx-stagger > * { animation: none !important; }
 }
