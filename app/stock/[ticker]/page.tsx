@@ -30,14 +30,20 @@ interface TickerSnapshot {
    block server render — fall back to plain ticker data if needed. */
 async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapshot | null> {
   try {
+    // ISR-friendly cache windows. Snapshot at 30min so crawlers
+    // hammering 5,000+ ticker pages don't rate-limit Polygon —
+    // the user-facing TickerView component re-polls client-side
+    // anyway, so server data being slightly stale is fine. Reference
+    // (company name / sector / market cap) cached 7d since those
+    // basically never change.
     const [snapRes, refRes] = await Promise.all([
       fetch(
         `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}?apiKey=${POLYGON_KEY}`,
-        { signal: AbortSignal.timeout(2500), next: { revalidate: 60 } }
+        { signal: AbortSignal.timeout(2500), next: { revalidate: 1800 } }
       ),
       fetch(
         `https://api.polygon.io/v3/reference/tickers/${ticker}?apiKey=${POLYGON_KEY}`,
-        { signal: AbortSignal.timeout(2500), next: { revalidate: 86400 } }
+        { signal: AbortSignal.timeout(2500), next: { revalidate: 604_800 } }
       ),
     ]);
     if (!snapRes.ok) return null;
