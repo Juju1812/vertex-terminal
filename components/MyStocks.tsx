@@ -339,7 +339,17 @@ function EmailAlerts({ userEmail }: { userEmail?: string }) {
 /* ============================================================
    MAIN COMPONENT
    ============================================================ */
-export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
+export default function MyStocks({
+  onSignIn,
+  isPro = true,
+  onUpgrade,
+}: {
+  onSignIn?: () => void;
+  /** When false, the AI portfolio grade is locked behind an
+      upgrade overlay. */
+  isPro?:    boolean;
+  onUpgrade?: () => void;
+}) {
   const [user,     setUser]    = useState<AuthUser | null>(null);
   const [holdings, setH]       = useState<H[]>([]);
   const [prices,   setP]       = useState<Record<string, { p: number; d: number; n: string }>>({});
@@ -994,9 +1004,56 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
             })}
           </div>
 
-          {/* AI Grade */}
-          <div style={{ ...glass({ overflow:"hidden", marginBottom:20 }) }}>
-            <div style={{ padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+          {/* AI Grade — Pro-locked. Free users see a teaser of the
+              grade card with the actual letter / strengths / weaknesses
+              blurred out and an upgrade CTA overlay. */}
+          <div style={{ ...glass({ overflow:"hidden", marginBottom:20 }), position: "relative" }}>
+            {!isPro && (
+              <div style={{
+                position: "absolute", inset: 0, zIndex: 5,
+                background: "linear-gradient(180deg, rgba(8,6,15,0.30) 0%, rgba(8,6,15,0.85) 100%)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: 20,
+              }}>
+                <div style={{
+                  textAlign: "center",
+                  maxWidth: 360,
+                  padding: "20px 22px",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, rgba(240,165,0,0.12) 0%, rgba(155,114,245,0.08) 100%)",
+                  border: "1px solid rgba(240,165,0,0.40)",
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                }}>
+                  <p style={{ ...mono, fontSize: 9, color: V.gold, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 6px", fontWeight: 700 }}>
+                    Pro · AI Portfolio Grade
+                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: V.ink0, margin: "0 0 6px", fontFamily: "'Cabinet Grotesk',system-ui" }}>
+                    See your portfolio&apos;s letter grade
+                  </p>
+                  <p style={{ fontSize: 12, color: V.ink2, margin: "0 0 14px", lineHeight: 1.5 }}>
+                    Win rate, volatility score, diversification, plus AI-written strengths, weaknesses, and rebalancing tips.
+                  </p>
+                  <button onClick={() => onUpgrade?.()}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 9,
+                      background: "linear-gradient(135deg,#f0a500,#ffbe1a)",
+                      color: "#0a0800",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      fontFamily: "'Cabinet Grotesk',system-ui",
+                      boxShadow: "0 4px 18px rgba(240,165,0,0.50)",
+                    }}>
+                    Unlock Pro · $9.99/mo
+                  </button>
+                </div>
+              </div>
+            )}
+            <div style={{ padding:"20px 24px", borderBottom:`1px solid ${V.w1}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, filter: !isPro ? "blur(6px)" : "none" }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:52, height:52, borderRadius:13, background:`${gc_}15`, border:`1px solid ${gc_}30`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                   <span style={{ ...mono, fontSize:22, fontWeight:700, color:gc_ }}>{g.letter}</span>
@@ -1020,7 +1077,7 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
                 ))}
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", filter: !isPro ? "blur(6px)" : "none" }}>
               {[
                 { t:"Strengths",   c:V.gain,    icon:<TrendingUp    size={11} color={V.gain}  />, items:g.strengths,  sym:"+",  empty:"Keep building."   },
                 { t:"Weaknesses",  c:V.loss,    icon:<AlertTriangle size={11} color={V.loss}  />, items:g.weaknesses, sym:"!",  empty:"Looking good."    },

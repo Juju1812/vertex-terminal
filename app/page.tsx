@@ -1319,6 +1319,13 @@ export default function ArbibX() {
   const addWatchlist = useCallback((name: string) => {
     const trimmed = (name ?? "").trim();
     if (!trimmed) return;
+    // Free-tier gate: only 1 watchlist allowed. Trying to add a 2nd
+    // routes to the upgrade modal instead of silently creating it.
+    if (!isPro && watchlists.lists.length >= 1) {
+      setProReason("Unlock unlimited watchlists");
+      setShowProModal(true);
+      return;
+    }
     setWatchlists(prev => {
       const id = `wl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const next: WatchlistState = {
@@ -1328,7 +1335,7 @@ export default function ArbibX() {
       persistWatchlists(next);
       return next;
     });
-  }, [persistWatchlists]);
+  }, [persistWatchlists, isPro, watchlists.lists.length]);
 
   const renameWatchlist = useCallback((id: string, name: string) => {
     const trimmed = (name ?? "").trim();
@@ -1743,7 +1750,7 @@ export default function ArbibX() {
           {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
           {tab==="analytics" && <PortfolioAnalytics onSelectTicker={go} onGoPortfolio={()=>setTab("portfolio")}/>}
           {tab==="watchlist" && <WatchlistAlerts watchlist={watchlist} onToggleWatch={toggleWatch} onSelectTicker={go} watchlists={watchlists} onSetActiveList={setActiveListId} onAddList={addWatchlist} onRenameList={renameWatchlist} onDeleteList={deleteWatchlist}/>}
-          {tab==="portfolio" && <MyStocks onSignIn={()=>setShowAuthModal(true)}/>}
+          {tab==="portfolio" && <MyStocks onSignIn={()=>setShowAuthModal(true)} isPro={isPro} onUpgrade={()=>{setProReason("Unlock AI portfolio grading"); setShowProModal(true);}}/>}
           {tab==="markets"&&(
             <div style={{maxWidth:1200,margin:"0 auto",padding:"24px 16px"}}>
               <div className="vx-two-col" style={{display:"flex",flexDirection:"column",gap:24}}>
