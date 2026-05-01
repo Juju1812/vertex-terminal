@@ -1,11 +1,30 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import Link from "next/link";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
-  Info, Mail, LogOut, Eye, EyeOff, X, Download, Share2, Copy,
+  Info, Mail, LogOut, Eye, EyeOff, X, Download, Share2, Copy, ChevronRight, DollarSign,
 } from "lucide-react";
+
+/* ── Currency support ──────────────────────────────────────────
+   Source data is always USD (Polygon). The selector applies a
+   live FX multiplier to displayed values + swaps the Intl
+   formatter currency code. Rates cached client-side for 1h. */
+type CurrencyCode = "USD" | "EUR" | "GBP" | "CAD" | "JPY" | "AUD" | "CHF" | "INR";
+const CURRENCIES: { code: CurrencyCode; name: string; symbol: string }[] = [
+  { code: "USD", name: "US Dollar",      symbol: "$"  },
+  { code: "EUR", name: "Euro",           symbol: "€"  },
+  { code: "GBP", name: "British Pound",  symbol: "£"  },
+  { code: "CAD", name: "Canadian Dollar",symbol: "C$" },
+  { code: "JPY", name: "Japanese Yen",   symbol: "¥"  },
+  { code: "AUD", name: "Australian Dollar",symbol: "A$" },
+  { code: "CHF", name: "Swiss Franc",    symbol: "Fr" },
+  { code: "INR", name: "Indian Rupee",   symbol: "₹"  },
+];
+const CURRENCY_KEY = "arbibx-portfolio-currency";
+const FX_CACHE_KEY = "arbibx-fx-cache";
 
 /* ---- Types -------------------------------------------------- */
 interface H  { id: string; ticker: string; shares: number; buyPrice: number; }
@@ -213,7 +232,9 @@ function grade(h: EH[]): Grade {
 }
 
 /* ---- Format & design ---------------------------------------- */
-const f$ = (n: number, d = 2) => new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
+// Currency-aware money formatter is defined inside MyStocks (closes
+// over the user's selected currency). Anything outside the component
+// that needs USD-only formatting can use Intl.NumberFormat directly.
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 const gc = (l: string) => l.startsWith("A") ? "#00C896" : l.startsWith("B") ? "#4F8EF7" : l.startsWith("C") ? "#E8A030" : l.startsWith("D") ? "#F97316" : "#E8445A";
 
@@ -329,6 +350,68 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
   const [shares,   setShares]  = useState("");
   const [bp,       setBp]      = useState("");
   const [err,      setErr]     = useState("");
+
+  // Currency display preference. Source data stays USD; we only
+  // multiply by the FX rate when formatting for display so the
+  // underlying buyPrice/cost math remains accurate.
+  const [currency, setCurrency] = useState<CurrencyCode>(() => {
+    try {
+      const saved = localStorage.getItem(CURRENCY_KEY) as CurrencyCode | null;
+      return saved && CURRENCIES.some(c => c.code === saved) ? saved : "USD";
+    } catch { return "USD"; }
+  });
+  const [fxRates, setFxRates] = useState<Record<string, number>>({ USD: 1 });
+
+  // Load and refresh FX rates. Cache for 1h in localStorage so we
+  // don't re-fetch on every mount. Free public endpoint, no key.
+  useEffect(() => {
+    const loadFx = async () => {
+      try {
+        const cached = localStorage.getItem(FX_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached) as { rates: Record<string, number>; expiresAt: number };
+          if (parsed.expiresAt > Date.now() && parsed.rates) {
+            setFxRates(parsed.rates);
+            if (parsed.expiresAt - Date.now() > 30 * 60 * 1000) return; // still fresh
+          }
+        }
+      } catch { /* */ }
+      try {
+        const r = await fetch("https://api.exchangerate-api.com/v4/latest/USD", { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) return;
+        const d = await r.json() as { rates?: Record<string, number> };
+        if (!d.rates) return;
+        setFxRates({ USD: 1, ...d.rates });
+        try { localStorage.setItem(FX_CACHE_KEY, JSON.stringify({ rates: { USD: 1, ...d.rates }, expiresAt: Date.now() + 60 * 60 * 1000 })); } catch { /* */ }
+      } catch { /* keep whatever rates we have */ }
+    };
+    loadFx();
+  }, []);
+
+  // Persist currency choice
+  useEffect(() => {
+    try { localStorage.setItem(CURRENCY_KEY, currency); } catch { /* */ }
+  }, [currency]);
+
+  const fxRate = fxRates[currency] ?? 1;
+  const fxReady = currency === "USD" || (fxRates[currency] != null && fxRates[currency] !== 1);
+
+  // Currency-aware money formatter. Closes over `currency` and
+  // `fxRate` so existing call sites like f$(value) keep working
+  // — they just render in whatever currency is selected.
+  const f$ = useMemo(() => {
+    return (n: number, d = 2) => {
+      if (!Number.isFinite(n)) return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(0);
+      // JPY traditionally has 0 decimal places — adjust precision
+      const decimals = currency === "JPY" ? 0 : d;
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      }).format(n * fxRate);
+    };
+  }, [currency, fxRate]);
 
   // loadedRef: true once initial load is fully complete
   // isFetchingRef: true while actively reading from Supabase — blocks saves during this window
@@ -716,6 +799,34 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          {/* Currency selector — affects display only; underlying
+              math stays in USD so cost/buyPrice never drift. */}
+          <label style={{ ...mono, fontSize:9, color:V.ink4, display:"inline-flex", alignItems:"center", gap:6, padding:"6px 10px", borderRadius:8, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}` }}>
+            <DollarSign size={11} />
+            <select value={currency}
+              onChange={e => setCurrency(e.target.value as CurrencyCode)}
+              title="Display currency"
+              style={{
+                background:"transparent",
+                border:"none",
+                color: V.ink1,
+                fontSize: 11,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                outline: "none",
+                fontWeight: 600,
+                padding: 0,
+              }}>
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code} style={{ background: "#0a0810", color: "#fff" }}>
+                  {c.code} ({c.symbol})
+                </option>
+              ))}
+            </select>
+            {!fxReady && currency !== "USD" && (
+              <span title="Loading exchange rate" style={{ color: V.ink4, fontSize: 9 }}>…</span>
+            )}
+          </label>
           {/* Visible save status — replaces the silent failures.
               "expired" means the token is invalid (typically because
               another device logged in under the legacy rotation
@@ -839,12 +950,18 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
             ))}
           </div>
 
-          {/* Positions table */}
+          {/* Positions table — each row is a link to the dedicated
+              ticker page, with the trash button stop-propagated so
+              the user can still delete without navigating. */}
           <div className="vx-stagger" style={{ ...glass({ overflow:"hidden", marginBottom:20 }) }}>
             {enriched.map((h, i) => {
               const up = h.pnl >= 0, dayUp = h.day >= 0;
               return (
-                <div key={h.id} style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto auto", gap:12, alignItems:"center", padding:"14px 18px", borderBottom: i < enriched.length - 1 ? `1px solid ${V.w1}` : "none" }}>
+                <Link key={h.id}
+                  href={`/stock/${h.ticker}`}
+                  style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto auto auto", gap:12, alignItems:"center", padding:"14px 18px", borderBottom: i < enriched.length - 1 ? `1px solid ${V.w1}` : "none", textDecoration:"none", color:"inherit", transition:"background 0.15s ease" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <div>
                     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                       <span style={{ ...mono, fontSize:14, fontWeight:600, color:"var(--ticker-blue,#7EB6FF)" }}>{h.ticker}</span>
@@ -864,13 +981,15 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
                     <p style={{ ...mono, fontSize:13, fontWeight:600, color: up ? V.gain : V.loss, margin:0 }}>{up ? "+" : ""}{f$(h.pnl)}</p>
                     <p style={{ ...mono, fontSize:10, color: up ? V.gain : V.loss, margin:0 }}>{fp(h.pct)}</p>
                   </div>
-                  <button onClick={() => setH(prev => prev.filter(x => x.id !== h.id))}
+                  <ChevronRight size={14} style={{ color: V.ink4, opacity: 0.6 }} />
+                  <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setH(prev => prev.filter(x => x.id !== h.id)); }}
+                    aria-label={`Remove ${h.ticker}`}
                     style={{ background:"none", border:"none", cursor:"pointer", color:V.ink4, padding:6, borderRadius:7, display:"flex", alignItems:"center", transition:"color 0.2s" }}
                     onMouseEnter={e => e.currentTarget.style.color = V.loss}
                     onMouseLeave={e => e.currentTarget.style.color = V.ink4}>
                     <Trash2 size={14} />
                   </button>
-                </div>
+                </Link>
               );
             })}
           </div>

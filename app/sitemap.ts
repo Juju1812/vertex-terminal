@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SECTORS } from "./sector/[name]/page";
 
 /* ── Programmatic sitemap covering 5,000+ US-listed tickers ────
    The original sitemap had ~130 hand-curated tickers — fine for
@@ -189,6 +190,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority:        0.6,
     }));
 
+  // Sector / theme landing pages — high SEO priority since they
+  // target stable evergreen queries like "best AI stocks 2026"
+  const sectorEntries: MetadataRoute.Sitemap = SECTORS.map(s => ({
+    url:             `https://www.arbibx.com/sector/${s.slug}`,
+    lastModified:    now,
+    changeFrequency: "daily",
+    priority:        0.85,
+  }));
+
   return [
     {
       url:             "https://www.arbibx.com",
@@ -196,6 +206,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority:        1.0,
     },
+    ...sectorEntries,
     ...tickerEntries,
     ...comparisonEntries,
   ];
