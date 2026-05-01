@@ -39,6 +39,7 @@ const SettingsModal      = dynamic(() => import("@/components/SettingsModal"),  
 const AdminPanel         = dynamic(() => import("@/components/AdminPanel"),            { ssr:false, loading:() => null });
 const AskClaude          = dynamic(() => import("@/components/AskClaude"),             { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
+const TrackRecordTab = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/TrackRecord"), { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
 const NewsFeed       = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/NewsFeed"),          { ssr:false, loading:() => <PanelSkeleton /> });
@@ -93,7 +94,7 @@ interface Quote {
 }
 interface Bar { date:string; close:number; }
 interface IndexData { n:string; v:string; d:string; up:boolean; }
-type Tab = "markets"|"top15"|"portfolio"|"earnings"|"news"|"screener"|"analytics"|"watchlist";
+type Tab = "markets"|"top15"|"portfolio"|"earnings"|"news"|"screener"|"analytics"|"watchlist"|"trackrecord";
 
 /* Multi-watchlist storage. The shape allows multiple named lists
    (e.g. "Tech I'm watching", "Earnings plays") with one active at
@@ -144,14 +145,15 @@ const INDICES_FALLBACK: IndexData[] = [
 ];
 
 const TABS: {id:Tab;label:string;short:string}[] = [
-  {id:"markets",   label:"Markets",   short:"Markets"  },
-  {id:"top15",     label:"Top 15",    short:"Top 15"   },
-  {id:"earnings",  label:"Earnings",  short:"Earnings" },
-  {id:"news",      label:"News",      short:"News"     },
-  {id:"screener",  label:"Screener",  short:"Screen"   },
-  {id:"analytics", label:"Analytics", short:"Analytics"},
-  {id:"watchlist", label:"Watchlist", short:"Watch"    },
-  {id:"portfolio", label:"Portfolio", short:"Portfolio"},
+  {id:"markets",     label:"Markets",      short:"Markets"  },
+  {id:"top15",       label:"Top 15",       short:"Top 15"   },
+  {id:"trackrecord", label:"Track Record", short:"Record"   },
+  {id:"earnings",    label:"Earnings",     short:"Earnings" },
+  {id:"news",        label:"News",         short:"News"     },
+  {id:"screener",    label:"Screener",     short:"Screen"   },
+  {id:"analytics",   label:"Analytics",    short:"Analytics"},
+  {id:"watchlist",   label:"Watchlist",    short:"Watch"    },
+  {id:"portfolio",   label:"Portfolio",    short:"Portfolio"},
 ];
 
 /* ── Design tokens ────────────────────────────────────────── */
@@ -384,14 +386,15 @@ function ChartTip({active,payload,label}:{active?:boolean;payload?:{value:number
 
 function TabIcon({id,size=20,active}:{id:Tab;size?:number;active:boolean}) {
   const sw=active?2:1.5;
-  if (id==="markets")   return <LayoutDashboard size={size} strokeWidth={sw}/>;
-  if (id==="top15")     return <Trophy          size={size} strokeWidth={sw}/>;
-  if (id==="portfolio") return <BookOpen        size={size} strokeWidth={sw}/>;
-  if (id==="earnings")  return <Calendar        size={size} strokeWidth={sw}/>;
-  if (id==="news")      return <Newspaper       size={size} strokeWidth={sw}/>;
-  if (id==="screener")  return <SlidersHorizontal size={size} strokeWidth={sw}/>;
-  if (id==="analytics") return <BarChart2       size={size} strokeWidth={sw}/>;
-  if (id==="watchlist") return <Bell            size={size} strokeWidth={sw}/>;
+  if (id==="markets")     return <LayoutDashboard size={size} strokeWidth={sw}/>;
+  if (id==="top15")       return <Trophy          size={size} strokeWidth={sw}/>;
+  if (id==="trackrecord") return <TrendingUp      size={size} strokeWidth={sw}/>;
+  if (id==="portfolio")   return <BookOpen        size={size} strokeWidth={sw}/>;
+  if (id==="earnings")    return <Calendar        size={size} strokeWidth={sw}/>;
+  if (id==="news")        return <Newspaper       size={size} strokeWidth={sw}/>;
+  if (id==="screener")    return <SlidersHorizontal size={size} strokeWidth={sw}/>;
+  if (id==="analytics")   return <BarChart2       size={size} strokeWidth={sw}/>;
+  if (id==="watchlist")   return <Bell            size={size} strokeWidth={sw}/>;
   return null;
 }
 
@@ -1744,7 +1747,8 @@ export default function ArbibX() {
       {/* ════ MAIN CONTENT ════════════════════════════════════ */}
       <main className="vx-main" style={{position:"relative",zIndex:1}}>
         <AnimatedTab tabKey={tab}>
-          {tab==="top15"     && <Top15 onSelectTicker={go} isPro={isPro} onUpgrade={()=>{setProReason("Unlock all 15 AI picks"); setShowProModal(true);}}/>}
+          {tab==="top15"       && <Top15 onSelectTicker={go} isPro={isPro} onUpgrade={()=>{setProReason("Unlock all 15 AI picks"); setShowProModal(true);}}/>}
+          {tab==="trackrecord" && <TrackRecordTab onSelectTicker={go}/>}
           {tab==="earnings"  && <EarningsCal onSelectTicker={go}/>}
           {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
           {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
