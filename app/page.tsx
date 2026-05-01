@@ -1591,6 +1591,7 @@ export default function ArbibX() {
               return (
                 <button key={t.id} onClick={()=>setTab(t.id)}
                   className="vx-nav-tab"
+                  data-tab={t.id}
                   style={{display:"flex",alignItems:"center",gap:5,padding:"0 12px",height:50,background:"none",border:"none",color:active?V.ink0:V.ink3,cursor:"pointer",fontSize:12,fontWeight:active?700:400,fontFamily:"'Syne',system-ui,sans-serif",transition:"color 0.2s",whiteSpace:"nowrap",position:"relative"}}>
                   {/* Hover preview underline — shows where the indicator WOULD go on click */}
                   {!active && <span aria-hidden className="vx-nav-tab__hover-underline" />}
