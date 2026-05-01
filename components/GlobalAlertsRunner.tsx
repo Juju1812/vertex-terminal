@@ -185,15 +185,15 @@ export default function GlobalAlertsRunner({ active }: { active: boolean }) {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 24, scale: 0.96 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="vx-popover--neutral"
               style={{
                 pointerEvents: "auto",
-                background: "rgba(8,6,16,0.96)",
                 backdropFilter: "blur(40px) saturate(1.5)",
                 WebkitBackdropFilter: "blur(40px) saturate(1.5)",
                 border: `1px solid ${above ? "rgba(0,229,160,0.30)" : "rgba(255,69,96,0.30)"}`,
                 borderRadius: 14,
                 padding: "12px 14px 12px 16px",
-                boxShadow: `0 12px 40px rgba(0,0,0,0.55), 0 0 24px ${above ? "rgba(0,229,160,0.18)" : "rgba(255,69,96,0.18)"}`,
+                boxShadow: `0 12px 40px rgba(0,0,0,0.45), 0 0 24px ${above ? "rgba(0,229,160,0.18)" : "rgba(255,69,96,0.18)"}`,
                 display: "flex",
                 alignItems: "flex-start",
                 gap: 10,

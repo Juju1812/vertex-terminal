@@ -132,13 +132,15 @@ export default function WatchlistSwitcher({ state, onSetActive, onAdd, onRename,
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, display: "flex", gap: 4, zIndex: 5 }}>
                 <button onClick={() => { setRenameVal(list.name); setRenaming(list.id); }}
                   title={`Rename "${list.name}"`}
-                  style={{ background: "rgba(8,6,16,0.96)", border: "1px solid var(--border,rgba(60,48,100,0.5))", color: "var(--ink3,#3D5A7A)", borderRadius: 6, padding: "3px 6px", display: "flex", alignItems: "center", gap: 3, fontFamily: "'DM Mono',monospace", fontSize: 9, cursor: "pointer" }}>
+                  className="vx-popover--neutral"
+                  style={{ color: "var(--ink2,#7A9CBF)", borderRadius: 6, padding: "3px 6px", display: "flex", alignItems: "center", gap: 3, fontFamily: "'DM Mono',monospace", fontSize: 9, cursor: "pointer" }}>
                   <Pencil size={9} /> Rename
                 </button>
                 {!onlyOne && (
                   <button onClick={() => setConfirmDelete(list.id)}
                     title={`Delete "${list.name}"`}
-                    style={{ background: "rgba(8,6,16,0.96)", border: "1px solid rgba(232,68,90,0.30)", color: "var(--loss,#ff4560)", borderRadius: 6, padding: "3px 6px", display: "flex", alignItems: "center", gap: 3, fontFamily: "'DM Mono',monospace", fontSize: 9, cursor: "pointer" }}>
+                    className="vx-popover--neutral"
+                    style={{ borderColor: "rgba(232,68,90,0.30)", color: "var(--loss,#ff4560)", borderRadius: 6, padding: "3px 6px", display: "flex", alignItems: "center", gap: 3, fontFamily: "'DM Mono',monospace", fontSize: 9, cursor: "pointer" }}>
                     <Trash2 size={9} /> Delete
                   </button>
                 )}

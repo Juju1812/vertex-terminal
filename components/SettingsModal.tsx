@@ -100,15 +100,14 @@ export default function SettingsModal({ open, onClose }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 320, damping: 28 }}
+            className="vx-modal-shell"
             style={{
-              background: "rgba(8,6,16,0.97)",
               backdropFilter: "blur(40px) saturate(1.5)",
               WebkitBackdropFilter: "blur(40px) saturate(1.5)",
               border: "1px solid var(--border-hi,rgba(90,72,150,0.6))",
               borderRadius: 18,
               width: "100%", maxWidth: 480,
               maxHeight: "85vh", overflowY: "auto",
-              boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 32px rgba(240,165,0,0.10)",
               fontFamily: "'Syne',system-ui,sans-serif",
               color: "var(--ink1,#cdc7e0)",
             }}

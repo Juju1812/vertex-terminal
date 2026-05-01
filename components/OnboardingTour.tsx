@@ -203,19 +203,16 @@ export default function OnboardingTour({ active }: { active: boolean }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
+          className="vx-popover"
           style={{
             position: "absolute",
             ...tooltipPos,
             maxWidth: "min(360px, calc(100vw - 32px))",
-            background: "rgba(8,6,16,0.97)",
             backdropFilter: "blur(40px) saturate(1.5)",
             WebkitBackdropFilter: "blur(40px) saturate(1.5)",
-            border: "1px solid rgba(240,165,0,0.32)",
             borderRadius: 14,
             padding: "16px 18px",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.65), 0 0 24px rgba(240,165,0,0.16)",
             pointerEvents: "auto",
-            color: "var(--ink0,#f4f0ff)",
           }}
         >
           {/* Step indicator */}
@@ -227,13 +224,14 @@ export default function OnboardingTour({ active }: { active: boolean }) {
                     width: i === step ? 16 : 6,
                     height: 4,
                     borderRadius: 99,
-                    background: i === step ? "rgba(240,165,0,0.85)" : "rgba(255,255,255,0.18)",
+                    background: i === step ? "var(--gold,#f0a500)" : "var(--border-hi,rgba(90,72,150,0.6))",
+                    opacity: i === step ? 0.9 : 0.5,
                     transition: "all 0.25s",
                   }} />
               ))}
             </div>
             <button onClick={finish}
-              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", padding: 4, display: "flex" }}
+              style={{ background: "none", border: "none", color: "var(--ink3,#3D5A7A)", cursor: "pointer", padding: 4, display: "flex" }}
               title="Skip tour (Esc)">
               <X size={14} />
             </button>
@@ -242,17 +240,17 @@ export default function OnboardingTour({ active }: { active: boolean }) {
           <h3 style={{
             fontFamily: "'Cabinet Grotesk','Syne',system-ui,sans-serif",
             fontSize: 15, fontWeight: 700, margin: "0 0 6px",
-            color: "rgba(244,240,255,1)",
+            color: "var(--ink0,#f4f0ff)",
           }}>
             {current.title}
           </h3>
-          <p style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(205,199,224,0.92)", margin: "0 0 14px" }}>
+          <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink2,#7A9CBF)", margin: "0 0 14px" }}>
             {current.body}
           </p>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <button onClick={finish}
-              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", cursor: "pointer",
+              style={{ background: "none", border: "none", color: "var(--ink3,#3D5A7A)", cursor: "pointer",
                 fontFamily: "'DM Mono',monospace", fontSize: 11, padding: 0 }}>
               Skip
             </button>

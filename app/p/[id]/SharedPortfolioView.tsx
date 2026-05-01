@@ -85,8 +85,8 @@ export default function SharedPortfolioView({ id }: { id: string }) {
 
   return (
     <div style={{ minHeight: "100vh", color: "var(--ink1,#cdc7e0)", fontFamily: "'Syne',system-ui,sans-serif" }}>
-      {/* Header */}
-      <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(5,4,7,0.95)", backdropFilter: "blur(40px) saturate(2)", WebkitBackdropFilter: "blur(40px) saturate(2)", borderBottom: "1px solid var(--border,rgba(60,48,100,0.5))" }}>
+      {/* Header — uses CSS variable for theme parity */}
+      <header className="vx-page-header" style={{ position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(40px) saturate(2)", WebkitBackdropFilter: "blur(40px) saturate(2)", borderBottom: "1px solid var(--border,rgba(60,48,100,0.5))" }}>
         <div style={{ maxWidth: 980, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, color: "var(--ink2,#7A9CBF)", textDecoration: "none" }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, overflow: "hidden", background: "linear-gradient(135deg,#f0a500,#ff6b35)" }}>

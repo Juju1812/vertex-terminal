@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ThemeInit from "@/components/ThemeInit";
 
 export const metadata: Metadata = {
   title: "ArbibX Terminal",
@@ -88,6 +89,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="format-detection" content="telephone=no" />
       </head>
       <body>
+        {/* Applies user's saved theme + perf prefs on every route,
+            including /stock/[ticker] and /p/[id] which don't run
+            the main page's useEffect. */}
+        <ThemeInit />
         {children}
 
         {/* Service worker registration */}

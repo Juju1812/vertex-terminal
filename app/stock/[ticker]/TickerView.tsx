@@ -287,8 +287,8 @@ export default function TickerView({ ticker }: { ticker: string }) {
 
   return (
     <div style={{ minHeight: "100vh", color: V.ink1, fontFamily: "'Syne',system-ui,sans-serif" }}>
-      {/* Header bar */}
-      <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(5,4,7,0.95)", backdropFilter: "blur(40px) saturate(2)", WebkitBackdropFilter: "blur(40px) saturate(2)", borderBottom: `1px solid ${V.border}` }}>
+      {/* Header bar — uses CSS variable for theme parity */}
+      <header className="vx-page-header" style={{ position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(40px) saturate(2)", WebkitBackdropFilter: "blur(40px) saturate(2)", borderBottom: `1px solid ${V.border}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, color: V.ink2, textDecoration: "none" }}>
             <ArrowLeft size={16} />

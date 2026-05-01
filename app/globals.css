@@ -894,6 +894,62 @@ body::after {
   50%       { border-color: var(--gold-wire); }
 }
 
+/* ── Sticky page headers (subroute pages) — theme-aware ──── */
+.vx-page-header {
+  background: rgba(5,4,7,0.95);
+}
+[data-theme="light"] .vx-page-header {
+  background: rgba(232,220,184,0.92);
+  border-bottom-color: rgba(120,75,0,0.45) !important;
+  box-shadow: 0 1px 0 rgba(120,75,0,0.10), 0 4px 28px rgba(100,60,0,0.12);
+}
+
+/* ── Modal shell — theme-aware glass surface ──────────────── */
+.vx-modal-shell {
+  background: rgba(8,6,16,0.97);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 32px rgba(240,165,0,0.10);
+}
+[data-theme="light"] .vx-modal-shell {
+  background: #ffffff;
+  border-color: rgba(120,75,0,0.40) !important;
+  box-shadow:
+    0 1px 0 rgba(120,75,0,0.14),
+    0 12px 28px rgba(80,50,0,0.20),
+    0 32px 80px rgba(80,50,0,0.18);
+}
+
+/* ── Generic floating popover — tooltips, toasts, menus ───
+   Theme-aware glass surface for any non-modal floating UI.
+   Used by: OnboardingTour tooltips, GlobalAlertsRunner toasts,
+   WatchlistSwitcher inline edit menus. */
+.vx-popover {
+  background: rgba(8,6,16,0.96);
+  color: var(--ink0);
+  border: 1px solid rgba(240,165,0,0.32);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(240,165,0,0.16);
+}
+[data-theme="light"] .vx-popover {
+  background: #ffffff;
+  color: var(--ink0);
+  border-color: rgba(120,75,0,0.42);
+  box-shadow:
+    0 1px 0 rgba(120,75,0,0.10),
+    0 8px 24px rgba(80,50,0,0.16),
+    0 16px 48px rgba(80,50,0,0.10);
+}
+.vx-popover--neutral {
+  background: rgba(8,6,16,0.96);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+}
+[data-theme="light"] .vx-popover--neutral {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow:
+    0 1px 0 rgba(120,75,0,0.10),
+    0 8px 24px rgba(80,50,0,0.14);
+}
+
 /* ── View Transitions — circular reveal for theme toggle ──── */
 @supports (view-transition-name: root) {
   ::view-transition-old(root),
@@ -1192,10 +1248,14 @@ body::after {
 [data-theme="light"] *[style*="background:rgba(255,255,255,0.035)"] { background: rgba(140,90,0,0.05) !important; }
 [data-theme="light"] *[style*="background:rgba(30,45,64"]           { background: rgba(140,90,0,0.10) !important; }
 
-/* Gradient cards — pure white with strong gold border + real lift shadow */
+/* Gradient cards — pure white with strong gold border + real lift shadow.
+   Catches every (255,255,255,0.0XX) variant we use across components. */
+[data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.018)"],
+[data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.025)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.028)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.030)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.032)"],
+[data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.035)"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,#ffffff"],
 [data-theme="light"] *[style*="background:linear-gradient(145deg,rgba(255,255,255,0.9)"] {
   background: #ffffff !important;
