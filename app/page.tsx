@@ -26,7 +26,7 @@ import {
 } from "@/components/landing/LandingFX";
 import { AnimatedTab } from "@/components/motion/AnimatedTab";
 import AnimatedPrice from "@/components/motion/AnimatedPrice";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
 const Scene3D         = dynamic(() => import("@/components/landing/Scene3D"),         { ssr:false, loading:() => null });
@@ -1365,6 +1365,11 @@ export default function ArbibX() {
   const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme,watchlists,onSetActiveList:setActiveListId,onAddList:addWatchlist,onRenameList:renameWatchlist,onDeleteList:deleteWatchlist}),[ticker,watchlist,livePrices,indices,go,toggleWatch,theme,watchlists,setActiveListId,addWatchlist,renameWatchlist,deleteWatchlist]);
 
   return (
+    // MotionConfig with reducedMotion="always" kills every framer-motion
+    // animation app-wide when lite mode is on. Single biggest perf win
+    // on integrated-GPU Macs and older devices — every spring, layout
+    // animation, and AnimatePresence transition becomes a 0ms no-op.
+    <MotionConfig reducedMotion={liteMode ? "always" : "never"}>
     <div style={{minHeight:"100vh",background:V.void,color:V.ink1,fontFamily:"'Syne',system-ui,sans-serif"}}>
 
       {/* ════ LANDING PAGE ════════════════════════════════════ */}
@@ -1816,5 +1821,6 @@ export default function ArbibX() {
         }
       `}</style>
     </div>
+    </MotionConfig>
   );
 }

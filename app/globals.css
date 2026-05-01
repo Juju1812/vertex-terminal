@@ -1021,11 +1021,24 @@ body::after {
    this CSS only needs to handle the styling concerns (backdrop-
    filter compositing storms, blur filters, large radial gradients
    that force texture allocations). */
+/* Aggressive lite-mode rules. The big perf wins on Macs (especially
+   integrated-GPU MacBooks) come from killing the GPU compositor
+   load, not from removing visible elements. Each item below is
+   chosen because it forces a layer or full repaint:
+   - backdrop-filter → continuous compositor work
+   - transitions/animations → constant layer invalidation
+   - large box-shadows → big offscreen buffers
+   - filter / blur → texture re-allocation per frame
+   - transform: translateY on hover → layer creation per element
+   Cumulatively these can drop a 8-core M-series Mac under 50fps. */
 [data-perf="low"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  /* Solid backgrounds where blurs were the only thing making them
-     read as glass. Light + dark variants below. */
+  /* Kill all transitions and animations app-wide. MotionConfig
+     handles framer-motion separately, this catches inline style
+     transitions and any leftover @keyframes animations. */
+  transition: none !important;
+  animation: none !important;
 }
 [data-perf="low"][data-theme="light"] [style*="backdrop-filter"],
 [data-perf="low"][data-theme="light"] [style*="WebkitBackdropFilter"] {
@@ -1039,7 +1052,47 @@ body::after {
 [data-perf="low"] body::after { display: none; }
 [data-perf="low"] .vx-marquee-card::after { display: none; }
 [data-perf="low"] .vx-tilt:hover,
-[data-perf="low"] .card-3d:hover {
+[data-perf="low"] .card-3d:hover { transform: none !important; }
+
+/* Strip expensive shadow stacks. We keep a single tiny shadow for
+   depth instead of the multi-layer 30+ pixel blurs scattered around. */
+[data-perf="low"] [style*="box-shadow"] {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25) !important;
+}
+[data-perf="low"][data-theme="light"] [style*="box-shadow"] {
+  box-shadow: 0 1px 2px rgba(80,50,0,0.10) !important;
+}
+
+/* Drop filter (drop-shadow / blur) effects which force a full
+   compositor re-layer each frame they're animated. */
+[data-perf="low"] [style*="filter:"]:not([style*="filter:none"]) {
+  filter: none !important;
+}
+
+/* Disable mask gradients that force texture allocations */
+[data-perf="low"] [style*="mask-image"],
+[data-perf="low"] [style*="WebkitMaskImage"] {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+/* Recharts performance hints when in lite mode */
+[data-perf="low"] .recharts-layer * {
+  transition: none !important;
+}
+
+/* Force-hide the heaviest scene elements at the CSS layer too —
+   belt-and-suspenders in case the React unmount path doesn't fire
+   immediately after the user toggles lite mode. */
+[data-perf="low"] .vx-scene-3d,
+[data-perf="low"] canvas[data-engine="three.js"] { display: none !important; }
+
+/* Don't promote every card to its own GPU layer — was causing a
+   compositor explosion on Macs with many overlapping cards. */
+[data-perf="low"] .vx-card,
+[data-perf="low"] .vx-modal-shell,
+[data-perf="low"] .vx-popover {
+  will-change: auto !important;
   transform: none !important;
 }
 
