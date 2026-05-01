@@ -126,22 +126,50 @@ export default function OnboardingTour({ active }: { active: boolean }) {
   if (!show) return null;
   const current = STEPS[step];
 
-  // Compute tooltip position
+  // Compute tooltip position. Clamp to viewport so tooltips near
+  // screen edges stay fully visible (matters for shortcut hint pill
+  // in the bottom-right, and for narrow viewports).
   const tooltipPos = (() => {
     if (!rect || current.side === "center") {
       return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" } as const;
     }
-    const margin = 16;
+    const margin   = 16;
+    const tipMaxW  = 360;
+    const tipEstH  = 180; // rough — used only for "top" overflow checks
+    const vw = typeof window !== "undefined" ? window.innerWidth  : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+
+    // Clamp a centered-x position so the tooltip never overflows the viewport.
+    const clampCenterX = (centerX: number) => {
+      const halfW = Math.min(tipMaxW, vw - 32) / 2;
+      return Math.max(margin + halfW, Math.min(vw - margin - halfW, centerX));
+    };
+
     if (current.side === "right") {
+      // If there's not enough room on the right, flip to left.
+      if (rect.right + margin + tipMaxW > vw - margin) {
+        return { top: rect.top + rect.height / 2, left: rect.left - margin, transform: "translate(-100%, -50%)" } as const;
+      }
       return { top: rect.top + rect.height / 2, left: rect.right + margin, transform: "translateY(-50%)" } as const;
     }
     if (current.side === "left") {
+      if (rect.left - margin - tipMaxW < margin) {
+        return { top: rect.top + rect.height / 2, left: rect.right + margin, transform: "translateY(-50%)" } as const;
+      }
       return { top: rect.top + rect.height / 2, left: rect.left - margin, transform: "translate(-100%, -50%)" } as const;
     }
     if (current.side === "top") {
-      return { top: rect.top - margin, left: rect.left + rect.width / 2, transform: "translate(-50%, -100%)" } as const;
+      // If too little room above, flip to bottom.
+      if (rect.top - margin - tipEstH < margin) {
+        return { top: rect.bottom + margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, 0)" } as const;
+      }
+      return { top: rect.top - margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, -100%)" } as const;
     }
-    return { top: rect.bottom + margin, left: rect.left + rect.width / 2, transform: "translate(-50%, 0)" } as const;
+    // bottom
+    if (rect.bottom + margin + tipEstH > vh - margin) {
+      return { top: rect.top - margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, -100%)" } as const;
+    }
+    return { top: rect.bottom + margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, 0)" } as const;
   })();
 
   return (
