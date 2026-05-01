@@ -11,6 +11,9 @@ const MODEL_CHAIN = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"]
 interface ChatMessage { role: "user" | "assistant"; content: string }
 interface ChatContext {
   ticker?:           string | null;
+  /** Tickers explicitly mentioned in the user's latest message.
+      Take priority over the page ticker for grounding/answering. */
+  mentionedTickers?: string[];
   portfolioTickers?: string[];
   watchlistTickers?: string[];
   tab?:              string;
@@ -42,6 +45,8 @@ async function fetchPrices(tickers: string[]): Promise<Record<string, { price: n
 
 function buildSystemPrompt(ctx: ChatContext, prices: Record<string, { price: number; changePct: number }>): string {
   const today = new Date().toISOString().slice(0, 10);
+  const focus = ctx.ticker?.toUpperCase() ?? null;
+
   const lines: string[] = [
     `You are Claude, the AI inside ArbibX — a premium stock terminal for retail investors.`,
     `Today's date: ${today}.`,
@@ -52,17 +57,27 @@ function buildSystemPrompt(ctx: ChatContext, prices: Record<string, { price: num
     `- Format with short markdown bullets and bold for tickers/numbers when useful. No tables.`,
     `- Use plain text dollar signs. Don't invent earnings dates, ratings, or numbers — say "I don't have that data" if unsure.`,
     `- When pricing data is provided below, ground your answer in those exact numbers.`,
+    `- IMPORTANT: the "Current focus" line below tells you which stock the user is asking about RIGHT NOW. Earlier turns in the conversation may have been about different tickers — do not assume the topic from history. Always use the current focus.`,
     `- This is general information, not personalised financial advice. You can give opinions on setups/risk, but always remind the user to do their own research at the end of substantive recommendations.`,
     ``,
   ];
 
-  if (ctx.tab) lines.push(`The user is currently on the **${ctx.tab}** tab.`);
-
-  if (ctx.ticker) {
-    const p = prices[ctx.ticker.toUpperCase()];
+  // The current focus line is the single most important context signal.
+  // It overrides whatever ticker the conversation history mentioned.
+  if (focus) {
+    const p = prices[focus];
     lines.push(p
-      ? `They are looking at **${ctx.ticker}** (current: $${p.price.toFixed(2)}, day change: ${p.changePct >= 0 ? "+" : ""}${p.changePct.toFixed(2)}%).`
-      : `They are looking at **${ctx.ticker}**.`);
+      ? `**Current focus: ${focus}** (live price $${p.price.toFixed(2)}, day ${p.changePct >= 0 ? "+" : ""}${p.changePct.toFixed(2)}%).`
+      : `**Current focus: ${focus}**.`);
+  } else {
+    lines.push(`**Current focus: none** — answer at the market or general level.`);
+  }
+
+  if (ctx.tab) lines.push(`The user is on the **${ctx.tab}** tab in the app.`);
+
+  if (ctx.mentionedTickers?.length && ctx.mentionedTickers.some(t => t.toUpperCase() !== focus)) {
+    const others = ctx.mentionedTickers.filter(t => t.toUpperCase() !== focus);
+    if (others.length) lines.push(`Other tickers in this question: ${others.join(", ")}.`);
   }
 
   if (ctx.portfolioTickers?.length) {
@@ -70,11 +85,11 @@ function buildSystemPrompt(ctx: ChatContext, prices: Record<string, { price: num
       const p = prices[t.toUpperCase()];
       return p ? `- ${t}: $${p.price.toFixed(2)} (${p.changePct >= 0 ? "+" : ""}${p.changePct.toFixed(2)}%)` : `- ${t}`;
     });
-    lines.push(``, `User's portfolio:`, ...lines2);
+    lines.push(``, `User's portfolio (for context only — only discuss if asked):`, ...lines2);
   }
 
   if (ctx.watchlistTickers?.length) {
-    lines.push(``, `User's watchlist tickers: ${ctx.watchlistTickers.slice(0, 20).join(", ")}.`);
+    lines.push(``, `User's watchlist: ${ctx.watchlistTickers.slice(0, 20).join(", ")}.`);
   }
 
   return lines.join("\n");

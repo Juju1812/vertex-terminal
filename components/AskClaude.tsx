@@ -117,6 +117,30 @@ function inlineMd(s: string): string {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
+/* Pull tickers explicitly mentioned in a message so the chat
+   can adapt context when the user pivots ("ok what about NVDA").
+   Looks for $TICKER, plain TICKER (1-5 caps), or "ticker NVDA"
+   patterns. Filters by a short blocklist of common all-caps
+   English words. */
+const TICKER_BLOCKLIST = new Set([
+  "I","A","AI","AND","OR","BUT","FOR","TO","IN","ON","AT","BY","OF","WITH",
+  "IS","IT","AS","BE","AM","DO","SO","NO","NOT","WAS","ARE","WERE","BEEN",
+  "THE","WHY","HOW","WHAT","WHEN","WHO","WHERE","CAN","WILL","WOULD","SHOULD",
+  "OK","YES","NO","NOW","TLDR","FYI","BTW","P","E","ROI","P/E","PE","EPS","EOD",
+  "ETF","IPO","CEO","CFO","CTO","COO","SEC","FED","GDP","CPI","RSI","MA","SMA",
+  "USA","US","UK","EU","NYSE","NASDAQ","DOW","GOAT","LFG","IMO",
+]);
+function extractTickers(text: string): string[] {
+  const found = new Set<string>();
+  const re = /\$([A-Z]{1,5})\b|\b([A-Z]{2,5})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const t = (m[1] ?? m[2] ?? "").toUpperCase();
+    if (t && !TICKER_BLOCKLIST.has(t)) found.add(t);
+  }
+  return [...found].slice(0, 5);
+}
+
 export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -124,9 +148,16 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
   const [streaming, setStreaming] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [portfolioTickers, setPortfolioTickers] = useState<string[]>([]);
+  // Lets the user override the page ticker (or remove it entirely)
+  // so the chat doesn't get permanently stuck on whatever was on
+  // screen when the panel was first opened.
+  const [overrideTicker, setOverrideTicker] = useState<string | null | "cleared">(null);
   const abortRef  = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  // The ticker actually used as context: explicit override > page ticker
+  const effectiveTicker = overrideTicker === "cleared" ? null : (overrideTicker ?? ticker ?? null);
 
   // Re-read holdings whenever the panel opens (so context stays
   // fresh after the user adds/removes positions in another tab)
@@ -183,12 +214,25 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
       // Re-read holdings at send time (covers the case where the user
       // edits their portfolio between opening the panel and sending)
       const freshHoldings = readPortfolioTickers();
+      // If the user mentioned a specific ticker in this message, treat
+      // it as the new focus — overrides whatever ticker the page had.
+      const mentioned = extractTickers(trimmed);
+      const focusTicker = mentioned[0] ?? effectiveTicker ?? null;
+      if (mentioned[0] && mentioned[0] !== effectiveTicker) {
+        setOverrideTicker(mentioned[0]);
+      }
       const r = await fetch("/api/chat", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: next.slice(0, -1).filter(m => m.content.trim().length > 0),
-          context:  { ticker, portfolioTickers: freshHoldings, watchlistTickers, tab },
+          context:  {
+            ticker: focusTicker,
+            mentionedTickers: mentioned,
+            portfolioTickers: freshHoldings,
+            watchlistTickers,
+            tab,
+          },
         }),
         signal: controller.signal,
       });
@@ -221,7 +265,7 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, streaming, ticker, watchlistTickers, tab]);
+  }, [messages, streaming, effectiveTicker, watchlistTickers, tab]);
 
   const stop = () => { abortRef.current?.abort(); };
   const clear = () => {
@@ -238,7 +282,7 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
     }
   };
 
-  const suggestions = suggestionsFor(tab, ticker, (portfolioTickers?.length ?? 0) > 0);
+  const suggestions = suggestionsFor(tab, effectiveTicker, (portfolioTickers?.length ?? 0) > 0);
 
   return (
     <>
@@ -338,18 +382,41 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
                 </div>
               </div>
 
-              {/* Context banner */}
-              {(ticker || (portfolioTickers?.length ?? 0) > 0) && (
-                <div style={{ padding: "8px 18px", background: "rgba(240,165,0,0.06)", borderBottom: "1px solid rgba(240,165,0,0.20)", fontSize: 10, fontFamily: "'DM Mono',monospace", color: "var(--gold,#f0a500)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <Sparkles size={10} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    Context: {ticker ? `viewing ${ticker}` : ""}
-                    {ticker && (portfolioTickers?.length ?? 0) > 0 ? " · " : ""}
-                    {(portfolioTickers?.length ?? 0) > 0 ? `${portfolioTickers!.length} positions` : ""}
-                    {(watchlistTickers?.length ?? 0) > 0 ? ` · ${watchlistTickers!.length} watched` : ""}
+              {/* Context banner — clearly shows what Claude sees and
+                  lets the user remove the ticker focus or pick a new
+                  one from their watchlist. */}
+              <div style={{ padding: "10px 18px", background: "rgba(240,165,0,0.06)", borderBottom: "1px solid rgba(240,165,0,0.20)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: "var(--gold,#f0a500)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600 }}>
+                  Focus
+                </span>
+                {effectiveTicker ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px 3px 9px", borderRadius: 99, background: "rgba(240,165,0,0.12)", border: "1px solid rgba(240,165,0,0.40)", fontFamily: "'DM Mono',monospace", fontSize: 11, color: "var(--gold,#f0a500)", fontWeight: 600 }}>
+                    {effectiveTicker}
+                    <button onClick={() => setOverrideTicker("cleared")}
+                      title="Clear ticker focus"
+                      style={{ background: "rgba(240,165,0,0.16)", border: "none", borderRadius: 99, padding: 2, display: "flex", cursor: "pointer", color: "var(--gold,#f0a500)" }}>
+                      <X size={9} />
+                    </button>
                   </span>
-                </div>
-              )}
+                ) : (
+                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: "var(--ink3,#3D5A7A)" }}>
+                    no specific stock
+                  </span>
+                )}
+                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: "var(--ink3,#3D5A7A)" }}>·</span>
+                <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: "var(--ink2,#7A9CBF)" }}>
+                  {(portfolioTickers?.length ?? 0)} pos · {(watchlistTickers?.length ?? 0)} watched
+                </span>
+
+                {/* Quick switches: ticker on the page (if different from current focus) */}
+                {ticker && ticker !== effectiveTicker && (
+                  <button onClick={() => setOverrideTicker(null)}
+                    style={{ marginLeft: "auto", background: "rgba(255,255,255,0.04)", border: "1px solid var(--border,rgba(60,48,100,0.5))", borderRadius: 99, padding: "3px 9px", color: "var(--ink2,#7A9CBF)", fontSize: 10, fontFamily: "'DM Mono',monospace", cursor: "pointer" }}
+                    title={`Switch focus to ${ticker} (the stock you're viewing)`}>
+                    → {ticker}
+                  </button>
+                )}
+              </div>
 
               {/* Messages */}
               <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -432,7 +499,7 @@ export default function AskClaude({ ticker, watchlistTickers, tab }: Props) {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
-                    placeholder={ticker ? `Ask about ${ticker}…` : "Ask anything about stocks…"}
+                    placeholder={effectiveTicker ? `Ask about ${effectiveTicker}…` : "Ask anything about stocks…"}
                     rows={1}
                     style={{
                       flex: 1, resize: "none", background: "transparent", border: "none", outline: "none",
