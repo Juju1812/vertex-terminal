@@ -840,7 +840,7 @@ export default function MyStocks({ onSignIn }: { onSignIn?: () => void }) {
           </div>
 
           {/* Positions table */}
-          <div style={{ ...glass({ overflow:"hidden", marginBottom:20 }) }}>
+          <div className="vx-stagger" style={{ ...glass({ overflow:"hidden", marginBottom:20 }) }}>
             {enriched.map((h, i) => {
               const up = h.pnl >= 0, dayUp = h.day >= 0;
               return (

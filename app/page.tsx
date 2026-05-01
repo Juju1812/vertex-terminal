@@ -1372,6 +1372,33 @@ export default function ArbibX() {
     <MotionConfig reducedMotion={liteMode ? "always" : "never"}>
     <div style={{minHeight:"100vh",background:V.void,color:V.ink1,fontFamily:"'Syne',system-ui,sans-serif"}}>
 
+      {/* ════ MARKET MOOD AMBIENT TINT ════════════════════════
+          Subtle radial wash at the top of the page that tints
+          green when the broader market is up, red when down.
+          Computed from S&P 500 + NASDAQ + DJIA (skipping VIX
+          since it's inversely correlated and BTC since it's
+          too noisy). Cap alpha at 5% so it stays ambient. */}
+      {!showLanding && (() => {
+        const tracked = indices.filter(i => ["S&P 500","NASDAQ","DJIA"].includes(i.n) && i.d);
+        if (!tracked.length) return null;
+        const avgPct = tracked.reduce((sum, i) => {
+          const n = parseFloat(i.d.replace(/[+%]/g, ""));
+          return sum + (Number.isFinite(n) ? n : 0);
+        }, 0) / tracked.length;
+        if (Math.abs(avgPct) < 0.15) return null; // dead zone — no tint
+        const isUp = avgPct > 0;
+        const intensity = Math.min(1, Math.abs(avgPct) / 1.5); // 1.5% is "fully" tinted
+        const color = isUp ? "rgba(0,229,160,0.55)" : "rgba(255,69,96,0.55)";
+        return (
+          <div className="vx-market-mood"
+            aria-hidden
+            style={{
+              ["--mood-color" as never]: color,
+              ["--mood-alpha" as never]: String(intensity * 0.06),
+            }} />
+        );
+      })()}
+
       {/* ════ LANDING PAGE ════════════════════════════════════ */}
       {showLanding&&(
         <div style={{position:"fixed",inset:0,zIndex:10000,background:V.void,display:"flex",flexDirection:"column",overflow:"auto",overscrollBehavior:"none",fontFamily:"'Cabinet Grotesk','Syne',system-ui,sans-serif"}}>

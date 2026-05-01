@@ -416,7 +416,7 @@ export default function StockScreener({ onSelectTicker }: Props) {
                   <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", padding:"10px 12px", textAlign:"center", background:"rgba(5,8,16,0.8)", whiteSpace:"nowrap", letterSpacing:"0.08em", fontWeight:400 }}>Chart</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="vx-stagger">
                 {filtered.map((s, i) => {
                   const up = s.changePct >= 0;
                   const sc = SECTOR_COLOR[s.sector] ?? V.arc;

@@ -359,7 +359,7 @@ export default function NewsFeed({ onSelectTicker }: Props) {
 
       {/* Articles grid */}
       {!loading && filtered.length > 0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,420px),1fr))", gap:12 }}>
+        <div className="vx-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,420px),1fr))", gap:12 }}>
           {filtered.map(a => (
             <NewsCard key={a.id} article={a} onTickerClick={t => { onSelectTicker?.(t); }} />
           ))}

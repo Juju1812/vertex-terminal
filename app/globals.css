@@ -1477,3 +1477,57 @@ body::after {
 @keyframes vx-spin-anim { to { transform: rotate(360deg); } }
 .vx-spin { animation: vx-spin-anim 0.9s linear infinite; }
 
+
+/* ── Stagger-in for lists (Top 15, Portfolio, News, Watchlist)
+   ────────────────────────────────────────────────────────────
+   Pure CSS so it works inside <table> bodies and any other
+   container without rewriting the children. Apply .vx-stagger
+   to the parent and each direct child fades up in sequence.
+   Maxes out at 18 children — anything beyond appears together
+   so we don't introduce a perceptible delay on long lists. */
+@keyframes vx-stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.vx-stagger > * {
+  animation: vx-stagger-in 0.42s cubic-bezier(0.21, 0.78, 0.45, 1) both;
+}
+.vx-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.vx-stagger > *:nth-child(2)  { animation-delay: 32ms; }
+.vx-stagger > *:nth-child(3)  { animation-delay: 64ms; }
+.vx-stagger > *:nth-child(4)  { animation-delay: 96ms; }
+.vx-stagger > *:nth-child(5)  { animation-delay: 128ms; }
+.vx-stagger > *:nth-child(6)  { animation-delay: 160ms; }
+.vx-stagger > *:nth-child(7)  { animation-delay: 192ms; }
+.vx-stagger > *:nth-child(8)  { animation-delay: 224ms; }
+.vx-stagger > *:nth-child(9)  { animation-delay: 256ms; }
+.vx-stagger > *:nth-child(10) { animation-delay: 288ms; }
+.vx-stagger > *:nth-child(11) { animation-delay: 320ms; }
+.vx-stagger > *:nth-child(12) { animation-delay: 352ms; }
+.vx-stagger > *:nth-child(13) { animation-delay: 384ms; }
+.vx-stagger > *:nth-child(14) { animation-delay: 416ms; }
+.vx-stagger > *:nth-child(15) { animation-delay: 448ms; }
+.vx-stagger > *:nth-child(16) { animation-delay: 480ms; }
+.vx-stagger > *:nth-child(17) { animation-delay: 512ms; }
+.vx-stagger > *:nth-child(18) { animation-delay: 544ms; }
+[data-perf="low"] .vx-stagger > *,
+@media (prefers-reduced-motion: reduce) {
+  .vx-stagger > * { animation: none !important; }
+}
+
+/* ── Market mood ambient gradient ──────────────────────────────
+   Faint top-of-page wash that subtly tints with the market.
+   The actual color is set inline via CSS custom property on the
+   element so it can update reactively without a CSS rebuild. */
+.vx-market-mood {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: var(--mood-alpha, 0);
+  background: radial-gradient(ellipse 110% 55% at 50% 0%,
+    var(--mood-color, transparent) 0%,
+    transparent 70%);
+  transition: opacity 1.2s ease, background 1.2s ease;
+}
+[data-perf="low"] .vx-market-mood { display: none; }

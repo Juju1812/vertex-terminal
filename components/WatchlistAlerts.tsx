@@ -553,7 +553,7 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker,
 
       {/* Watchlist grid */}
       {watchlist.length>0&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))",gap:10,marginBottom:20}}>
+        <div className="vx-stagger" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))",gap:10,marginBottom:20}}>
           {sortedWatchlist.map(ticker=>{
             const stock=prices[ticker];
             const up=(stock?.changePct??0)>=0;
@@ -627,7 +627,7 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker,
               {alerts.filter(a=>!a.triggered).length} active
             </span>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div className="vx-stagger" style={{display:"flex",flexDirection:"column",gap:8}}>
             {alerts.map(alert=>{
               const stock=prices[alert.ticker];
               const pct = stock

@@ -909,7 +909,7 @@ export default function Top15({ onSelectTicker }: Top15Props) {
                 <th style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.09em", padding:"10px 10px", textAlign:"center", fontWeight:400, background:"rgba(5,8,16,0.75)", whiteSpace:"nowrap" }}>Info</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="vx-stagger">
               {sorted.map((s, idx) => {
                 const up  = s.changePct >= 0;
                 const sc  = SECTOR_HUE[s.sector] ?? "#7A9CBF";
