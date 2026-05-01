@@ -5,6 +5,9 @@ import {
   Star, Bell, TrendingUp, TrendingDown, Plus, Trash2,
   RefreshCw, Mail, CheckCircle, X, AlertTriangle, ExternalLink, Search,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const WatchlistSwitcher = dynamic(() => import("./WatchlistSwitcher"), { ssr: false, loading: () => null });
 
 /* ---- Types -------------------------------------------------- */
 interface WatchedStock {
@@ -15,10 +18,21 @@ interface PriceAlert {
   id: string; ticker: string; condition: "above" | "below";
   targetPrice: number; email: string; triggered: boolean; createdAt: string;
 }
+interface WatchlistEntry { id: string; name: string; tickers: string[]; }
+interface WatchlistsState { lists: WatchlistEntry[]; activeId: string; }
 interface Props {
   watchlist: string[];
   onToggleWatch: (ticker: string) => void;
   onSelectTicker?: (ticker: string) => void;
+  // Optional multi-list switcher controls. When present, a pill row
+  // appears at the top of the tab letting users switch / add / rename
+  // / delete watchlists. When absent, behaves as before with the
+  // single list passed via `watchlist`.
+  watchlists?: WatchlistsState;
+  onSetActiveList?: (id: string) => void;
+  onAddList?: (name: string) => void;
+  onRenameList?: (id: string, name: string) => void;
+  onDeleteList?: (id: string) => void;
 }
 
 /* ---- Ticker metadata --------------------------------------- */
@@ -204,7 +218,7 @@ function AddTickerModal({ watchlist, onAdd, onClose }:{watchlist:string[];onAdd:
 }
 
 /* ---- Main Component ---------------------------------------- */
-export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}:Props) {
+export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker,watchlists,onSetActiveList,onAddList,onRenameList,onDeleteList}:Props) {
   const [prices,      setPrices]      = useState<Record<string,WatchedStock>>({});
   const [alerts,      setAlerts]      = useState<PriceAlert[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -463,7 +477,9 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
             <Star size={21} color={V.gold}/>
           </div>
           <div>
-            <h2 style={{fontSize:19,fontWeight:700,color:V.ink0,margin:0}}>Watchlist & Alerts</h2>
+            <h2 style={{fontSize:19,fontWeight:700,color:V.ink0,margin:0}}>
+              {watchlists ? `${(watchlists.lists.find(l=>l.id===watchlists.activeId)?.name ?? "Watchlist")} & Alerts` : "Watchlist & Alerts"}
+            </h2>
             <p style={{...mono,color:V.ink4,fontSize:9,margin:0,marginTop:3,textTransform:"uppercase",letterSpacing:"0.08em"}}>
               {watchlist.length} stocks · {alerts.filter(a=>!a.triggered).length} active alerts · {lastUpdate?`Updated ${lastUpdate.toLocaleTimeString()}`:""}
             </p>
@@ -486,6 +502,22 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker}
           </button>
         </div>
       </div>
+
+      {/* Watchlist switcher (only when multi-list state is provided) */}
+      {watchlists && onSetActiveList && onAddList && onRenameList && onDeleteList && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.02)", border: `1px solid ${V.w1}` }}>
+          <p style={{ ...mono, fontSize: 9, color: V.ink4, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+            Switch list · {watchlists.lists.length} {watchlists.lists.length === 1 ? "list" : "lists"}
+          </p>
+          <WatchlistSwitcher
+            state={watchlists}
+            onSetActive={onSetActiveList}
+            onAdd={onAddList}
+            onRename={onRenameList}
+            onDelete={onDeleteList}
+          />
+        </div>
+      )}
 
       {/* Stats */}
       {watchlist.length>0&&(

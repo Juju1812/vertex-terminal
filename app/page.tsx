@@ -19,6 +19,7 @@ import {
   AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
+import WatchlistSwitcher from "@/components/WatchlistSwitcher";
 import {
   AnimatedHeadline, ParallaxLayer, TiltCard, SpringButton,
   ScrollReveal, AnimatedGradient,
@@ -41,7 +42,14 @@ const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => impor
 const NewsFeed       = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/NewsFeed"),          { ssr:false, loading:() => <PanelSkeleton /> });
 const StockScreener  = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/StockScreener"),     { ssr:false, loading:() => <PanelSkeleton /> });
 const PortfolioAnalytics = dynamic<{ onSelectTicker?:(t:string)=>void; onGoPortfolio?:()=>void }>(() => import("@/components/PortfolioAnalytics"), { ssr:false, loading:() => <PanelSkeleton /> });
-const WatchlistAlerts = dynamic<{ watchlist:string[]; onToggleWatch:(t:string)=>void; onSelectTicker?:(t:string)=>void }>(() => import("@/components/WatchlistAlerts"), { ssr:false, loading:() => <PanelSkeleton /> });
+const WatchlistAlerts = dynamic<{
+  watchlist:string[]; onToggleWatch:(t:string)=>void; onSelectTicker?:(t:string)=>void;
+  watchlists?:WatchlistState;
+  onSetActiveList?:(id:string)=>void;
+  onAddList?:(name:string)=>void;
+  onRenameList?:(id:string,name:string)=>void;
+  onDeleteList?:(id:string)=>void;
+}>(() => import("@/components/WatchlistAlerts"), { ssr:false, loading:() => <PanelSkeleton /> });
 const StockComparison = dynamic<{ initialTicker:string; onClose:()=>void }>(() => import("@/components/StockComparison"), { ssr:false });
 const ProUpgradeModal = dynamic(() => import("@/components/ProUpgradeModal"), { ssr:false });
 
@@ -84,6 +92,13 @@ interface Quote {
 interface Bar { date:string; close:number; }
 interface IndexData { n:string; v:string; d:string; up:boolean; }
 type Tab = "markets"|"top15"|"portfolio"|"earnings"|"news"|"screener"|"analytics"|"watchlist";
+
+/* Multi-watchlist storage. The shape allows multiple named lists
+   (e.g. "Tech I'm watching", "Earnings plays") with one active at
+   a time. Pass through to existing components as the active list's
+   tickers (string[]) for backwards compatibility. */
+export interface WatchlistEntry { id: string; name: string; tickers: string[]; }
+export interface WatchlistState  { lists: WatchlistEntry[]; activeId: string; }
 
 /* ── Constants ────────────────────────────────────────────── */
 const API_KEY = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
@@ -425,10 +440,16 @@ interface MarketsPanelProps {
   go:(t:string)=>void;toggleWatch:(t:string)=>void;refreshMarkets:()=>Promise<void>;
   onCompare:(t:string)=>void;
   theme:"dark"|"light";
+  watchlists:WatchlistState;
+  onSetActiveList:(id:string)=>void;
+  onAddList:(name:string)=>void;
+  onRenameList:(id:string,name:string)=>void;
+  onDeleteList:(id:string)=>void;
 }
 
 const MarketsPanel = memo(function MarketsPanel({
   ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare,theme,
+  watchlists,onSetActiveList,onAddList,onRenameList,onDeleteList,
 }:MarketsPanelProps) {
   const v = theme === "light" ? LIGHT_V : DARK_V;
   const c = (ex?: React.CSSProperties) => getCard(theme, ex);
@@ -565,12 +586,17 @@ const MarketsPanel = memo(function MarketsPanel({
 
       {/* Watchlist */}
       <div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}>
             <Star size={13} color={v.gold} fill={v.gold}/>
-            <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Watchlist</span>
+            <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>
+              {(watchlists.lists.find(l=>l.id===watchlists.activeId) ?? watchlists.lists[0])?.name ?? "Watchlist"}
+            </span>
           </div>
           <span style={{...mono,fontSize:10,color:v.ink3}}>{watchlist.length} tracked</span>
+        </div>
+        <div style={{marginBottom:10}}>
+          <WatchlistSwitcher state={watchlists} onSetActive={onSetActiveList} onAdd={onAddList} onRename={onRenameList} onDelete={onDeleteList} />
         </div>
         <div className="vx-tilt" style={{...c({overflow:"hidden"})}}>
           {watchlist.length===0&&(
@@ -645,18 +671,27 @@ interface SidebarProps {
   go:(t:string)=>void;toggleWatch:(t:string)=>void;
   setTab:Dispatch<SetStateAction<Tab>>;
   theme:"dark"|"light";
+  watchlists:WatchlistState;
+  onSetActiveList:(id:string)=>void;
+  onAddList:(name:string)=>void;
+  onRenameList:(id:string,name:string)=>void;
+  onDeleteList:(id:string)=>void;
 }
 
-const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme}:SidebarProps) {
+const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme,watchlists,onSetActiveList,onAddList,onRenameList,onDeleteList}:SidebarProps) {
   const v = theme === "light" ? LIGHT_V : DARK_V;
   const c = (ex?: React.CSSProperties) => getCard(theme, ex);
+  const activeList = watchlists.lists.find(l=>l.id===watchlists.activeId) ?? watchlists.lists[0];
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div className="vx-tilt" style={{...c({overflow:"hidden",padding:0})}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderBottom:`1px solid ${v.border}`}}>
           <Star size={13} color={v.gold} fill={v.gold}/>
-          <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>Watchlist</span>
+          <span style={{...display,fontSize:13,fontWeight:700,color:v.ink0}}>{activeList?.name ?? "Watchlist"}</span>
           <span style={{...mono,fontSize:10,color:v.ink3,marginLeft:"auto"}}>{watchlist.length}</span>
+        </div>
+        <div style={{padding:"8px 12px 10px",borderBottom:`1px solid ${v.border}`}}>
+          <WatchlistSwitcher state={watchlists} onSetActive={onSetActiveList} onAdd={onAddList} onRename={onRenameList} onDelete={onDeleteList} compact />
         </div>
         {watchlist.map((t,i)=>{
           const live=livePrices[t];
@@ -816,6 +851,7 @@ function DesktopSideNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
           return (
             <button key={t.id} onClick={()=>setTab(t.id)}
               className={`vx-side-nav__item ${active ? "is-active" : ""}`}
+              data-tab={t.id}
               aria-current={active ? "page" : undefined}>
               {active && (
                 <motion.span
@@ -939,6 +975,7 @@ function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
             return (
               <button key={slot.id} onClick={onClick}
                 className={`vx-bottom-nav__btn ${active ? "is-active" : ""}`}
+                data-tab={slot.id}
                 aria-current={active && !isMore ? "page" : undefined}>
                 {active && (
                   <motion.span
@@ -970,10 +1007,29 @@ export default function ArbibX() {
   const [ticker,    setTicker]    = useState("AAPL");
   const [quote,     setQuote]     = useState<Quote>(MOCK["AAPL"]??{ticker:"AAPL",name:"Apple Inc.",price:203,change:-4.7,changePct:-2.3,high:205,low:200,open:207,volume:55_000_000});
   const [bars,      setBars]      = useState<Bar[]>(()=>seedBars(203));
-  const [watchlist, setWatchlist] = useState<string[]>(()=>{
-    try{const s=localStorage.getItem("arbibx-watchlist");return s?JSON.parse(s):["AAPL","NVDA","MSFT","META"];}
-    catch{return ["AAPL","NVDA","MSFT","META"];}
+  // Multi-list watchlists. State shape:
+  //   { lists: [{ id, name, tickers }], activeId }
+  // The active list's tickers are mirrored to the legacy
+  // "arbibx-watchlist" localStorage key so components that read
+  // it directly (TickerView, GlobalAlertsRunner) keep working
+  // without per-component changes.
+  const [watchlists, setWatchlists] = useState<WatchlistState>(()=>{
+    try {
+      const saved = localStorage.getItem("arbibx-watchlists");
+      if (saved) {
+        const parsed = JSON.parse(saved) as WatchlistState;
+        if (parsed?.lists?.length && parsed.lists.some(l => l.id === parsed.activeId)) return parsed;
+      }
+      // Migrate from the old single-list key, or seed defaults
+      const old = localStorage.getItem("arbibx-watchlist");
+      const tickers = old ? JSON.parse(old) as string[] : ["AAPL","NVDA","MSFT","META"];
+      return { lists: [{ id: "main", name: "Main", tickers }], activeId: "main" };
+    } catch {
+      return { lists: [{ id: "main", name: "Main", tickers: ["AAPL","NVDA","MSFT","META"] }], activeId: "main" };
+    }
   });
+  const activeListEntry = watchlists.lists.find(l => l.id === watchlists.activeId) ?? watchlists.lists[0];
+  const watchlist = activeListEntry?.tickers ?? [];
   const [search,    setSearch]    = useState("");
   const [results,   setResults]   = useState<{ticker:string;name:string}[]>([]);
   const [loading,   setLoading]   = useState(false);
@@ -1221,20 +1277,87 @@ export default function ArbibX() {
   },[showLanding, showSearch, showCompare, showAuthModal, showProModal]);
 
   const go=useCallback((t:string)=>{setTicker(t);setSearch("");setResults([]);setShowSearch(false);setTab("markets");},[]);
-  const toggleWatch=useCallback((t:string)=>{
-    setWatchlist(w=>{
-      const next=w.includes(t)?w.filter(x=>x!==t):[...w,t];
-      try{localStorage.setItem("arbibx-watchlist",JSON.stringify(next));}catch{/***/}
+
+  // Persist watchlists state to BOTH the new key (multi-list) and the
+  // legacy key (active list's tickers) so unmodified components still
+  // see the active list as if it were the only one.
+  const persistWatchlists = useCallback((next: WatchlistState) => {
+    try {
+      localStorage.setItem("arbibx-watchlists", JSON.stringify(next));
+      const active = next.lists.find(l => l.id === next.activeId);
+      localStorage.setItem("arbibx-watchlist", JSON.stringify(active?.tickers ?? []));
+    } catch { /* */ }
+  }, []);
+
+  const toggleWatch = useCallback((t: string) => {
+    setWatchlists(prev => {
+      const next: WatchlistState = {
+        ...prev,
+        lists: prev.lists.map(l => l.id === prev.activeId
+          ? { ...l, tickers: l.tickers.includes(t) ? l.tickers.filter(x => x !== t) : [...l.tickers, t] }
+          : l),
+      };
+      persistWatchlists(next);
       return next;
     });
-  },[]);
+  }, [persistWatchlists]);
+
+  const setActiveListId = useCallback((id: string) => {
+    setWatchlists(prev => {
+      if (!prev.lists.some(l => l.id === id) || id === prev.activeId) return prev;
+      const next = { ...prev, activeId: id };
+      persistWatchlists(next);
+      return next;
+    });
+  }, [persistWatchlists]);
+
+  const addWatchlist = useCallback((name: string) => {
+    const trimmed = (name ?? "").trim();
+    if (!trimmed) return;
+    setWatchlists(prev => {
+      const id = `wl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const next: WatchlistState = {
+        lists: [...prev.lists, { id, name: trimmed.slice(0, 40), tickers: [] }],
+        activeId: id,
+      };
+      persistWatchlists(next);
+      return next;
+    });
+  }, [persistWatchlists]);
+
+  const renameWatchlist = useCallback((id: string, name: string) => {
+    const trimmed = (name ?? "").trim();
+    if (!trimmed) return;
+    setWatchlists(prev => {
+      const next: WatchlistState = {
+        ...prev,
+        lists: prev.lists.map(l => l.id === id ? { ...l, name: trimmed.slice(0, 40) } : l),
+      };
+      persistWatchlists(next);
+      return next;
+    });
+  }, [persistWatchlists]);
+
+  const deleteWatchlist = useCallback((id: string) => {
+    setWatchlists(prev => {
+      // Always keep at least one list — refuse to delete the last one
+      if (prev.lists.length <= 1) return prev;
+      const remaining = prev.lists.filter(l => l.id !== id);
+      const next: WatchlistState = {
+        lists: remaining,
+        activeId: id === prev.activeId ? remaining[0].id : prev.activeId,
+      };
+      persistWatchlists(next);
+      return next;
+    });
+  }, [persistWatchlists]);
 
   const up=quote.changePct>=0;
   const lineColor=up?V.gain:V.loss;
   const watched=watchlist.includes(ticker);
 
-  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true),theme}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,theme]);
-  const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme}),[ticker,watchlist,livePrices,indices,go,toggleWatch,theme]);
+  const marketProps=useMemo<MarketsPanelProps>(()=>({ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,onCompare:()=>setShowCompare(true),theme,watchlists,onSetActiveList:setActiveListId,onAddList:addWatchlist,onRenameList:renameWatchlist,onDeleteList:deleteWatchlist}),[ticker,quote,bars,loading,up,lineColor,watched,watchlist,livePrices,indices,go,toggleWatch,refreshMarkets,theme,watchlists,setActiveListId,addWatchlist,renameWatchlist,deleteWatchlist]);
+  const sideProps=useMemo<SidebarProps>(()=>({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme,watchlists,onSetActiveList:setActiveListId,onAddList:addWatchlist,onRenameList:renameWatchlist,onDeleteList:deleteWatchlist}),[ticker,watchlist,livePrices,indices,go,toggleWatch,theme,watchlists,setActiveListId,addWatchlist,renameWatchlist,deleteWatchlist]);
 
   return (
     <div style={{minHeight:"100vh",background:V.void,color:V.ink1,fontFamily:"'Syne',system-ui,sans-serif"}}>
@@ -1574,7 +1697,7 @@ export default function ArbibX() {
           {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
           {tab==="screener"  && <StockScreener onSelectTicker={go}/>}
           {tab==="analytics" && <PortfolioAnalytics onSelectTicker={go} onGoPortfolio={()=>setTab("portfolio")}/>}
-          {tab==="watchlist" && <WatchlistAlerts watchlist={watchlist} onToggleWatch={toggleWatch} onSelectTicker={go}/>}
+          {tab==="watchlist" && <WatchlistAlerts watchlist={watchlist} onToggleWatch={toggleWatch} onSelectTicker={go} watchlists={watchlists} onSetActiveList={setActiveListId} onAddList={addWatchlist} onRenameList={renameWatchlist} onDeleteList={deleteWatchlist}/>}
           {tab==="portfolio" && <MyStocks onSignIn={()=>setShowAuthModal(true)}/>}
           {tab==="markets"&&(
             <div style={{maxWidth:1200,margin:"0 auto",padding:"24px 16px"}}>
