@@ -225,13 +225,26 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
     return (sig === "STRONG BUY" || sig === "BUY") && s.price > 0 && !isNaN(s.price);
   }).slice(0, 8);
   if (!buys.length) return [];
-  const tw = buys.reduce((s, p) => s + p.confidence * Math.max(p.score, 1), 0);
-  if (!tw || isNaN(tw)) return [];
+
+  // Defensive: a single NaN/missing score or confidence used to
+  // poison the total-weight sum and silently empty the simulator
+  // even when there were 11 valid BUYs. Sanitize with fallbacks
+  // (50 confidence, 50 score) so weights are always finite.
+  const safeConf  = (p: Stock) => Number.isFinite(p.confidence) ? p.confidence : 50;
+  const safeScore = (p: Stock) => Number.isFinite(p.score)      ? p.score      : 50;
+  const rawWeight = (p: Stock) => safeConf(p) * Math.max(safeScore(p), 1);
+
+  let tw = buys.reduce((s, p) => s + rawWeight(p), 0);
+  // Final safety net — if the math still produces a non-positive
+  // total, fall back to equal weighting so the user at least sees
+  // something instead of an empty simulator.
+  if (!Number.isFinite(tw) || tw <= 0) tw = buys.length;
+  const useEqualWeight = !buys.every(p => Number.isFinite(rawWeight(p)) && rawWeight(p) > 0);
 
   // Pass 1: floor to whole shares from the weighted target
   type Row = { p: typeof buys[number]; weight: number; shares: number };
   const rows: Row[] = buys.map(p => {
-    const weight = (p.confidence * Math.max(p.score, 1)) / tw;
+    const weight = useEqualWeight ? (1 / buys.length) : (rawWeight(p) / tw);
     const planned = cash * weight;
     const shares = p.price > 0 ? Math.floor(planned / p.price) : 0;
     return { p, weight, shares };
