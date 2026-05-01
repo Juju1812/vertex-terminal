@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon,
+  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon, Shield,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 import WatchlistSwitcher from "@/components/WatchlistSwitcher";
@@ -36,6 +36,7 @@ const OnboardingTour    = dynamic(() => import("@/components/OnboardingTour"),  
 const GlobalAlertsRunner = dynamic(() => import("@/components/GlobalAlertsRunner"),    { ssr:false, loading:() => null });
 const SectorHeatmap      = dynamic(() => import("@/components/SectorHeatmap"),         { ssr:false, loading:() => null });
 const SettingsModal      = dynamic(() => import("@/components/SettingsModal"),         { ssr:false, loading:() => null });
+const AdminPanel         = dynamic(() => import("@/components/AdminPanel"),            { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -1043,6 +1044,8 @@ export default function ArbibX() {
     return "markets";
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [showAdmin,    setShowAdmin]    = useState(false);
+  const [isAdmin,      setIsAdmin]      = useState(false);
   const [searching, setSearching] = useState(false);
   const [showSearch,setShowSearch]= useState(false);
   const [livePrices,setLivePrices]= useState<Record<string,{price:number;changePct:number}>>({});
@@ -1072,8 +1075,9 @@ export default function ArbibX() {
     const checkPro = async () => {
       try {
         const stored = localStorage.getItem("arbibx-auth-user");
-        if (!stored) return;
+        if (!stored) { setIsPro(false); setIsAdmin(false); return; }
         const { email, token } = JSON.parse(stored) as { email:string; token:string };
+        setIsAdmin((email ?? "").toLowerCase().trim() === "daddyjulian@arbibx.com");
         const r = await fetch(`/api/subscription?email=${encodeURIComponent(email)}&token=${token}`);
         const d = await r.json() as { isPro:boolean };
         setIsPro(d.isPro);
@@ -1653,6 +1657,13 @@ export default function ArbibX() {
               }>
               {liteMode ? <Gauge size={16}/> : <Sparkles size={16}/>}
             </button>
+            {isAdmin && (
+              <button onClick={()=>setShowAdmin(true)}
+                title="Admin · Subscription manager"
+                style={{background:V.goldDim,border:`1px solid ${V.goldWire}`,borderRadius:8,cursor:"pointer",color:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
+                <Shield size={16}/>
+              </button>
+            )}
             <button onClick={()=>setShowSettings(true)}
               title="Settings"
               style={{background:"none",border:"1px solid transparent",borderRadius:8,cursor:"pointer",color:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
@@ -1730,6 +1741,9 @@ export default function ArbibX() {
 
       {/* ════ SETTINGS MODAL ═════════════════════════════════ */}
       <SettingsModal open={showSettings} onClose={()=>setShowSettings(false)}/>
+
+      {/* ════ ADMIN PANEL (owner-only) ═══════════════════════ */}
+      {isAdmin && <AdminPanel open={showAdmin} onClose={()=>setShowAdmin(false)}/>}
 
       {/* ════ ONBOARDING TOUR (first visit, after landing) ═══ */}
       <OnboardingTour active={!showLanding} />

@@ -126,50 +126,41 @@ export default function OnboardingTour({ active }: { active: boolean }) {
   if (!show) return null;
   const current = STEPS[step];
 
-  // Compute tooltip position. Clamp to viewport so tooltips near
-  // screen edges stay fully visible (matters for shortcut hint pill
-  // in the bottom-right, and for narrow viewports).
+  // Compute tooltip position by anchoring its CENTER, then clamping
+  // that center so the whole tooltip stays inside the viewport. This
+  // is the only positioning approach that's bulletproof regardless of
+  // where the target is — corners, edges, scrolled-out, etc.
   const tooltipPos = (() => {
     if (!rect || current.side === "center") {
       return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" } as const;
     }
-    const margin   = 16;
-    const tipMaxW  = 360;
-    const tipEstH  = 180; // rough — used only for "top" overflow checks
+    const margin = 16;
     const vw = typeof window !== "undefined" ? window.innerWidth  : 1200;
     const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const tipW = Math.min(360, vw - 2 * margin);
+    const tipH = 220; // generous estimate — covers indicator + title + body + buttons
 
-    // Clamp a centered-x position so the tooltip never overflows the viewport.
-    const clampCenterX = (centerX: number) => {
-      const halfW = Math.min(tipMaxW, vw - 32) / 2;
-      return Math.max(margin + halfW, Math.min(vw - margin - halfW, centerX));
-    };
+    // Step 1: pick the desired center point based on requested side
+    let cx = rect.left + rect.width / 2;
+    let cy = rect.top  + rect.height / 2;
+    if (current.side === "right")  { cx = rect.right  + margin + tipW / 2; }
+    if (current.side === "left")   { cx = rect.left   - margin - tipW / 2; }
+    if (current.side === "top")    { cy = rect.top    - margin - tipH / 2; }
+    if (current.side === "bottom") { cy = rect.bottom + margin + tipH / 2; }
 
-    if (current.side === "right") {
-      // If there's not enough room on the right, flip to left.
-      if (rect.right + margin + tipMaxW > vw - margin) {
-        return { top: rect.top + rect.height / 2, left: rect.left - margin, transform: "translate(-100%, -50%)" } as const;
-      }
-      return { top: rect.top + rect.height / 2, left: rect.right + margin, transform: "translateY(-50%)" } as const;
-    }
-    if (current.side === "left") {
-      if (rect.left - margin - tipMaxW < margin) {
-        return { top: rect.top + rect.height / 2, left: rect.right + margin, transform: "translateY(-50%)" } as const;
-      }
-      return { top: rect.top + rect.height / 2, left: rect.left - margin, transform: "translate(-100%, -50%)" } as const;
-    }
-    if (current.side === "top") {
-      // If too little room above, flip to bottom.
-      if (rect.top - margin - tipEstH < margin) {
-        return { top: rect.bottom + margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, 0)" } as const;
-      }
-      return { top: rect.top - margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, -100%)" } as const;
-    }
-    // bottom
-    if (rect.bottom + margin + tipEstH > vh - margin) {
-      return { top: rect.top - margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, -100%)" } as const;
-    }
-    return { top: rect.bottom + margin, left: clampCenterX(rect.left + rect.width / 2), transform: "translate(-50%, 0)" } as const;
+    // Step 2: if the requested side overflows, flip to the opposite side
+    if (current.side === "right" && cx + tipW / 2 > vw - margin)  cx = rect.left   - margin - tipW / 2;
+    if (current.side === "left"  && cx - tipW / 2 < margin)        cx = rect.right  + margin + tipW / 2;
+    if (current.side === "top"   && cy - tipH / 2 < margin)        cy = rect.bottom + margin + tipH / 2;
+    if (current.side === "bottom"&& cy + tipH / 2 > vh - margin)   cy = rect.top    - margin - tipH / 2;
+
+    // Step 3: hard clamp the center so the entire tooltip is on-screen.
+    // This is the safety net that catches cases where even the flipped
+    // side doesn't fit (target near a corner, very narrow viewport, etc).
+    cx = Math.max(margin + tipW / 2, Math.min(vw - margin - tipW / 2, cx));
+    cy = Math.max(margin + tipH / 2, Math.min(vh - margin - tipH / 2, cy));
+
+    return { top: cy, left: cx, transform: "translate(-50%, -50%)" } as const;
   })();
 
   return (
