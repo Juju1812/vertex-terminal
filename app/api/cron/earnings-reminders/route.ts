@@ -6,6 +6,7 @@ export const maxDuration = 300;
 const SUPABASE_URL   = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_KEY   = process.env.SUPABASE_SECRET_KEY ?? "";
 const POLYGON_KEY    = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
+const FINNHUB_KEY    = process.env.FINNHUB_API_KEY ?? "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
 const CRON_SECRET    = process.env.CRON_SECRET ?? "";
 const APP_URL        = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.arbibx.com";
@@ -52,16 +53,57 @@ async function fetchNextEarnings(ticker: string): Promise<string | null> {
   } catch { return null; }
 }
 
-/* Run requests in parallel batches of 10 so Polygon doesn't
-   throttle us when we have a large pool of unique tickers. */
+/* Finnhub's earnings calendar — returns the actual confirmed
+   next-report date rather than an estimate from filing intervals.
+   Much more reliable than Polygon for foreign ADRs (NVO, ARM, etc.)
+   and for any ticker Polygon's beta financials endpoint omits.
+   Free tier: 60 calls/min, more than enough at our user scale. */
+async function fetchNextEarningsFinnhub(ticker: string): Promise<string | null> {
+  if (!FINNHUB_KEY) return null;
+  try {
+    const today = new Date();
+    const to    = new Date(today.getTime() + 120 * 86_400_000); // look 4 months ahead
+    const fromStr = today.toISOString().split("T")[0];
+    const toStr   = to.toISOString().split("T")[0];
+    const r = await fetch(
+      `https://finnhub.io/api/v1/calendar/earnings?from=${fromStr}&to=${toStr}&symbol=${ticker}&token=${FINNHUB_KEY}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return null;
+    const d = await r.json() as { earningsCalendar?: Array<{ date: string; symbol: string }> };
+    const rows = (d.earningsCalendar ?? [])
+      .filter(e => e.date && e.symbol?.toUpperCase() === ticker.toUpperCase())
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return rows[0]?.date ?? null;
+  } catch { return null; }
+}
+
+/* Run requests in parallel batches of 10 so providers don't
+   throttle us when we have a large pool of unique tickers.
+   Strategy: try Polygon's filing-interval estimate first (no
+   external rate limit), then for any ticker that returns null
+   fall back to Finnhub's actual earnings calendar. */
 async function bulkFetchEarnings(tickers: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   const chunkSize = 10;
+
+  // Pass 1: Polygon
   for (let i = 0; i < tickers.length; i += chunkSize) {
     const chunk = tickers.slice(i, i + chunkSize);
     const results = await Promise.all(chunk.map(async t => ({ t, date: await fetchNextEarnings(t) })));
     for (const r of results) if (r.date) out[r.t] = r.date;
   }
+
+  // Pass 2: Finnhub for whatever Polygon missed
+  if (FINNHUB_KEY) {
+    const missing = tickers.filter(t => !out[t]);
+    for (let i = 0; i < missing.length; i += chunkSize) {
+      const chunk = missing.slice(i, i + chunkSize);
+      const results = await Promise.all(chunk.map(async t => ({ t, date: await fetchNextEarningsFinnhub(t) })));
+      for (const r of results) if (r.date) out[r.t] = r.date;
+    }
+  }
+
   return out;
 }
 
