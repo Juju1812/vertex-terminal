@@ -229,9 +229,11 @@ export async function GET(req: NextRequest) {
 
   const earnings = await bulkFetchEarnings([...allTickers]);
 
-  // The earnings dates are estimates, so include anything 0-3
-  // days out as "reporting soon" — better to send a slightly
-  // early reminder than miss the actual report
+  // Window: 0-5 days out. 5 days ≈ one trading week of lead time,
+  // which is enough for users to review their position size and
+  // any open price alerts before the report. Estimates from
+  // Polygon may be ±1-2 days off, so a tighter window risks missing
+  // the actual report entirely.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dayMs = 86_400_000;
@@ -240,7 +242,7 @@ export async function GET(req: NextRequest) {
     const d = new Date(dateStr + "T12:00:00Z");
     d.setHours(0, 0, 0, 0);
     const daysAway = Math.round((d.getTime() - today.getTime()) / dayMs);
-    if (daysAway >= 0 && daysAway <= 3) {
+    if (daysAway >= 0 && daysAway <= 5) {
       upcoming[ticker] = { date: dateStr, daysAway };
     }
   }
