@@ -149,8 +149,8 @@ function TickerCard(args: { ticker: string; name: string; price: number | null; 
             {ticker}
           </span>
           {hasPrice && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
               padding: "10px 18px", borderRadius: 12,
               background: pillBg(positive),
               border: `1px solid ${pillFg(positive)}40`,
@@ -158,8 +158,9 @@ function TickerCard(args: { ticker: string; name: string; price: number | null; 
               fontSize: 28, fontWeight: 700,
               fontFamily: "'Courier New', monospace",
             }}>
-              {positive ? "▲" : "▼"} {positive ? "+" : ""}{(changePct ?? 0).toFixed(2)}%
-            </span>
+              <span>{positive ? "▲" : "▼"}</span>
+              <span>{positive ? "+" : ""}{(changePct ?? 0).toFixed(2)}%</span>
+            </div>
           )}
         </div>
         <span style={{ fontSize: 32, color: "#cdc7e0", fontWeight: 500, marginTop: 4 }}>
@@ -321,54 +322,77 @@ function DefaultCard(args: { headline?: string; subhead?: string }) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const type = searchParams.get("type") ?? "default";
+  const type  = searchParams.get("type") ?? "default";
+  const debug = searchParams.get("debug") === "1";
 
   const SIZE = { width: 1200, height: 630 };
+
+  // Inner render with explicit catch so a CSS issue in one template
+  // can't kill the whole route. Each branch first tries to render
+  // its specific card; if that throws (Satori CSS quirk, etc.), we
+  // fall through to the always-safe DefaultCard.
+  const renderSafe = async (jsx: React.ReactElement): Promise<Response> => {
+    try {
+      return new ImageResponse(jsx, SIZE);
+    } catch (err) {
+      console.error("[og] inner render failed:", err);
+      if (debug) {
+        return new Response(`OG render error: ${err instanceof Error ? err.message : String(err)}`, {
+          status: 500,
+          headers: { "Content-Type": "text/plain" },
+        });
+      }
+      try {
+        return new ImageResponse(<DefaultCard />, SIZE);
+      } catch (err2) {
+        console.error("[og] fallback render failed:", err2);
+        return new Response("OG render failed", { status: 500 });
+      }
+    }
+  };
 
   try {
     if (type === "ticker") {
       const ticker = (searchParams.get("t") ?? "").toUpperCase().slice(0, 8);
-      if (!ticker) {
-        return new ImageResponse(<DefaultCard />, SIZE);
-      }
+      if (!ticker) return renderSafe(<DefaultCard />);
       const snap = await fetchTickerSnap(ticker);
-      return new ImageResponse(
+      return renderSafe(
         <TickerCard
           ticker={ticker}
           name={snap?.name ?? ticker}
           price={snap?.price ?? null}
           changePct={snap?.changePct ?? null}
-        />,
-        SIZE
+        />
       );
     }
 
     if (type === "portfolio") {
-      const grade     = (searchParams.get("grade") ?? "A").slice(0, 3);
-      const pnlRaw    = parseFloat(searchParams.get("pnl") ?? "");
-      const posRaw    = parseInt(searchParams.get("n") ?? "", 10);
-      const name      = searchParams.get("name") ?? undefined;
-      return new ImageResponse(
+      const grade  = (searchParams.get("grade") ?? "A").slice(0, 3);
+      const pnlRaw = parseFloat(searchParams.get("pnl") ?? "");
+      const posRaw = parseInt(searchParams.get("n") ?? "", 10);
+      const name   = searchParams.get("name") ?? undefined;
+      return renderSafe(
         <PortfolioCard
           grade={grade}
           pnl={Number.isFinite(pnlRaw) ? pnlRaw : null}
           positions={Number.isFinite(posRaw) ? posRaw : null}
-          name={name ?? undefined}
-        />,
-        SIZE
+          name={name}
+        />
       );
     }
 
     // Default + custom-headline cards
     const headline = searchParams.get("h") ?? undefined;
     const subhead  = searchParams.get("s") ?? undefined;
-    return new ImageResponse(
-      <DefaultCard headline={headline} subhead={subhead} />,
-      SIZE
-    );
+    return renderSafe(<DefaultCard headline={headline} subhead={subhead} />);
   } catch (err) {
-    console.error("[og] render failed:", err);
-    // Fail-soft so social embeds always get *something*
-    return new ImageResponse(<DefaultCard />, SIZE);
+    console.error("[og] outer error:", err);
+    if (debug) {
+      return new Response(`OG outer error: ${err instanceof Error ? err.message : String(err)}`, {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    return renderSafe(<DefaultCard />);
   }
 }
