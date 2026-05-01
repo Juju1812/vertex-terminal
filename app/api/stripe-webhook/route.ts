@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-01-27.acacia",
-});
+export const dynamic = "force-dynamic";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY!;
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+  _stripe = new Stripe(key, { apiVersion: "2025-01-27.acacia" });
+  return _stripe;
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY ?? "";
 
 async function updateSubscription(email: string, status: "pro" | "free", stripeCustomerId?: string, subscriptionEnd?: string) {
   const body: Record<string, string> = { subscription_status: status };
@@ -30,11 +37,17 @@ async function updateSubscription(email: string, status: "pro" | "free", stripeC
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
-  const sig  = req.headers.get("stripe-signature")!;
+  const sig  = req.headers.get("stripe-signature");
+  const whSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!sig || !whSecret) {
+    return NextResponse.json({ error: "Stripe webhook not configured" }, { status: 400 });
+  }
+
+  const stripe = getStripe();
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = stripe.webhooks.constructEvent(body, sig, whSecret);
   } catch (err) {
     console.error("Webhook signature error:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

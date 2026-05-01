@@ -1,19 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 
-const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY      = process.env.SUPABASE_SECRET_KEY!;
-const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY!;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY!;
+export const dynamic = "force-dynamic";
 
-webpush.setVapidDetails(
-  "mailto:alerts@arbibx.com",
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY ?? "";
+
+let _vapidConfigured = false;
+function ensureVapid(): boolean {
+  if (_vapidConfigured) return true;
+  const pub  = process.env.VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) return false;
+  webpush.setVapidDetails("mailto:alerts@arbibx.com", pub, priv);
+  _vapidConfigured = true;
+  return true;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    if (!ensureVapid()) {
+      return NextResponse.json({ error: "Push not configured" }, { status: 503 });
+    }
     const { email, title, body, url } = await req.json() as {
       email: string;
       title: string;

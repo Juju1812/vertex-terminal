@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-01-27.acacia",
-});
+export const dynamic = "force-dynamic";
+
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+  _stripe = new Stripe(key, { apiVersion: "2025-01-27.acacia" });
+  return _stripe;
+}
 
 const PRICE_ID = "price_1TRZcvBSokNCjoE8ih9s2zxo";
 const APP_URL  = "https://www.arbibx.com";
@@ -15,6 +22,8 @@ export async function POST(req: NextRequest) {
     if (!email) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
+
+    const stripe = getStripe();
 
     // Check if customer already exists
     const existing = await stripe.customers.list({ email, limit: 1 });
