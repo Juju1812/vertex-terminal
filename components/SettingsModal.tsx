@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, RotateCcw, Trash2, Settings as SettingsIcon, Eye } from "lucide-react";
+import { X, RotateCcw, Trash2, Settings as SettingsIcon, Eye, Mail, Check } from "lucide-react";
 
 /* ── SettingsModal ─────────────────────────────────────────
    Lightweight preferences panel. All settings persist to
@@ -41,11 +41,56 @@ export default function SettingsModal({ open, onClose }: Props) {
   const [defaultTab, setDefaultTab] = useState<string>("markets");
   const [confirmingClear, setConfirmingClear] = useState(false);
 
+  // Daily AI digest opt-in (logged-in users only). State lives on the
+  // server; we mirror it locally for the toggle UI and PATCH on change.
+  const [digestState, setDigestState] = useState<{ loading: boolean; enabled: boolean; error: string | null; saving: boolean }>({
+    loading: false, enabled: false, error: null, saving: false,
+  });
+  const [authUser, setAuthUser] = useState<{ email: string; token: string } | null>(null);
+
   useEffect(() => {
     if (!open) return;
     try { setDefaultTab(localStorage.getItem(DEFAULT_TAB_KEY) ?? "markets"); } catch { /* */ }
     setConfirmingClear(false);
+
+    // Load digest opt-in state (if logged in)
+    try {
+      const raw = localStorage.getItem("arbibx-auth-user");
+      if (!raw) { setAuthUser(null); return; }
+      const u = JSON.parse(raw) as { email: string; token: string };
+      setAuthUser(u);
+      setDigestState(s => ({ ...s, loading: true, error: null }));
+      fetch(`/api/digest-optin?email=${encodeURIComponent(u.email)}&token=${encodeURIComponent(u.token)}`)
+        .then(r => r.json())
+        .then((d: { enabled?: boolean; error?: string }) => {
+          if (d.error) setDigestState({ loading: false, enabled: false, error: d.error, saving: false });
+          else setDigestState({ loading: false, enabled: d.enabled === true, error: null, saving: false });
+        })
+        .catch(() => setDigestState({ loading: false, enabled: false, error: "Network error", saving: false }));
+    } catch { setAuthUser(null); }
   }, [open]);
+
+  const toggleDigest = async () => {
+    if (!authUser || digestState.saving) return;
+    const next = !digestState.enabled;
+    setDigestState(s => ({ ...s, saving: true, error: null, enabled: next })); // optimistic
+    try {
+      const r = await fetch("/api/digest-optin", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: authUser.email, token: authUser.token, enabled: next }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string };
+      if (!r.ok || !d.success) {
+        // rollback
+        setDigestState({ loading: false, enabled: !next, error: d.error ?? "Failed", saving: false });
+      } else {
+        setDigestState({ loading: false, enabled: next, error: null, saving: false });
+      }
+    } catch {
+      setDigestState({ loading: false, enabled: !next, error: "Network error", saving: false });
+    }
+  };
 
   // Esc to close
   useEffect(() => {
@@ -178,6 +223,65 @@ export default function SettingsModal({ open, onClose }: Props) {
                   Reloads the page and shows the 5-step intro again.
                 </p>
               </section>
+
+              {/* Daily AI digest — only shown if logged in */}
+              {authUser && (
+                <section>
+                  <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: "var(--ink4,#1F3550)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
+                    Email digest
+                  </p>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    gap: 12, padding: "12px 14px", borderRadius: 10,
+                    background: "rgba(255,255,255,0.03)",
+                    border: `1px solid ${digestState.enabled ? "rgba(240,165,0,0.40)" : "var(--border,rgba(60,48,100,0.5))"}`,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                      <Mail size={14} color={digestState.enabled ? "var(--gold,#f0a500)" : "var(--ink3,#3D5A7A)"} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink0,#f4f0ff)", fontFamily: "'Cabinet Grotesk',system-ui,sans-serif" }}>
+                          Daily AI brief
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--ink3,#3D5A7A)" }}>
+                          A morning summary of your portfolio, news on your holdings, and what to watch — delivered to {authUser.email}
+                        </span>
+                      </div>
+                    </div>
+                    <button onClick={toggleDigest} disabled={digestState.loading || digestState.saving}
+                      role="switch"
+                      aria-checked={digestState.enabled}
+                      title={digestState.enabled ? "Disable daily brief" : "Enable daily brief"}
+                      style={{
+                        position: "relative",
+                        width: 44, height: 24, borderRadius: 99,
+                        background: digestState.enabled ? "linear-gradient(135deg,#f0a500,#ffbe1a)" : "rgba(255,255,255,0.08)",
+                        border: `1px solid ${digestState.enabled ? "rgba(240,165,0,0.5)" : "var(--border,rgba(60,48,100,0.6))"}`,
+                        cursor: (digestState.loading || digestState.saving) ? "not-allowed" : "pointer",
+                        flexShrink: 0,
+                        transition: "all 0.2s",
+                        opacity: (digestState.loading || digestState.saving) ? 0.6 : 1,
+                      }}>
+                      <span style={{
+                        position: "absolute", top: 2, left: digestState.enabled ? 22 : 2,
+                        width: 18, height: 18, borderRadius: 99,
+                        background: digestState.enabled ? "#0a0800" : "var(--ink2,#7A9CBF)",
+                        transition: "left 0.18s ease",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {digestState.enabled && <Check size={11} color="var(--gold,#f0a500)" strokeWidth={3} />}
+                      </span>
+                    </button>
+                  </div>
+                  {digestState.error && (
+                    <p style={{ fontSize: 11, color: "var(--loss,#ff4560)", margin: "8px 0 0", fontFamily: "'DM Mono',monospace" }}>
+                      {digestState.error}
+                    </p>
+                  )}
+                  <p style={{ fontSize: 11, color: "var(--ink4,#1F3550)", margin: "8px 0 0", lineHeight: 1.5 }}>
+                    Sent every weekday around 7am ET. Generated fresh each morning by Claude using the previous day's market close.
+                  </p>
+                </section>
+              )}
 
               {/* Danger zone */}
               <section style={{ paddingTop: 16, borderTop: "1px dashed var(--border,rgba(60,48,100,0.5))" }}>
