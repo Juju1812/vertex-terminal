@@ -13,6 +13,10 @@ interface NewsArticle {
   publisher: string;
   tickers: string[];
   sentiment: "bullish" | "bearish" | "neutral";
+  /** Set once Claude has rated the headline; replaces the keyword guess */
+  aiScored?: boolean;
+  /** Short Claude explanation shown on hover when aiScored is true */
+  aiReason?: string;
   imageUrl?: string;
 }
 
@@ -104,16 +108,33 @@ async function fetchNews(tickers?: string[], limit = 50): Promise<NewsArticle[]>
   } catch { return []; }
 }
 
-/* ---- SentimentBadge ---------------------------------------- */
-function SentimentBadge({ s }: { s: "bullish" | "bearish" | "neutral" }) {
+/* ---- SentimentBadge ----------------------------------------
+   Shows the keyword-guessed sentiment instantly, then upgrades
+   to the AI-scored version with a hover tooltip explaining WHY.
+   The "AI" dot lights up gold when it's a Claude rating, dim
+   when it's the fallback keyword guess. */
+function SentimentBadge({ s, aiScored, reason }: {
+  s: "bullish" | "bearish" | "neutral";
+  aiScored?: boolean;
+  reason?: string;
+}) {
   const cfg = {
     bullish: { color:V.gain, bg:V.gainDim, wire:V.gainWire, icon:<TrendingUp size={9} />, label:"Bullish" },
     bearish: { color:V.loss, bg:V.lossDim, wire:V.lossWire, icon:<TrendingDown size={9} />, label:"Bearish" },
     neutral: { color:V.arc,  bg:V.arcDim,  wire:V.arcWire,  icon:<Minus size={9} />,       label:"Neutral"  },
   }[s];
+  const tooltip = aiScored && reason
+    ? `AI sentiment: ${cfg.label}\n\n${reason}`
+    : aiScored ? `AI sentiment: ${cfg.label}` : `Keyword sentiment: ${cfg.label}`;
   return (
-    <span style={{ ...mono, fontSize:8, display:"inline-flex", alignItems:"center", gap:3, padding:"2px 7px", borderRadius:99, background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.wire}`, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+    <span title={tooltip}
+      style={{ ...mono, fontSize:8, display:"inline-flex", alignItems:"center", gap:4, padding:"2px 7px", borderRadius:99, background:cfg.bg, color:cfg.color, border:`1px solid ${cfg.wire}`, textTransform:"uppercase", letterSpacing:"0.06em", cursor: aiScored ? "help" : "default" }}>
       {cfg.icon}{cfg.label}
+      {aiScored && (
+        <span aria-hidden style={{ display:"inline-flex", alignItems:"center", marginLeft:1, paddingLeft:4, borderLeft:`1px solid ${cfg.wire}`, color:V.gold, fontSize:7, fontWeight:700 }}>
+          AI
+        </span>
+      )}
     </span>
   );
 }
@@ -146,7 +167,7 @@ function NewsCard({ article, onTickerClick }: { article: NewsArticle; onTickerCl
 
         {/* Footer */}
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          <SentimentBadge s={article.sentiment} />
+          <SentimentBadge s={article.sentiment} aiScored={article.aiScored} reason={article.aiReason} />
           <span style={{ ...mono, fontSize:9, color:V.ink4, display:"flex", alignItems:"center", gap:3 }}>
             <Clock size={9} />{timeAgo(article.published)}
           </span>
@@ -195,6 +216,40 @@ export default function NewsFeed({ onSelectTicker }: Props) {
   }, [tickerFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Once articles land, ask Claude to rate them in one batched call.
+  // The keyword guess shows immediately; results stream in as soon as
+  // /api/news-sentiment responds (cached articles are near-instant,
+  // fresh ones take ~2-4s for a batch of 30).
+  useEffect(() => {
+    if (!articles.length) return;
+    // Only request scoring for articles we haven't already AI-scored —
+    // this prevents repeat calls when filters change but the article
+    // list does not.
+    const todo = articles.filter(a => !a.aiScored).slice(0, 30);
+    if (!todo.length) return;
+    const controller = new AbortController();
+    fetch("/api/news-sentiment", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        articles: todo.map(a => ({ id: a.id, title: a.title, desc: a.description, tickers: a.tickers })),
+      }),
+      signal: controller.signal,
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { results?: Array<{ id: string; sentiment: "bullish" | "bearish" | "neutral"; reason: string }> } | null) => {
+        if (!d?.results?.length) return;
+        const map = new Map(d.results.map(r => [r.id, r] as const));
+        setArticles(prev => prev.map(a => {
+          const hit = map.get(a.id);
+          return hit ? { ...a, sentiment: hit.sentiment, aiScored: true, aiReason: hit.reason } : a;
+        }));
+      })
+      .catch(() => { /* fail-soft — keyword guess stays */ });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articles.length, articles[0]?.id]);
 
   const filtered = articles.filter(a => {
     if (filter !== "all" && a.sentiment !== filter) return false;
