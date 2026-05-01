@@ -203,6 +203,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Debug helper: ?inspect=1 returns what the system saw without
+  // sending anything. Use this to verify the system is checking the
+  // right tickers when "sent: 0" looks suspicious.
+  if (req.nextUrl.searchParams.get("inspect") === "1") {
+    const tickerStatus = [...allTickers].map(t => ({
+      ticker:    t,
+      nextDate:  earnings[t] ?? "not estimated",
+      upcoming:  !!upcoming[t],
+      daysAway:  upcoming[t]?.daysAway ?? null,
+    })).sort((a, b) => (a.nextDate < b.nextDate ? -1 : 1));
+    return NextResponse.json({
+      inspect:        true,
+      uniqueTickers:  allTickers.size,
+      withEstimate:   Object.keys(earnings).length,
+      reportingSoon:  Object.keys(upcoming).length,
+      today:          new Date().toISOString().split("T")[0],
+      tickerStatus,
+    });
+  }
+
   if (!Object.keys(upcoming).length) {
     return NextResponse.json({ ok: true, sent: 0, message: "No earnings in the next 3 days" });
   }
