@@ -1368,3 +1368,22 @@ body::after {
 
 /* Index strip */
 [data-theme="light"] *[style*="background:rgba(5,4,7,0.95)"] { background: rgba(250,248,242,0.97) !important; }
+
+/* ── Ask Claude chat markdown ──────────────────────────── */
+.vx-chat-md ul { margin: 6px 0 8px; padding-left: 18px; }
+.vx-chat-md li { margin: 3px 0; }
+.vx-chat-md code {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border, rgba(60,48,100,0.4));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9em;
+  color: var(--gold, #f0a500);
+}
+.vx-chat-md strong { color: var(--ink0, #f4f0ff); font-weight: 700; }
+.vx-chat-md em { color: var(--ink2, #7A9CBF); font-style: italic; }
+
+@keyframes vx-spin-anim { to { transform: rotate(360deg); } }
+.vx-spin { animation: vx-spin-anim 0.9s linear infinite; }
+

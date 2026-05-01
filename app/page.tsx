@@ -37,6 +37,7 @@ const GlobalAlertsRunner = dynamic(() => import("@/components/GlobalAlertsRunner
 const SectorHeatmap      = dynamic(() => import("@/components/SectorHeatmap"),         { ssr:false, loading:() => null });
 const SettingsModal      = dynamic(() => import("@/components/SettingsModal"),         { ssr:false, loading:() => null });
 const AdminPanel         = dynamic(() => import("@/components/AdminPanel"),            { ssr:false, loading:() => null });
+const AskClaude          = dynamic(() => import("@/components/AskClaude"),             { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -1750,6 +1751,11 @@ export default function ArbibX() {
 
       {/* ════ GLOBAL PRICE-ALERT POLLER (any tab, any time) ═══ */}
       <GlobalAlertsRunner active={!showLanding} />
+
+      {/* ════ ASK CLAUDE (AI chat) ═══════════════════════════ */}
+      {!showLanding && (
+        <AskClaude ticker={ticker} watchlistTickers={watchlist} tab={tab}/>
+      )}
 
       {/* ════ KEYBOARD SHORTCUT HINT (desktop only) ════════ */}
       {!showLanding && (
