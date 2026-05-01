@@ -286,7 +286,9 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
 
   // Build the display rows. Drop any 0-share allocations (allocation
   // too small to buy even one share at this price).
-  return rows
+  console.log("[simulate] rows after pass2:", rows.map(r => ({ tk: r.p.ticker, sh: r.shares, w: r.weight, price: r.p.price })), "cash:", cash, "tw:", tw, "useEqualWeight:", useEqualWeight);
+
+  const result = rows
     .filter(r => r.shares > 0)
     .map(r => {
       const dollars = +(r.shares * r.p.price).toFixed(2);
@@ -298,6 +300,8 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
       };
     })
     .sort((a, b) => b.dollars - a.dollars);
+  console.log("[simulate] returning", result.length, "allocs");
+  return result;
 }
 
 /* ---- Formatters -------------------------------------------- */
@@ -464,7 +468,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   const [replaced, setReplaced] = useState(false);
   const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   let allocs: Alloc[] = [];
-  try { allocs = simulate(stocks, num); } catch { allocs = []; }
+  try { allocs = simulate(stocks, num); } catch (err) { console.error("[SimModal] simulate threw:", err); allocs = []; }
   const total = allocs.reduce((s, a) => s + (isNaN(a.dollars) ? 0 : a.dollars), 0);
 
   const [busy, setBusy] = useState<"add" | "replace" | null>(null);
