@@ -1552,3 +1552,41 @@ body::after {
   /* Save horizontal space in the header on small screens */
   .vx-kbd-hint { display: none !important; }
 }
+
+/* ── Mobile polish layer ──────────────────────────────────────
+   Targeted tweaks for small viewports. The components themselves
+   are already mostly responsive via flexWrap; this layer cleans
+   up the cases where wrapped content looks crammed. */
+@media (max-width: 720px) {
+  /* MyStocks header action buttons (Sign out, Share, Export, Refresh)
+     drop their text labels on phones, keeping just the icon so the
+     row doesn't wrap into 3 lines. The buttons keep ≥36px hit
+     targets. Buttons opt-in by adding the `vx-action-btn` class. */
+  .vx-action-btn-text { display: none !important; }
+}
+@media (max-width: 480px) {
+  /* Hero "+%" return number — clamp() already shrinks but force a
+     smaller floor so it doesn't overflow on 320px-wide phones. */
+  .vx-mystocks-hero-pct { font-size: 30px !important; }
+
+  /* SimModal Add/Replace bar wraps cleanly */
+  .vx-sim-actions { flex-direction: column !important; align-items: stretch !important; }
+  .vx-sim-actions > * { width: 100%; justify-content: center; }
+
+  /* Modal content padding is tighter so 320px screens don't
+     squeeze the form fields. */
+  .vx-modal-tight { padding-left: 14px !important; padding-right: 14px !important; }
+
+  /* Top15 table simplification — hide the "Today" + "Confidence"
+     columns on phones where horizontal scroll is awkward. The rest
+     fits in the visible 320px area. */
+  .top15-table-wrap table th:nth-child(6),
+  .top15-table-wrap table td:nth-child(6) { display: none !important; }
+}
+
+/* Charts: shrink the y-axis tick width on phones so the area
+   gets more horizontal room for the actual line. Recharts respects
+   the prop value, but on phones we want the labels tighter. */
+@media (max-width: 480px) {
+  .recharts-yAxis .recharts-cartesian-axis-tick text { font-size: 8px !important; }
+}

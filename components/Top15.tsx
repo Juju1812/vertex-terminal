@@ -688,7 +688,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
             </p>
           )}
           {allocs.length > 0 && (
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+            <div className="vx-sim-actions" style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
               {allPortfolios && allPortfolios.length > 1 && (
                 <label style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <span style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCurrency } from "./useCurrency";
 import PortfolioSwitcher from "./PortfolioSwitcher";
+import PortfolioChart from "./PortfolioChart";
 
 /* ---- Types -------------------------------------------------- */
 interface H  { id: string; ticker: string; shares: number; buyPrice: number; }
@@ -23,12 +24,14 @@ interface Grade {
 }
 
 /* ---- Multi-portfolio types --------------------------------- */
+interface Snapshot { d: string; v: number }
 interface Portfolio {
   id:           string;
   name:         string;
   holdings:     H[];
   startingCash: number | null;
   startedAt:    string | null;
+  snapshots:    Snapshot[];
 }
 interface PortfoliosV2 { list: Portfolio[]; activeId: string }
 
@@ -48,6 +51,7 @@ const makeMainPortfolio = (holdings: H[] = [], startingCash: number | null = nul
   holdings,
   startingCash,
   startedAt,
+  snapshots: [],
 });
 
 /* ---- Expanded KNOWN list — covers ALL 57 universe stocks ---- */
@@ -704,9 +708,12 @@ export default function MyStocks({
 
   /* ---- Fetch prices + portfolio push alerts ---------------- */
   const fetchAll = useCallback(async () => {
-    if (!holdings.length) return;
+    // Fetch prices across ALL portfolios so the per-portfolio grade
+    // badges in the switcher stay accurate, not just the active one.
+    const allTickers = portfolios.flatMap(p => p.holdings.map(h => h.ticker));
+    if (!allTickers.length) return;
     setL(true);
-    const newPrices = await fetchPrices([...new Set(holdings.map(h => h.ticker))]);
+    const newPrices = await fetchPrices([...new Set(allTickers)]);
     setP(newPrices);
     setTs(new Date());
     setL(false);
@@ -778,7 +785,8 @@ export default function MyStocks({
         }
       }
     } catch { /**/ }
-  }, [holdings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdings, portfolios]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -794,8 +802,8 @@ export default function MyStocks({
     setTicker(""); setShares(""); setBp(""); setErr("");
   };
 
-  /* ---- Enrich holdings ------------------------------------- */
-  const enriched: EH[] = holdings.map(h => {
+  /* ---- Enrich holdings (helper, used per-portfolio) -------- */
+  const enrichHoldings = (hs: H[]): EH[] => hs.map(h => {
     const p = prices[h.ticker];
     const k = KNOWN[h.ticker];
     // Use live price if available, then KNOWN fallback, then buy price
@@ -811,6 +819,16 @@ export default function MyStocks({
       day: p?.d || k?.d || 0,
     };
   });
+
+  const enriched: EH[] = enrichHoldings(holdings);
+
+  // Per-portfolio grade letter for the switcher pill badges.
+  // Recomputed on each render — cheap (just sums + a letter mapping).
+  const portfolioGrades: Record<string, string> = {};
+  for (const p of portfolios) {
+    const eh = enrichHoldings(p.holdings);
+    portfolioGrades[p.id] = eh.length ? grade(eh).letter : "—";
+  }
 
   /* Share dialog state — generates a /p/[id] snapshot link */
   const [shareOpen,    setShareOpen]    = useState(false);
@@ -912,6 +930,46 @@ export default function MyStocks({
     : null;
   const startDateLabel = startedAt ? new Date(startedAt).toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" }) : "";
 
+  // ── Opportunistic daily snapshot ─────────────────────────
+  // When today's value is computable (prices loaded + at least one
+  // position) and we don't already have a snapshot for today, append
+  // one to the active portfolio's snapshots[] in USD. Cap at the last
+  // 730 entries to keep the row size bounded. The save effect will
+  // then sync to Supabase like any other portfolio mutation.
+  const snapshotRef = useRef<{ portfolioId: string; date: string } | null>(null);
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    if (!activePortfolio) return;
+    if (!enriched.length) return;
+    // Need real prices, not just buyPrice fallback. Bail if no price
+    // entry has been fetched yet.
+    if (!Object.keys(prices).length) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (snapshotRef.current?.portfolioId === activePortfolio.id && snapshotRef.current.date === today) return;
+
+    const todayValue = +(totalAccountVal).toFixed(2);
+    if (!Number.isFinite(todayValue) || todayValue <= 0) return;
+
+    const existing = activePortfolio.snapshots ?? [];
+    const last = existing[existing.length - 1];
+    if (last?.d === today && Math.abs((last.v ?? 0) - todayValue) < 0.5) {
+      // Today already snapshotted with effectively the same value — skip
+      snapshotRef.current = { portfolioId: activePortfolio.id, date: today };
+      return;
+    }
+
+    const nextSnaps: Snapshot[] = last?.d === today
+      ? [...existing.slice(0, -1), { d: today, v: todayValue }]
+      : [...existing, { d: today, v: todayValue }];
+
+    setPortfolios(prev => prev.map(p =>
+      p.id === activePortfolio.id ? { ...p, snapshots: nextSnaps.slice(-730) } : p
+    ));
+    snapshotRef.current = { portfolioId: activePortfolio.id, date: today };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePortfolio?.id, enriched.length, totalAccountVal, prices]);
+
   const openStartModal = () => {
     setStartInput(startingCash != null ? String(startingCash) : "10000");
     setStartDate(startedAt ? startedAt.split("T")[0] : new Date().toISOString().split("T")[0]);
@@ -982,8 +1040,9 @@ export default function MyStocks({
           {ts && saveStatus === "idle" && <span style={{ ...mono, color:V.ink4, fontSize:9 }}>{ts.toLocaleTimeString()}</span>}
           {user && (
             <button onClick={logout}
+              title="Sign out"
               style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:8, background:"rgba(232,68,90,0.07)", border:`1px solid ${V.lossWire}`, color:V.loss, cursor:"pointer", fontSize:12, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
-              <LogOut size={12} /> Sign out
+              <LogOut size={12} /> <span className="vx-action-btn-text">Sign out</span>
             </button>
           )}
           {user && (
@@ -991,17 +1050,18 @@ export default function MyStocks({
               disabled={!holdings.length}
               title="Generate a public share link for this portfolio"
               style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background: holdings.length ? "rgba(155,114,245,0.10)" : "rgba(255,255,255,0.03)", border: `1px solid ${holdings.length ? V.ameWire : V.w1}`, color: holdings.length ? V.ame : V.ink3, cursor: holdings.length ? "pointer" : "not-allowed", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
-              <Share2 size={12} /> Share
+              <Share2 size={12} /> <span className="vx-action-btn-text">Share</span>
             </button>
           )}
           <button onClick={exportCSV} disabled={!holdings.length}
             title="Download portfolio as CSV"
             style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, color:V.ink2, cursor: holdings.length ? "pointer" : "not-allowed", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
-            <Download size={12} /> Export CSV
+            <Download size={12} /> <span className="vx-action-btn-text">Export CSV</span>
           </button>
           <button onClick={fetchAll} disabled={loading || !holdings.length}
+            title="Refresh prices"
             style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, background:"rgba(255,255,255,0.03)", border:`1px solid ${V.w1}`, color:V.ink2, cursor: loading || !holdings.length ? "not-allowed" : "pointer", fontSize:12, opacity:holdings.length ? 1 : 0.4, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
-            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} /> Refresh
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} /> <span className="vx-action-btn-text">Refresh</span>
           </button>
         </div>
       </div>
@@ -1010,7 +1070,7 @@ export default function MyStocks({
       {portfolios.length > 0 && (
         <div style={{ marginBottom: 18 }}>
           <PortfolioSwitcher
-            portfolios={portfolios.map(p => ({ id: p.id, name: p.name, positions: p.holdings.length }))}
+            portfolios={portfolios.map(p => ({ id: p.id, name: p.name, positions: p.holdings.length, grade: portfolioGrades[p.id] }))}
             activeId={activeId}
             onSetActive={setActiveId}
             onAdd={addPortfolio}
@@ -1058,7 +1118,8 @@ export default function MyStocks({
                 Tracking since {startDateLabel}
               </p>
               <div style={{ display:"flex", alignItems:"baseline", gap:10, flexWrap:"wrap" }}>
-                <span style={{ fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", fontSize:"clamp(34px,6vw,52px)", fontWeight:900, color: returnSinceStart >= 0 ? V.gain : V.loss, letterSpacing:"-0.04em", lineHeight:1 }}>
+                <span className="vx-mystocks-hero-pct"
+                  style={{ fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", fontSize:"clamp(34px,6vw,52px)", fontWeight:900, color: returnSinceStart >= 0 ? V.gain : V.loss, letterSpacing:"-0.04em", lineHeight:1 }}>
                   {returnSinceStart >= 0 ? "+" : ""}{returnSinceStart.toFixed(2)}%
                 </span>
                 <span style={{ ...mono, fontSize:13, fontWeight:600, color: returnSinceStart >= 0 ? V.gain : V.loss }}>
@@ -1090,6 +1151,7 @@ export default function MyStocks({
           </div>
         </div>
       ) : user ? (
+        // No baseline yet — prompt the user to set one.
         <div style={{ ...glass({ padding:"18px 22px", marginBottom:20, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }) }}>
           <div style={{ width:38, height:38, borderRadius:10, background:"rgba(155,114,245,0.10)", border:`1px solid ${V.ameWire}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             <Sparkles size={17} color={V.ame}/>
@@ -1108,6 +1170,21 @@ export default function MyStocks({
           </button>
         </div>
       ) : null}
+
+      {/* ── Portfolio time-series chart ─────────────────────
+          Only shown when we have at least one snapshot or the
+          opportunistic snapshot above just produced one. The
+          chart hydrates from the active portfolio's snapshots[]
+          and trails to today's live total via the liveValue prop. */}
+      {user && activePortfolio && (activePortfolio.snapshots?.length > 0 || (enriched.length > 0 && totalAccountVal > 0)) && (
+        <PortfolioChart
+          snapshots={activePortfolio.snapshots ?? []}
+          startingCash={startingCash}
+          startedAt={startedAt}
+          format$={f$}
+          liveValue={enriched.length > 0 ? totalAccountVal : null}
+        />
+      )}
 
       {/* ── Add position ───────────────────────────────────── */}
       <div style={{ ...glass({ padding:20, marginBottom:20 }) }}>

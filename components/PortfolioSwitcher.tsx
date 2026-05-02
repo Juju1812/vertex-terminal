@@ -13,7 +13,21 @@ export interface PortfolioMeta {
   id:        string;
   name:      string;
   positions: number;
+  /** Optional letter grade ("A+" / "B" / "—" / etc.) — when present
+   *  it renders as a small badge on each pill so users can see their
+   *  best- and worst-performing portfolios at a glance. */
+  grade?:    string;
 }
+
+const gradeColor = (l: string): string => {
+  const c = l?.[0] ?? "";
+  return c === "A" ? "var(--gain,#00e5a0)"
+    : c === "B" ? "#7EB6FF"
+    : c === "C" ? "var(--gold,#f0a500)"
+    : c === "D" ? "#F97316"
+    : c === "F" ? "var(--loss,#ff4560)"
+    : "var(--ink4,#1F3550)";
+};
 
 interface Props {
   portfolios:    PortfolioMeta[];
@@ -119,6 +133,20 @@ export default function PortfolioSwitcher({ portfolios, activeId, onSetActive, o
               <span style={{ fontSize: fontSize - 2, color: active ? "#9B72F5" : "var(--ink4,#1F3550)", opacity: 0.7 }}>
                 {p.positions}
               </span>
+              {p.grade && p.grade !== "—" && (
+                <span title={`AI grade: ${p.grade}`}
+                  style={{
+                    fontSize: fontSize - 3, fontWeight: 800,
+                    color: gradeColor(p.grade),
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid ${gradeColor(p.grade)}`,
+                    borderRadius: 99,
+                    padding: "0px 5px",
+                    letterSpacing: "0.04em",
+                  }}>
+                  {p.grade}
+                </span>
+              )}
               {active && <ChevronDown size={9} style={{ opacity: 0.55 }} />}
             </button>
             {active && (

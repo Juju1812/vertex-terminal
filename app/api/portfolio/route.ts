@@ -27,12 +27,14 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY!;
 
 interface Holding { id: string; ticker: string; shares: number; buyPrice: number }
+interface Snapshot { d: string; v: number }
 interface Portfolio {
   id:           string;
   name:         string;
   holdings:     Holding[];
   startingCash: number | null;
   startedAt:    string | null;
+  snapshots:    Snapshot[];
 }
 interface PortfoliosV2 {
   list:     Portfolio[];
@@ -77,7 +79,20 @@ function sanitizePortfolio(p: unknown, fallbackName = "Main"): Portfolio {
     .filter(h => h.ticker && h.shares > 0 && h.buyPrice > 0);
   const startingCash = typeof o.startingCash === "number" && o.startingCash > 0 ? o.startingCash : null;
   const startedAt    = typeof o.startedAt    === "string" && o.startedAt ? o.startedAt : null;
-  return { id, name, holdings, startingCash, startedAt };
+  // Snapshots: array of { d: "YYYY-MM-DD", v: number }. Capped at 730
+  // entries (~2 years of daily) so the row stays small.
+  const snapshotsRaw = Array.isArray(o.snapshots) ? o.snapshots : [];
+  const snapshots: Snapshot[] = snapshotsRaw
+    .map(s => {
+      const so = (s && typeof s === "object") ? s as Record<string, unknown> : {};
+      return {
+        d: typeof so.d === "string" ? so.d : "",
+        v: typeof so.v === "number" ? so.v : Number(so.v) || 0,
+      };
+    })
+    .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s.d) && s.v >= 0)
+    .slice(-730);
+  return { id, name, holdings, startingCash, startedAt, snapshots };
 }
 
 function buildV2FromLegacy(row: PortfolioRow): PortfoliosV2 {
@@ -89,6 +104,7 @@ function buildV2FromLegacy(row: PortfolioRow): PortfoliosV2 {
       : [],
     startingCash: typeof row.starting_cash === "number" ? row.starting_cash : null,
     startedAt:    typeof row.started_at    === "string" ? row.started_at    : null,
+    snapshots:    [],
   };
   // Recompute holdings via direct sanitization of array items
   const holdingsRaw = Array.isArray(row.holdings) ? row.holdings : [];
@@ -222,7 +238,7 @@ export async function POST(req: NextRequest) {
       const list = body.portfolios.map((p, i) => sanitizePortfolio(p, `Portfolio ${i + 1}`));
       if (!list.length) {
         // Don't allow empty list — fall back to a single empty Main portfolio
-        list.push({ id: newId(), name: "Main", holdings: [], startingCash: null, startedAt: null });
+        list.push({ id: newId(), name: "Main", holdings: [], startingCash: null, startedAt: null, snapshots: [] });
       }
       const activeId = (typeof body.activeId === "string" && list.some(p => p.id === body.activeId))
         ? body.activeId
