@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import AnimatedPrice from "@/components/motion/AnimatedPrice";
 import AdSlot from "@/components/AdSlot";
+import { useCurrency } from "@/components/useCurrency";
 
 /* ── Types & API helpers (mirrors patterns from app/page.tsx) ── */
 interface Bar { date: string; close: number; }
@@ -37,7 +38,7 @@ interface AggBar { c: number; o: number; h: number; l: number; v: number; t: num
 const API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY ?? "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE = "https://api.polygon.io";
 
-const f$ = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
+// f$ now comes from useCurrency() inside each component below.
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 const fv = (n: number) =>
   n >= 1e9 ? `${(n / 1e9).toFixed(2)}B`
@@ -195,6 +196,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 function ChartTip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+  const { f$ } = useCurrency();
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: V.raised, border: `1px solid ${V.borderHi}`, borderRadius: 10, padding: "8px 12px", boxShadow: "0 8px 32px rgba(0,0,0,0.7)" }}>
@@ -206,6 +208,7 @@ function ChartTip({ active, payload, label }: { active?: boolean; payload?: { va
 
 /* ── Main component ─────────────────────────────────────────── */
 export default function TickerView({ ticker }: { ticker: string }) {
+  const { f$ } = useCurrency();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [bars, setBars] = useState<Bar[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -338,7 +341,7 @@ export default function TickerView({ ticker }: { ticker: string }) {
                 <div className="skel" style={{ width: 180, height: 52 }} />
               ) : (
                 <>
-                  <AnimatedPrice value={quote.price} style={{ ...mono, fontSize: "clamp(30px,5vw,48px)", fontWeight: 500, letterSpacing: "-0.04em", color: V.ink0 }} />
+                  <AnimatedPrice value={quote.price} format={f$} style={{ ...mono, fontSize: "clamp(30px,5vw,48px)", fontWeight: 500, letterSpacing: "-0.04em", color: V.ink0 }} />
                   <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 6 }}>
                     <span style={{ ...mono, fontSize: 11, padding: "2px 8px", borderRadius: 5, background: up ? "rgba(0,229,160,0.10)" : "rgba(255,69,96,0.10)", color: up ? V.gain : V.loss, border: `1px solid ${up ? "rgba(0,229,160,0.25)" : "rgba(255,69,96,0.25)"}`, display: "inline-flex", alignItems: "center", gap: 3 }}>
                       {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
@@ -378,7 +381,7 @@ export default function TickerView({ ticker }: { ticker: string }) {
                   </defs>
                   <CartesianGrid strokeDasharray="2 8" stroke="rgba(255,255,255,0.04)" vertical={false} />
                   <XAxis dataKey="date" tick={{ fill: V.ink4, fontSize: 9, fontFamily: "DM Mono" }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={64} />
-                  <YAxis tick={{ fill: V.ink4, fontSize: 9, fontFamily: "DM Mono" }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `$${v.toFixed(0)}`} width={48} domain={["auto", "auto"]} />
+                  <YAxis tick={{ fill: V.ink4, fontSize: 9, fontFamily: "DM Mono" }} tickLine={false} axisLine={false} tickFormatter={(v: number) => f$(v, 0)} width={64} domain={["auto", "auto"]} />
                   <Tooltip content={<ChartTip />} cursor={{ stroke: V.borderHi, strokeWidth: 1 }} />
                   <Area type="monotone" dataKey="close" stroke={lineColor} strokeWidth={1.8} fill={`url(#g-${ticker})`} dot={false} isAnimationActive animationDuration={1400} animationEasing="ease-out" />
                 </AreaChart>

@@ -1,30 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
   Info, Mail, LogOut, Eye, EyeOff, X, Download, Share2, Copy, ChevronRight, DollarSign,
 } from "lucide-react";
-
-/* ── Currency support ──────────────────────────────────────────
-   Source data is always USD (Polygon). The selector applies a
-   live FX multiplier to displayed values + swaps the Intl
-   formatter currency code. Rates cached client-side for 1h. */
-type CurrencyCode = "USD" | "EUR" | "GBP" | "CAD" | "JPY" | "AUD" | "CHF" | "INR";
-const CURRENCIES: { code: CurrencyCode; name: string; symbol: string }[] = [
-  { code: "USD", name: "US Dollar",      symbol: "$"  },
-  { code: "EUR", name: "Euro",           symbol: "€"  },
-  { code: "GBP", name: "British Pound",  symbol: "£"  },
-  { code: "CAD", name: "Canadian Dollar",symbol: "C$" },
-  { code: "JPY", name: "Japanese Yen",   symbol: "¥"  },
-  { code: "AUD", name: "Australian Dollar",symbol: "A$" },
-  { code: "CHF", name: "Swiss Franc",    symbol: "Fr" },
-  { code: "INR", name: "Indian Rupee",   symbol: "₹"  },
-];
-const CURRENCY_KEY = "arbibx-portfolio-currency";
-const FX_CACHE_KEY = "arbibx-fx-cache";
+import { useCurrency } from "./useCurrency";
 
 /* ---- Types -------------------------------------------------- */
 interface H  { id: string; ticker: string; shares: number; buyPrice: number; }
@@ -361,81 +344,11 @@ export default function MyStocks({
   const [bp,       setBp]      = useState("");
   const [err,      setErr]     = useState("");
 
-  // Currency display preference. Source data stays USD; we only
-  // multiply by the FX rate when formatting for display so the
-  // underlying buyPrice/cost math remains accurate.
-  const [currency, setCurrency] = useState<CurrencyCode>(() => {
-    try {
-      const saved = localStorage.getItem(CURRENCY_KEY) as CurrencyCode | null;
-      return saved && CURRENCIES.some(c => c.code === saved) ? saved : "USD";
-    } catch { return "USD"; }
-  });
-  const [fxRates, setFxRates] = useState<Record<string, number>>({ USD: 1 });
-
-  // Load and refresh FX rates. Cache for 1h in localStorage so we
-  // don't re-fetch on every mount. Free public endpoint, no key.
-  useEffect(() => {
-    const loadFx = async () => {
-      try {
-        const cached = localStorage.getItem(FX_CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached) as { rates: Record<string, number>; expiresAt: number };
-          if (parsed.expiresAt > Date.now() && parsed.rates) {
-            setFxRates(parsed.rates);
-            if (parsed.expiresAt - Date.now() > 30 * 60 * 1000) return; // still fresh
-          }
-        }
-      } catch { /* */ }
-      try {
-        const r = await fetch("https://api.exchangerate-api.com/v4/latest/USD", { signal: AbortSignal.timeout(5000) });
-        if (!r.ok) return;
-        const d = await r.json() as { rates?: Record<string, number> };
-        if (!d.rates) return;
-        setFxRates({ USD: 1, ...d.rates });
-        try { localStorage.setItem(FX_CACHE_KEY, JSON.stringify({ rates: { USD: 1, ...d.rates }, expiresAt: Date.now() + 60 * 60 * 1000 })); } catch { /* */ }
-      } catch { /* keep whatever rates we have */ }
-    };
-    loadFx();
-  }, []);
-
-  // Persist currency choice
-  useEffect(() => {
-    try { localStorage.setItem(CURRENCY_KEY, currency); } catch { /* */ }
-  }, [currency]);
-
-  // Stay in sync with the global header CurrencySelector. When it
-  // dispatches a change event, MyStocks re-reads localStorage so
-  // the portfolio rerenders in the new currency immediately.
-  useEffect(() => {
-    const onChange = (e: Event) => {
-      const next = (e as CustomEvent).detail as CurrencyCode | undefined;
-      if (next && CURRENCIES.some(c => c.code === next) && next !== currency) {
-        setCurrency(next);
-      }
-    };
-    window.addEventListener("arbibx-currency-change", onChange);
-    return () => window.removeEventListener("arbibx-currency-change", onChange);
-  }, [currency]);
-
-  const fxRate = fxRates[currency] ?? 1;
-  const fxReady = currency === "USD" || (fxRates[currency] != null && fxRates[currency] !== 1);
-
-  // Currency-aware money formatter. Closes over `currency` and
-  // `fxRate` so existing call sites like f$(value) keep working
-  // — they just render in whatever currency is selected.
-  const f$ = useMemo(() => {
-    return (n: number, d = 2) => {
-      if (!Number.isFinite(n)) return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(0);
-      // JPY traditionally has 0 decimal places — adjust precision
-      const decimals = currency === "JPY" ? 0 : d;
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      }).format(n * fxRate);
-    };
-  }, [currency, fxRate]);
+  // Currency comes from the global useCurrency hook — single
+  // source of truth shared with the header selector and every
+  // other price-displaying component. Source data stays USD;
+  // f$() handles the FX multiply + Intl formatting.
+  const { currency, fxReady, f$ } = useCurrency();
 
   // loadedRef: true once initial load is fully complete
   // isFetchingRef: true while actively reading from Supabase — blocks saves during this window

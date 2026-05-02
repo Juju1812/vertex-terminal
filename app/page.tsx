@@ -26,6 +26,7 @@ import {
 } from "@/components/landing/LandingFX";
 import { AnimatedTab } from "@/components/motion/AnimatedTab";
 import AnimatedPrice from "@/components/motion/AnimatedPrice";
+import { useCurrency } from "@/components/useCurrency";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 
 /* ── Dynamic imports ──────────────────────────────────────── */
@@ -350,7 +351,9 @@ async function searchTickers(q:string): Promise<{ticker:string;name:string}[]> {
 }
 
 /* ── Format helpers ───────────────────────────────────────── */
-const f$ = (n:number) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2}).format(n);
+// Money formatting now lives in `useCurrency().f$` so it follows
+// the user's selected display currency. fp / fv are unit-less so
+// they stay module-level.
 const fp = (n:number) => `${n>=0?"+":""}${n.toFixed(2)}%`;
 const fv = (n:number) => n>=1e9?`${(n/1e9).toFixed(2)}B`:n>=1e6?`${(n/1e6).toFixed(2)}M`:n>=1e3?`${(n/1e3).toFixed(1)}K`:String(n);
 
@@ -376,6 +379,7 @@ function getMarketSession(): MarketSession {
 
 /* ── Shared components ────────────────────────────────────── */
 function ChartTip({active,payload,label}:{active?:boolean;payload?:{value:number}[];label?:string}) {
+  const { f$ } = useCurrency();
   if (!active||!payload?.length) return null;
   return (
     <div style={{background:V.raised,border:`1px solid ${V.borderHi}`,borderRadius:10,padding:"8px 12px",boxShadow:"0 8px 32px rgba(0,0,0,0.7)"}}>
@@ -459,6 +463,7 @@ const MarketsPanel = memo(function MarketsPanel({
 }:MarketsPanelProps) {
   const v = theme === "light" ? LIGHT_V : DARK_V;
   const c = (ex?: React.CSSProperties) => getCard(theme, ex);
+  const { f$ } = useCurrency();
   return (
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       {/* Main chart card */}
@@ -498,6 +503,7 @@ const MarketsPanel = memo(function MarketsPanel({
                 : <>
                     <AnimatedPrice
                       value={quote.price}
+                      format={f$}
                       style={{...mono,fontSize:"clamp(28px,4.5vw,42px)",fontWeight:500,letterSpacing:"-0.04em",color:v.ink0}}
                     />
                     <div style={{...mono,fontSize:12,color:up?v.gain:v.loss,marginTop:4}}>{quote.change>=0?"+":""}{f$(quote.change)} today</div>
@@ -687,6 +693,7 @@ interface SidebarProps {
 const Sidebar = memo(function Sidebar({ticker,watchlist,livePrices,indices,go,toggleWatch,setTab,theme,watchlists,onSetActiveList,onAddList,onRenameList,onDeleteList}:SidebarProps) {
   const v = theme === "light" ? LIGHT_V : DARK_V;
   const c = (ex?: React.CSSProperties) => getCard(theme, ex);
+  const { f$ } = useCurrency();
   const activeList = watchlists.lists.find(l=>l.id===watchlists.activeId) ?? watchlists.lists[0];
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>

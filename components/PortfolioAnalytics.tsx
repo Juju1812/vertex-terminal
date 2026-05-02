@@ -5,6 +5,7 @@ import {
   BarChart2, TrendingUp, TrendingDown, PieChart, Award,
   RefreshCw, AlertTriangle, Target, Zap, Shield, Activity,
 } from "lucide-react";
+import { useCurrency } from "./useCurrency";
 import {
   PieChart as RechartsPie, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -106,8 +107,8 @@ const SECTOR_COLORS: Record<string,string> = {
 };
 const CHART_COLORS = ["#4F8EF7","#00C896","#9B72F5","#E8A030","#E8445A","#F97316","#84CC16","#06B6D4"];
 
-const f$ = (n: number, d = 2) =>
-  new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:d,maximumFractionDigits:d}).format(n);
+// Money goes through useCurrency().f$ so it follows the user's
+// global currency selection. fp is unit-less so it stays here.
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
 /* ---- Fetch prices — snapshot + bars fallback for OTC/ADR --- */
@@ -182,6 +183,7 @@ function EmptyState({onGoPortfolio}:{onGoPortfolio?:()=>void}) {
 }
 
 function CustomTooltip({active,payload}:{active?:boolean;payload?:Array<{name:string;value:number;payload:{fill?:string}}>}) {
+  const { f$ } = useCurrency();
   if (!active||!payload?.length) return null;
   return (
     <div style={{background:"rgba(8,13,24,0.97)",border:`1px solid ${V.w2}`,borderRadius:10,padding:"10px 14px"}}>
@@ -195,6 +197,7 @@ function CustomTooltip({active,payload}:{active?:boolean;payload?:Array<{name:st
 }
 
 export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&{onGoPortfolio?:()=>void}) {
+  const { f$ } = useCurrency();
   const [holdings,    setHoldings]    = useState<Holding[]>([]);
   const [enriched,    setEnriched]    = useState<EnrichedHolding[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -475,7 +478,7 @@ export default function PortfolioAnalytics({onSelectTicker,onGoPortfolio}:Props&
                 </defs>
                 <CartesianGrid strokeDasharray="2 8" stroke="rgba(255,255,255,0.03)" vertical={false}/>
                 <XAxis dataKey="date" tick={{fill:V.ink4,fontSize:8,fontFamily:"'Geist Mono',monospace"}} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
-                <YAxis tick={{fill:V.ink4,fontSize:8,fontFamily:"'Geist Mono',monospace"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`$${(v/1000).toFixed(0)}k`} width={44} domain={["auto","auto"]}/>
+                <YAxis tick={{fill:V.ink4,fontSize:8,fontFamily:"'Geist Mono',monospace"}} tickLine={false} axisLine={false} tickFormatter={(v:number)=>`${f$(v/1000,0)}k`} width={56} domain={["auto","auto"]}/>
                 <Tooltip
                   content={({active,payload,label})=>{
                     if (!active||!payload?.length) return null;

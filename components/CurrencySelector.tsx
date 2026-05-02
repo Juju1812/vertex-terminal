@@ -1,54 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { DollarSign } from "lucide-react";
+import { CURRENCIES, setCurrency, useCurrency, type CurrencyCode } from "./useCurrency";
 
 /* ── Global currency selector ─────────────────────────────────
    Lives in the page header next to Settings / Theme so it's
-   always one click away. Stores the choice in localStorage and
-   dispatches a custom event so any component that converts
-   values (MyStocks, etc.) can re-read on change without prop
-   drilling. */
-
-const CURRENCY_KEY = "arbibx-portfolio-currency";
-
-const CURRENCIES = [
-  { code: "USD", name: "US Dollar",        symbol: "$"  },
-  { code: "EUR", name: "Euro",             symbol: "€"  },
-  { code: "GBP", name: "British Pound",    symbol: "£"  },
-  { code: "CAD", name: "Canadian Dollar",  symbol: "C$" },
-  { code: "JPY", name: "Japanese Yen",     symbol: "¥"  },
-  { code: "AUD", name: "Australian Dollar", symbol: "A$" },
-  { code: "CHF", name: "Swiss Franc",      symbol: "Fr" },
-  { code: "INR", name: "Indian Rupee",     symbol: "₹"  },
-] as const;
-type CurrencyCode = typeof CURRENCIES[number]["code"];
+   always one click away. Uses the shared useCurrency hook so
+   the choice instantly applies to every price on the site. */
 
 export default function CurrencySelector() {
-  const [currency, setCurrency] = useState<CurrencyCode>("USD");
-
-  // Hydrate from storage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CURRENCY_KEY) as CurrencyCode | null;
-      if (saved && CURRENCIES.some(c => c.code === saved)) {
-        setCurrency(saved);
-      }
-    } catch { /* */ }
-  }, []);
-
-  const change = (next: CurrencyCode) => {
-    setCurrency(next);
-    try { localStorage.setItem(CURRENCY_KEY, next); } catch { /* */ }
-    // Tell MyStocks (and any future listener) that the choice changed
-    window.dispatchEvent(new CustomEvent("arbibx-currency-change", { detail: next }));
-  };
-
+  const { currency } = useCurrency();
   const active = CURRENCIES.find(c => c.code === currency) ?? CURRENCIES[0];
 
   return (
     <label
-      title={`Display currency · ${active.name}. Currently applied to portfolio values.`}
+      title={`Display currency · ${active.name}. Applies to every price across the site.`}
       style={{
         display: "inline-flex", alignItems: "center", gap: 0,
         borderRadius: 8,
@@ -70,7 +36,7 @@ export default function CurrencySelector() {
       </span>
       <select
         value={currency}
-        onChange={e => change(e.target.value as CurrencyCode)}
+        onChange={e => setCurrency(e.target.value as CurrencyCode)}
         aria-label="Display currency"
         style={{
           position: "absolute",

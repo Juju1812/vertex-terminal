@@ -8,6 +8,7 @@ import {
   ArrowRight, ExternalLink, AlertTriangle,
   Clock, Activity,
 } from "lucide-react";
+import { useCurrency } from "./useCurrency";
 
 /* ---- Types -------------------------------------------------- */
 interface Stock {
@@ -301,8 +302,7 @@ function simulate(stocks: Stock[], cash: number): Alloc[] {
 }
 
 /* ---- Formatters -------------------------------------------- */
-const f$ = (n: number, d = 2) =>
-  new Intl.NumberFormat("en-US", { style:"currency", currency:"USD", minimumFractionDigits:d, maximumFractionDigits:d }).format(n);
+// Money goes through the global useCurrency().f$ — see each component below.
 const fp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
 /* ---- Design tokens — read from CSS variables so they
@@ -366,6 +366,7 @@ function YahooBtn({ ticker }: { ticker: string }) {
 /* ---- Stock Detail Modal ------------------------------------ */
 function StockModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
   const sig = SIGNAL_CONFIG[stock.signal] ?? SIGNAL_CONFIG["HOLD"];
+  const { f$ } = useCurrency();
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -462,6 +463,7 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
   const [cash, setCash] = useState("50000");
   const [added, setAdded] = useState(false);
   const [replaced, setReplaced] = useState(false);
+  const { f$ } = useCurrency();
   const num = Math.max(100, parseFloat(cash.replace(/,/g, "")) || 50000);
   let allocs: Alloc[] = [];
   try { allocs = simulate(stocks, num); } catch { allocs = []; }
@@ -702,6 +704,7 @@ function saveCache(stocks: Stock[], analyzedAt: string) {
 
 export default function Top15({ onSelectTicker, isPro = true, onUpgrade }: Top15Props) {
   const cached = loadCache();
+  const { f$ } = useCurrency();
   const [stocks,    setStocks]    = useState<Stock[]>(cached?.stocks ?? []);
   const [loading,   setLoading]   = useState(!cached);
   const [analyzing, setAnalyzing] = useState(false);
