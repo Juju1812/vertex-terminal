@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Shield, Crown, Search, RefreshCcw, Check, AlertTriangle } from "lucide-react";
 
 /* ── AdminPanel ───────────────────────────────────────────────
-   Owner-only modal that lets the owner account (julian.arbib@hotmail.com)
-   grant or revoke Pro subscriptions for any account.
+   Owner-only modal that lets daddyjulian@arbibx.com grant or
+   revoke Pro subscriptions for any account.
 
    Auth: passes the admin's stored localStorage {email, token}
    to /api/admin/* routes, which verify both server-side before

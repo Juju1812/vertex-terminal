@@ -6,7 +6,7 @@ const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const KEY  = process.env.SUPABASE_SECRET_KEY ?? "";
 const HDR  = { "apikey": KEY, "Authorization": `Bearer ${KEY}`, "Content-Type": "application/json" };
 
-const ADMIN_EMAIL = "julian.arbib@hotmail.com";
+const ADMIN_EMAIL = "daddyjulian@arbibx.com";
 
 /* ── Admin endpoint: grant or revoke Pro for any account ────
    Auth: caller must pass { adminEmail, adminToken } that match
