@@ -35,16 +35,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid admin token" }, { status: 401 });
     }
 
+    // Use SELECT * so the query works even if subscription_status /
+    // subscription_end columns haven't been added to the schema yet
+    // (e.g., before the Stripe webhook SQL has been run). Then
+    // gracefully extract just the fields we care about.
     const ur = await fetch(
-      `${URL_}/rest/v1/portfolios?select=email,subscription_status,subscription_end&order=email.asc`,
+      `${URL_}/rest/v1/portfolios?select=*&order=email.asc`,
       { headers: HDR }
     );
-    if (!ur.ok) return NextResponse.json({ error: "List fetch failed" }, { status: 500 });
-    const users = await ur.json() as Array<{
-      email: string;
-      subscription_status: string | null;
-      subscription_end: string | null;
-    }>;
+    if (!ur.ok) {
+      const errText = await ur.text().catch(() => "");
+      console.error("admin/users list fetch failed:", ur.status, errText);
+      return NextResponse.json({ error: `Supabase ${ur.status}: ${errText.slice(0, 200)}` }, { status: 500 });
+    }
+    const raw = await ur.json() as Array<Record<string, unknown>>;
+    const users = raw.map(r => ({
+      email:               typeof r.email === "string" ? r.email : "",
+      subscription_status: typeof r.subscription_status === "string" ? r.subscription_status : null,
+      subscription_end:    typeof r.subscription_end    === "string" ? r.subscription_end    : null,
+    }));
 
     return NextResponse.json({ users });
   } catch (err) {

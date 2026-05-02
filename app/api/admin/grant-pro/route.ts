@@ -43,20 +43,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid admin token" }, { status: 401 });
     }
 
-    // Look up target user
+    // Look up target user with SELECT * so we don't fail if columns
+    // are missing from the schema. We just need to know the row exists.
     const targetEm = targetEmail.toLowerCase().trim();
     const tr = await fetch(
-      `${URL_}/rest/v1/portfolios?email=eq.${encodeURIComponent(targetEm)}&select=email,subscription_status`,
+      `${URL_}/rest/v1/portfolios?email=eq.${encodeURIComponent(targetEm)}&select=*`,
       { headers: HDR }
     );
-    if (!tr.ok) return NextResponse.json({ error: "Target lookup failed" }, { status: 500 });
-    const targetRows = await tr.json() as { email: string; subscription_status: string | null }[];
+    if (!tr.ok) {
+      const err = await tr.text().catch(() => "");
+      console.error("admin grant-pro target lookup failed:", tr.status, err);
+      return NextResponse.json({ error: `Supabase ${tr.status}: ${err.slice(0, 200)}` }, { status: 500 });
+    }
+    const targetRows = await tr.json() as Array<Record<string, unknown>>;
     if (!targetRows.length) {
       return NextResponse.json({ error: `No account found for ${targetEm}` }, { status: 404 });
     }
 
     // Update subscription_status. Set subscription_end one year out for
     // "grant" so it survives any expiry check; clear it on "revoke".
+    // If the columns don't exist yet, surface the precise Supabase
+    // error so the user can run the right SQL migration.
     const newStatus = action === "grant" ? "pro" : "free";
     const oneYear   = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     const body: Record<string, string | null> = { subscription_status: newStatus };
@@ -71,16 +78,27 @@ export async function POST(req: NextRequest) {
       }
     );
     if (!ur.ok) {
-      const err = await ur.text();
-      console.error("admin grant-pro update failed:", err);
-      return NextResponse.json({ error: "Update failed" }, { status: 500 });
+      const err = await ur.text().catch(() => "");
+      console.error("admin grant-pro update failed:", ur.status, err);
+      // Detect missing-column errors and give actionable guidance
+      const missingColumn = /column.*does not exist|could not find.*column/i.test(err);
+      if (missingColumn) {
+        return NextResponse.json({
+          error: "Schema missing — run this SQL in Supabase first:\n\nalter table portfolios add column if not exists subscription_status text default 'free';\nalter table portfolios add column if not exists subscription_end timestamptz;",
+        }, { status: 500 });
+      }
+      return NextResponse.json({ error: `Supabase ${ur.status}: ${err.slice(0, 200)}` }, { status: 500 });
     }
+
+    const previousStatus = (typeof targetRows[0].subscription_status === "string"
+      ? targetRows[0].subscription_status as string
+      : "free");
 
     return NextResponse.json({
       success: true,
       email: targetEm,
       status: newStatus,
-      previousStatus: targetRows[0].subscription_status ?? "free",
+      previousStatus,
     });
   } catch (err) {
     console.error("admin grant-pro error:", err);
