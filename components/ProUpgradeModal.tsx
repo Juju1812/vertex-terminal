@@ -131,6 +131,17 @@ export default function ProUpgradeModal({ onClose, userEmail, reason }: Props) {
             }}>
               {reason || "Unlock the full AI terminal — every pick, unlimited chat, and a personalised daily brief."}
             </p>
+            <a href="/methodology" target="_blank" rel="noopener"
+              style={{
+                ...mono, fontSize:10, color:V.ink3, textDecoration:"none",
+                display:"inline-flex", alignItems:"center", gap:5,
+                marginTop:10, padding:"4px 10px", borderRadius:99,
+                background:"rgba(255,255,255,0.03)",
+                border:`1px solid ${V.border}`,
+                letterSpacing:"0.06em", textTransform:"uppercase", fontWeight:600,
+              }}>
+              <BookOpen size={9}/> How the AI works
+            </a>
           </div>
 
           {/* Pricing */}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import {
   TrendingUp, TrendingDown, DollarSign,
   Trophy, Target, Shield, Zap, Brain,
   ChevronUp, ChevronDown, X,
   ArrowRight, ExternalLink, AlertTriangle,
-  Clock, Activity,
+  Clock, Activity, BookOpen,
 } from "lucide-react";
 import { useCurrency } from "./useCurrency";
 
@@ -838,7 +839,12 @@ export default function Top15({ onSelectTicker, isPro = true, onUpgrade }: Top15
           <div>
             <h2 style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:0 }}>AI Top 15</h2>
             <p style={{ ...mono, color:V.ink4, fontSize:9, margin:0, marginTop:2, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              Claude AI + Polygon.io · Real data analysis
+              Claude AI + Polygon.io ·{" "}
+              <Link href="/methodology"
+                style={{ color:V.gold, textDecoration:"none", borderBottom:`1px dotted ${V.gold}`, paddingBottom:1 }}
+                title="How the AI picks stocks">
+                How it works
+              </Link>
             </p>
           </div>
         </div>

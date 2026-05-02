@@ -1045,6 +1045,14 @@ export default function ArbibX() {
   const watchlist = activeListEntry?.tickers ?? [];
   const [search,    setSearch]    = useState("");
   const [results,   setResults]   = useState<{ticker:string;name:string}[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("arbibx-recent-searches");
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.slice(0, 8) : [];
+    } catch { return []; }
+  });
   const [loading,   setLoading]   = useState(false);
   const [tab,       setTab]       = useState<Tab>(() => {
     // Honor user-configured default tab from Settings (falls back to "markets")
@@ -1256,8 +1264,10 @@ export default function ArbibX() {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
-  // Keyboard shortcuts. K opens search, T toggles theme, 1-8 switch tabs,
-  // Escape closes search/modals. Skipped while user types in any input/textarea.
+  // Keyboard shortcuts. Cmd/Ctrl+K opens search from anywhere
+  // (even while typing — matches the convention from Linear/Stripe).
+  // Bare K and "/" also open it when the user isn't in an input.
+  // T toggles theme, 1-8 switch tabs, Escape closes overlays.
   useEffect(()=>{
     const isTyping = (el: EventTarget | null): boolean => {
       const t = el as HTMLElement | null;
@@ -1266,6 +1276,12 @@ export default function ArbibX() {
       return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
     };
     const onKey = (e: KeyboardEvent) => {
+      // Cmd+K / Ctrl+K — works even mid-typing, like a true command palette
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearch(s => !s);
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return; // don't fight browser shortcuts
       if (isTyping(e.target)) return;
       if (showLanding) return;
@@ -1292,7 +1308,14 @@ export default function ArbibX() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[showLanding, showSearch, showCompare, showAuthModal, showProModal]);
 
-  const go=useCallback((t:string)=>{setTicker(t);setSearch("");setResults([]);setShowSearch(false);setTab("markets");},[]);
+  const go=useCallback((t:string)=>{
+    setTicker(t);setSearch("");setResults([]);setShowSearch(false);setTab("markets");
+    setRecentSearches(prev => {
+      const next = [t, ...prev.filter(x => x !== t)].slice(0, 8);
+      try { localStorage.setItem("arbibx-recent-searches", JSON.stringify(next)); } catch { /* */ }
+      return next;
+    });
+  },[]);
 
   // Persist watchlists state to BOTH the new key (multi-list) and the
   // legacy key (active list's tickers) so unmodified components still
@@ -1722,28 +1745,73 @@ export default function ArbibX() {
               <SettingsIcon size={16}/>
             </button>
             <button onClick={()=>setShowSearch(s=>!s)}
-              style={{background:showSearch?V.goldDim:"none",border:`1px solid ${showSearch?V.goldWire:"transparent"}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}>
-              <Search size={16}/>
+              title="Search · ⌘K"
+              style={{background:showSearch?V.goldDim:"rgba(255,255,255,0.03)",border:`1px solid ${showSearch?V.goldWire:V.border}`,borderRadius:8,cursor:"pointer",color:showSearch?V.gold:V.ink3,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,minHeight:36,justifyContent:"center",transition:"all 0.2s"}}>
+              <Search size={14}/>
+              <span style={{...mono,fontSize:9,fontWeight:700,letterSpacing:"0.06em",color:showSearch?V.gold:V.ink3,padding:"2px 6px",borderRadius:4,background:"rgba(255,255,255,0.04)",border:`1px solid ${V.border}`}} className="vx-kbd-hint">⌘K</span>
             </button>
             {showSearch&&(
-              <div style={{position:"fixed",right:16,top:88,width:"min(360px,calc(100vw - 32px))",background:V.surface,backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",border:`1px solid ${V.borderHi}`,borderRadius:14,overflow:"hidden",zIndex:200,boxShadow:"0 24px 64px rgba(0,0,0,0.8)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 14px",borderBottom:`1px solid ${V.border}`}}>
-                  <Search size={13} color={V.ink3}/>
-                  <input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search ticker or company..."
+              <div style={{position:"fixed",right:16,top:88,width:"min(440px,calc(100vw - 32px))",background:V.surface,backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",border:`1px solid ${V.borderHi}`,borderRadius:14,overflow:"hidden",zIndex:200,boxShadow:"0 24px 64px rgba(0,0,0,0.8)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"14px 16px",borderBottom:`1px solid ${V.border}`}}>
+                  <Search size={14} color={V.ink3}/>
+                  <input autoFocus value={search} onChange={e=>setSearch(e.target.value)}
+                    placeholder="Search any ticker or company…"
+                    onKeyDown={e=>{ if (e.key === "Enter" && results[0]) go(results[0].ticker); }}
                     style={{background:"transparent",border:"none",padding:0,fontSize:16,flex:1,color:V.ink0,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
                   {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:V.ink3,padding:2,display:"flex"}}><X size={13}/></button>}
                 </div>
-                {results.map(r=>(
+
+                {/* Recent searches — shown only when input is empty */}
+                {!search.trim() && recentSearches.length > 0 && (
+                  <div style={{padding:"10px 14px 4px"}}>
+                    <p style={{...mono,fontSize:9,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.12em",margin:"0 0 8px",fontWeight:600}}>Recent</p>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {recentSearches.map(t=>(
+                        <button key={t} onClick={()=>go(t)}
+                          style={{...mono,fontSize:11,padding:"5px 10px",borderRadius:6,background:V.goldDim,border:`1px solid ${V.goldWire}`,color:V.gold,cursor:"pointer",fontWeight:600}}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Suggested when totally empty */}
+                {!search.trim() && recentSearches.length === 0 && (
+                  <div style={{padding:"10px 14px 4px"}}>
+                    <p style={{...mono,fontSize:9,color:V.ink4,textTransform:"uppercase",letterSpacing:"0.12em",margin:"0 0 8px",fontWeight:600}}>Popular</p>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {["AAPL","NVDA","MSFT","TSLA","META","GOOGL","AMZN"].map(t=>(
+                        <button key={t} onClick={()=>go(t)}
+                          style={{...mono,fontSize:11,padding:"5px 10px",borderRadius:6,background:"rgba(255,255,255,0.04)",border:`1px solid ${V.border}`,color:V.ink2,cursor:"pointer",fontWeight:600}}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {results.map((r,i)=>(
                   <button key={r.ticker} onClick={()=>go(r.ticker)}
-                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"11px 14px",background:"none",border:"none",cursor:"pointer",minHeight:48,textAlign:"left",transition:"background 0.15s"}}
+                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"11px 14px",background:i===0?"rgba(240,165,0,0.05)":"none",border:"none",cursor:"pointer",minHeight:48,textAlign:"left",transition:"background 0.15s"}}
                     className="row-hover">
                     <span style={{...mono,fontSize:13,fontWeight:500,color:V.gold}}>{r.ticker}</span>
-                    <span style={{fontSize:12,color:V.ink3,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
+                    <span style={{fontSize:12,color:V.ink3,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
                   </button>
                 ))}
                 {results.length===0&&search.length>0&&!searching&&(
-                  <p style={{...mono,fontSize:11,color:V.ink4,textAlign:"center",padding:"14px"}}>No results for "{search}"</p>
+                  <p style={{...mono,fontSize:11,color:V.ink4,textAlign:"center",padding:"14px"}}>No results for &quot;{search}&quot;</p>
                 )}
+
+                {/* Footer hint strip */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"8px 14px",borderTop:`1px solid ${V.border}`,background:"rgba(0,0,0,0.20)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,fontSize:9,color:V.ink4,fontFamily:"'DM Mono',monospace"}}>
+                    <span><span className="vx-kbd">↵</span> open</span>
+                    <span><span className="vx-kbd">esc</span> close</span>
+                    <span><span className="vx-kbd">⌘K</span> toggle</span>
+                  </div>
+                  <span style={{...mono,fontSize:9,color:V.ink4,letterSpacing:"0.06em"}}>Powered by Polygon</span>
+                </div>
               </div>
             )}
           </div>

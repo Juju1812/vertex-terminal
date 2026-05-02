@@ -6,6 +6,7 @@ import {
   Plus, Trash2, TrendingUp, TrendingDown, RefreshCw,
   BookOpen, AlertTriangle, CheckCircle, XCircle,
   Info, Mail, LogOut, Eye, EyeOff, X, Download, Share2, Copy, ChevronRight, DollarSign,
+  Sparkles, Calendar, Wallet, Activity, Minus,
 } from "lucide-react";
 import { useCurrency } from "./useCurrency";
 
@@ -344,6 +345,17 @@ export default function MyStocks({
   const [bp,       setBp]      = useState("");
   const [err,      setErr]     = useState("");
 
+  // Portfolio baseline: optional starting cash + start date so the
+  // user can answer "how is my portfolio doing since I started" rather
+  // than just per-position P&L vs. each buyPrice.
+  const [startingCash, setStartingCash] = useState<number | null>(null);
+  const [startedAt,    setStartedAt]    = useState<string | null>(null);
+  const [startModalOpen, setStartModalOpen] = useState(false);
+  const [startInput,   setStartInput]   = useState("");
+  const [startDate,    setStartDate]    = useState<string>("");
+  const [startBusy,    setStartBusy]    = useState(false);
+  const [startError,   setStartError]   = useState<string | null>(null);
+
   // Currency comes from the global useCurrency hook — single
   // source of truth shared with the header selector and every
   // other price-displaying component. Source data stays USD;
@@ -361,7 +373,7 @@ export default function MyStocks({
     try {
       const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
       if (!r.ok) throw new Error(`${r.status}`);
-      const d = await r.json() as { holdings?: H[]; error?: string };
+      const d = await r.json() as { holdings?: H[]; startingCash?: number | null; startedAt?: string | null; error?: string };
       if (Array.isArray(d.holdings)) {
         setH(d.holdings);
         // Mirror to localStorage as offline backup
@@ -371,6 +383,9 @@ export default function MyStocks({
         const local = localStorage.getItem(SK);
         if (local) setH(JSON.parse(local));
       }
+      // Hydrate baseline (may be null when not yet set or schema not migrated)
+      setStartingCash(typeof d.startingCash === "number" ? d.startingCash : null);
+      setStartedAt(typeof d.startedAt === "string" ? d.startedAt : null);
     } catch {
       // Network/auth error — fall back to localStorage
       try {
@@ -382,6 +397,47 @@ export default function MyStocks({
       loadedRef.current = true;
     }
   }, []);
+
+  /* ---- Set / reset portfolio start ------------------------- */
+  const savePortfolioStart = useCallback(async (cash: number, dateIso: string) => {
+    if (!user) { setStartError("Sign in to set a portfolio start"); return false; }
+    setStartBusy(true); setStartError(null);
+    try {
+      const r = await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email, token: user.token,
+          startingCash: cash, startedAt: dateIso,
+        }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string };
+      if (!r.ok || !d.success) { setStartError(d.error ?? "Failed to save"); return false; }
+      setStartingCash(cash);
+      setStartedAt(dateIso);
+      return true;
+    } catch {
+      setStartError("Network error");
+      return false;
+    } finally { setStartBusy(false); }
+  }, [user]);
+
+  const resetPortfolioStart = useCallback(async () => {
+    if (!user) return;
+    setStartBusy(true); setStartError(null);
+    try {
+      const r = await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, token: user.token, resetStart: true }),
+      });
+      const d = await r.json() as { success?: boolean; error?: string };
+      if (!r.ok || !d.success) { setStartError(d.error ?? "Failed to reset"); return; }
+      setStartingCash(null);
+      setStartedAt(null);
+    } catch { setStartError("Network error"); }
+    finally { setStartBusy(false); }
+  }, [user]);
 
   /* ---- Init on mount --------------------------------------- */
   useEffect(() => {
@@ -719,6 +775,32 @@ export default function MyStocks({
   const g   = grade(enriched);
   const gc_ = gc(g.letter);
 
+  // Baseline math: when the user has set a starting cash + start date,
+  // we treat starting_cash as the "account size" they began with.
+  // Cash left over = starting_cash - sum(buyPrice * shares), clamped
+  // to ≥0 so a user who later invested more than their stated start
+  // doesn't see negative cash. Total account value = holdings + cash.
+  const cashLeft         = startingCash != null ? Math.max(0, startingCash - tc) : 0;
+  const totalAccountVal  = startingCash != null ? tv + cashLeft : tv;
+  const returnSinceStart = startingCash != null && startingCash > 0
+    ? (totalAccountVal - startingCash) / startingCash * 100
+    : null;
+  const startDateLabel = startedAt ? new Date(startedAt).toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" }) : "";
+
+  const openStartModal = () => {
+    setStartInput(startingCash != null ? String(startingCash) : "10000");
+    setStartDate(startedAt ? startedAt.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setStartError(null);
+    setStartModalOpen(true);
+  };
+  const submitStart = async () => {
+    const cash = parseFloat(startInput.replace(/,/g, ""));
+    if (!cash || cash <= 0) { setStartError("Enter a positive starting amount"); return; }
+    const dateIso = startDate ? new Date(startDate + "T00:00:00").toISOString() : new Date().toISOString();
+    const ok = await savePortfolioStart(cash, dateIso);
+    if (ok) setStartModalOpen(false);
+  };
+
   return (
     <div style={{ padding:"24px 16px", maxWidth:1280, margin:"0 auto", animation:"vx-rise 0.35s cubic-bezier(0.16,1,0.3,1) both" }}>
 
@@ -820,6 +902,73 @@ export default function MyStocks({
           </p>
         </div>
       )}
+
+      {/* ── Portfolio snapshot — baseline + return since start ── */}
+      {user && startingCash != null && returnSinceStart != null ? (
+        <div style={{
+          ...glass({ padding:"22px 24px", marginBottom:20 }),
+          background: returnSinceStart >= 0
+            ? "linear-gradient(135deg, rgba(0,229,160,0.08) 0%, rgba(0,229,160,0.02) 70%, transparent 100%)"
+            : "linear-gradient(135deg, rgba(255,69,96,0.08) 0%, rgba(255,69,96,0.02) 70%, transparent 100%)",
+          border: `1px solid ${returnSinceStart >= 0 ? V.gainWire : V.lossWire}`,
+        }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:18, flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:240 }}>
+              <p style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.16em", margin:"0 0 6px", fontWeight:700 }}>
+                <Calendar size={9} style={{ display:"inline", verticalAlign:"-1px", marginRight:5 }}/>
+                Tracking since {startDateLabel}
+              </p>
+              <div style={{ display:"flex", alignItems:"baseline", gap:10, flexWrap:"wrap" }}>
+                <span style={{ fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", fontSize:"clamp(34px,6vw,52px)", fontWeight:900, color: returnSinceStart >= 0 ? V.gain : V.loss, letterSpacing:"-0.04em", lineHeight:1 }}>
+                  {returnSinceStart >= 0 ? "+" : ""}{returnSinceStart.toFixed(2)}%
+                </span>
+                <span style={{ ...mono, fontSize:13, fontWeight:600, color: returnSinceStart >= 0 ? V.gain : V.loss }}>
+                  {returnSinceStart >= 0 ? "+" : ""}{f$(totalAccountVal - startingCash)}
+                </span>
+              </div>
+              <p style={{ ...mono, fontSize:11, color:V.ink2, margin:"10px 0 0" }}>
+                Total value <strong style={{ color:V.ink0 }}>{f$(totalAccountVal)}</strong>
+                {" · "}Started with <strong style={{ color:V.ink1 }}>{f$(startingCash)}</strong>
+              </p>
+              <p style={{ ...mono, fontSize:10, color:V.ink3, margin:"6px 0 0" }}>
+                <span style={{ color:V.ink2 }}>{f$(tv)}</span> in {enriched.length} position{enriched.length === 1 ? "" : "s"}
+                {cashLeft > 0 && <> · <Wallet size={10} style={{ display:"inline", verticalAlign:"-1px" }}/> <span style={{ color:V.ink2 }}>{f$(cashLeft)}</span> uninvested cash</>}
+                {cashLeft === 0 && tc > startingCash && <> · <span style={{ color:V.gold }}>Over-invested by {f$(tc - startingCash)}</span></>}
+              </p>
+            </div>
+            <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+              <button onClick={openStartModal}
+                title="Edit starting cash or start date"
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w2}`, color:V.ink2, cursor:"pointer", fontSize:11, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
+                Edit
+              </button>
+              <button onClick={() => { if (confirm("Reset portfolio start? Your holdings will stay; only the baseline + start date are cleared.")) resetPortfolioStart(); }}
+                title="Clear baseline and start date"
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:"rgba(232,68,90,0.06)", border:`1px solid ${V.lossWire}`, color:V.loss, cursor:"pointer", fontSize:11, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif" }}>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : user ? (
+        <div style={{ ...glass({ padding:"18px 22px", marginBottom:20, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }) }}>
+          <div style={{ width:38, height:38, borderRadius:10, background:"rgba(155,114,245,0.10)", border:`1px solid ${V.ameWire}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <Sparkles size={17} color={V.ame}/>
+          </div>
+          <div style={{ flex:1, minWidth:220 }}>
+            <p style={{ fontSize:14, fontWeight:600, color:V.ink0, margin:"0 0 2px", fontFamily:"'Cabinet Grotesk',system-ui,sans-serif" }}>
+              Track your portfolio from a fresh start
+            </p>
+            <p style={{ fontSize:12, color:V.ink3, margin:0, lineHeight:1.55 }}>
+              Set a starting cash amount and date to see total return since you began — not just per-position P&amp;L.
+            </p>
+          </div>
+          <button onClick={openStartModal}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background:"linear-gradient(135deg,#9B72F5,#7B52D5)", border:"none", color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", flexShrink:0 }}>
+            <Sparkles size={12}/> Start tracking
+          </button>
+        </div>
+      ) : null}
 
       {/* ── Add position ───────────────────────────────────── */}
       <div style={{ ...glass({ padding:20, marginBottom:20 }) }}>
@@ -1017,12 +1166,41 @@ export default function MyStocks({
 
       {/* ── Empty state ────────────────────────────────────── */}
       {!enriched.length && (
-        <div style={{ ...glass({ padding:60, textAlign:"center" }) }}>
+        <div style={{ ...glass({ padding:"56px 32px", textAlign:"center", maxWidth:540, margin:"0 auto" }) }}>
           <div style={{ width:56, height:56, borderRadius:14, background:"rgba(155,114,245,0.08)", border:`1px solid ${V.ameWire}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
             <BookOpen size={26} color={V.ame} />
           </div>
-          <p style={{ fontSize:16, fontWeight:600, color:V.ink0, marginBottom:6 }}>No positions yet</p>
-          <p style={{ color:V.ink3, fontSize:13 }}>Add your first position above to start tracking your portfolio.</p>
+          <p style={{ fontSize:18, fontWeight:700, color:V.ink0, margin:"0 0 6px", fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", letterSpacing:"-0.01em" }}>
+            Build your portfolio
+          </p>
+          <p style={{ color:V.ink3, fontSize:13, margin:"0 0 22px", lineHeight:1.6 }}>
+            Add a real position above with ticker, share count, and buy price — or load a sample to see what live tracking + AI grading looks like.
+          </p>
+          <button onClick={() => {
+            const demo: H[] = [
+              { id:`demo-${Date.now()}-1`, ticker:"AAPL",  shares:10, buyPrice:175 },
+              { id:`demo-${Date.now()}-2`, ticker:"NVDA",  shares:5,  buyPrice:140 },
+              { id:`demo-${Date.now()}-3`, ticker:"MSFT",  shares:8,  buyPrice:320 },
+              { id:`demo-${Date.now()}-4`, ticker:"GOOGL", shares:12, buyPrice:145 },
+              { id:`demo-${Date.now()}-5`, ticker:"AMZN",  shares:6,  buyPrice:175 },
+            ];
+            setH(demo);
+            setErr("");
+          }}
+            style={{
+              display:"inline-flex", alignItems:"center", gap:6,
+              padding:"10px 18px", borderRadius:10,
+              background:"rgba(155,114,245,0.10)",
+              border:`1px solid ${V.ameWire}`,
+              color:V.ame, cursor:"pointer",
+              fontSize:13, fontWeight:600,
+              fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",
+            }}>
+            ⚡ Load sample portfolio
+          </button>
+          <p style={{ ...mono, fontSize:9, color:V.ink4, margin:"14px 0 0", textTransform:"uppercase", letterSpacing:"0.10em" }}>
+            5 large-caps · easy to remove later
+          </p>
         </div>
       )}
 
@@ -1031,6 +1209,76 @@ export default function MyStocks({
         @keyframes spin     { to{transform:rotate(360deg)} }
         @media(max-width:640px) { .add-grid { grid-template-columns:1fr 1fr !important; } }
       `}</style>
+
+      {/* ── Portfolio start modal ──────────────────────────── */}
+      {startModalOpen && (
+        <div onClick={e => { if (e.target === e.currentTarget) setStartModalOpen(false); }}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px" }}>
+          <div style={{ background:"rgba(8,6,16,0.97)", border:`1px solid ${V.w2}`, borderRadius:18, width:"100%", maxWidth:440, padding:0, overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.78), 0 0 32px rgba(155,114,245,0.12)" }}>
+            <div style={{ height:2, background:"linear-gradient(90deg,#9B72F5,#7B52D5,#9B72F5)" }}/>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 22px", borderBottom:`1px solid ${V.w1}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <Sparkles size={16} color={V.ame}/>
+                <h2 style={{ fontFamily:"'Cabinet Grotesk',system-ui,sans-serif", fontSize:16, fontWeight:700, color:V.ink0, margin:0 }}>
+                  {startingCash != null ? "Edit portfolio start" : "Set portfolio start"}
+                </h2>
+              </div>
+              <button onClick={() => setStartModalOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:V.ink3, padding:4, display:"flex" }}>
+                <X size={16}/>
+              </button>
+            </div>
+            <div style={{ padding:"20px 22px", display:"flex", flexDirection:"column", gap:16 }}>
+              <p style={{ fontSize:13, color:V.ink2, margin:0, lineHeight:1.55 }}>
+                Anchor your portfolio to a starting cash amount + date. Performance will be measured against this baseline rather than against each position&apos;s buy price.
+              </p>
+
+              <div>
+                <label style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.10em", display:"block", marginBottom:6, fontWeight:700 }}>
+                  Starting cash
+                </label>
+                <div style={{ position:"relative" }}>
+                  <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:V.ink3, fontSize:14, ...mono }}>$</span>
+                  <input
+                    autoFocus
+                    type="number"
+                    value={startInput}
+                    onChange={e => { setStartInput(e.target.value); setStartError(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") submitStart(); }}
+                    placeholder="10000"
+                    style={{ width:"100%", padding:"10px 12px 10px 26px", borderRadius:9, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w2}`, color:V.ink0, fontSize:15, ...mono, outline:"none", boxSizing:"border-box" }}/>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ ...mono, fontSize:9, color:V.ink4, textTransform:"uppercase", letterSpacing:"0.10em", display:"block", marginBottom:6, fontWeight:700 }}>
+                  Start date
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => { setStartDate(e.target.value); setStartError(null); }}
+                  max={new Date().toISOString().split("T")[0]}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:9, background:"rgba(255,255,255,0.04)", border:`1px solid ${V.w2}`, color:V.ink0, fontSize:13, ...mono, outline:"none", boxSizing:"border-box", colorScheme:"dark" }}/>
+                <p style={{ ...mono, fontSize:9, color:V.ink4, margin:"5px 0 0", lineHeight:1.5 }}>
+                  Backdate to when you actually started — the return % is measured from this date.
+                </p>
+              </div>
+
+              {startError && (
+                <div style={{ ...mono, fontSize:11, color:V.loss, padding:"8px 12px", borderRadius:8, background:"rgba(232,68,90,0.08)", border:`1px solid ${V.lossWire}`, lineHeight:1.5, whiteSpace:"pre-wrap" }}>
+                  {startError}
+                </div>
+              )}
+
+              <button onClick={submitStart} disabled={startBusy}
+                style={{ padding:"11px 18px", borderRadius:10, background: startBusy ? "rgba(155,114,245,0.30)" : "linear-gradient(135deg,#9B72F5,#7B52D5)", border:"none", color:"#fff", cursor: startBusy ? "not-allowed" : "pointer", fontSize:13, fontWeight:700, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                {startBusy ? <RefreshCw size={13} style={{ animation:"spin 1s linear infinite" }}/> : <Sparkles size={13}/>}
+                {startBusy ? "Saving…" : (startingCash != null ? "Update start" : "Start tracking")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Share modal ──────────────────────────────────────── */}
       {shareOpen && (

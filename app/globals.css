@@ -1531,3 +1531,24 @@ body::after {
   transition: opacity 1.2s ease, background 1.2s ease;
 }
 [data-perf="low"] .vx-market-mood { display: none; }
+
+/* ── Cmd+K keyboard hint pill ─────────────────────────────────
+   Used inside the search palette overlay + the header search
+   button to communicate the keyboard shortcut. */
+.vx-kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border, rgba(60,48,100,0.4));
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink2, #7A9CBF);
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+@media (max-width: 640px) {
+  /* Save horizontal space in the header on small screens */
+  .vx-kbd-hint { display: none !important; }
+}

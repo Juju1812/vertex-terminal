@@ -544,10 +544,19 @@ export default function WatchlistAlerts({watchlist,onToggleWatch,onSelectTicker,
           <Star size={40} color={V.ink4} style={{margin:"0 auto 16px"}}/>
           <p style={{fontSize:16,fontWeight:600,color:V.ink0,margin:"0 0 8px"}}>Your watchlist is empty</p>
           <p style={{fontSize:13,color:V.ink3,lineHeight:1.65,margin:"0 0 20px"}}>Add stocks to track prices and get email alerts when they hit your target.</p>
-          <button onClick={()=>setShowAdd(true)}
-            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",borderRadius:10,background:"linear-gradient(135deg,#E8A030,#C47820)",border:"none",color:"#fff",fontSize:13,fontWeight:600,fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",cursor:"pointer"}}>
-            <Plus size={14}/> Add Your First Stock
-          </button>
+          <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+            <button onClick={()=>setShowAdd(true)}
+              style={{display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",borderRadius:10,background:"linear-gradient(135deg,#E8A030,#C47820)",border:"none",color:"#fff",fontSize:13,fontWeight:600,fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",cursor:"pointer"}}>
+              <Plus size={14}/> Add Your First Stock
+            </button>
+            <button onClick={()=>{
+              ["AAPL","NVDA","MSFT","GOOGL","TSLA"].forEach(t => onToggleWatch(t));
+            }}
+              title="Quickly populate your watchlist with the 5 most-watched tickers"
+              style={{display:"inline-flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:`1px solid ${V.w2}`,color:V.ink1,fontSize:13,fontWeight:600,fontFamily:"'Bricolage Grotesque',system-ui,sans-serif",cursor:"pointer"}}>
+              ⚡ Load popular tickers
+            </button>
+          </div>
         </div>
       )}
 

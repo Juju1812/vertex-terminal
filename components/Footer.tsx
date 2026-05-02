@@ -62,6 +62,7 @@ export default function Footer() {
 
           {/* Resources */}
           <FooterColumn title="Resources" links={[
+            { href: "/methodology",     label: "How the AI works" },
             { href: "/embed-builder",   label: "Embed widget" },
             { href: "/sector/ai-stocks",label: "Best AI stocks" },
             { href: "/sector/dividend-stocks", label: "Best dividend stocks" },
