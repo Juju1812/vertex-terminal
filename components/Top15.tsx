@@ -475,7 +475,19 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
 
   type H = { id: string; ticker: string; shares: number; buyPrice: number };
   type AuthUser = { email: string; token: string };
+  interface PortfolioMeta {
+    id: string; name: string;
+    holdings: H[];
+    startingCash: number | null; startedAt: string | null;
+  }
   type CloudResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
+
+  // Multi-portfolio picker — fetched on mount when logged in. Guests
+  // get a single synthetic "Local portfolio" slot since their data
+  // lives in localStorage rather than the cloud.
+  const [allPortfolios, setAllPortfolios] = useState<PortfolioMeta[] | null>(null);
+  const [activeId,      setActiveId]      = useState<string>("");
+  const [targetId,      setTargetId]      = useState<string>("");
 
   const getAuthUser = (): AuthUser | null => {
     try {
@@ -486,26 +498,36 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
     } catch { return null; }
   };
 
-  const fetchCloudHoldings = async (u: AuthUser): Promise<CloudResult<H[]>> => {
-    try {
-      const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
-      if (!r.ok) return { ok: false, status: r.status, error: r.status === 401 ? "Session expired" : "Network error" };
-      const d = await r.json() as { holdings?: H[] };
-      return { ok: true, data: Array.isArray(d.holdings) ? d.holdings : [] };
-    } catch { return { ok: false, status: 0, error: "Network error" }; }
-  };
-
-  const saveCloudHoldings = async (u: AuthUser, h: H[]): Promise<CloudResult<true>> => {
-    try {
-      const r = await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: u.email, token: u.token, holdings: h }),
-      });
-      if (!r.ok) return { ok: false, status: r.status, error: r.status === 401 ? "Session expired - sign in again" : "Network error" };
-      return { ok: true, data: true };
-    } catch { return { ok: false, status: 0, error: "Network error" }; }
-  };
+  useEffect(() => {
+    const u = getAuthUser();
+    const loadGuest = () => {
+      let existing: H[] = [];
+      try { existing = JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as H[]; } catch { /**/ }
+      const meta: PortfolioMeta = { id: "__local__", name: "Local portfolio", holdings: existing, startingCash: null, startedAt: null };
+      setAllPortfolios([meta]);
+      setActiveId(meta.id);
+      setTargetId(meta.id);
+    };
+    if (!u) { loadGuest(); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
+        if (!r.ok) { loadGuest(); return; }
+        const d = await r.json() as { portfolios?: PortfolioMeta[]; activeId?: string };
+        if (cancelled) return;
+        if (Array.isArray(d.portfolios) && d.portfolios.length > 0) {
+          setAllPortfolios(d.portfolios);
+          const active = (d.activeId && d.portfolios.some(p => p.id === d.activeId)) ? d.activeId : d.portfolios[0].id;
+          setActiveId(active);
+          setTargetId(active);
+        } else {
+          loadGuest();
+        }
+      } catch { if (!cancelled) loadGuest(); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const buildHoldings = (): H[] => allocs
     .filter(a => a.shares > 0)
@@ -516,45 +538,62 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
       buyPrice: +a.price.toFixed(2),
     }));
 
-  // Persist holdings: cloud first if logged in (cloud is source of truth
-  // for logged-in users — MyStocks overwrites localStorage on mount).
-  // Then mirror to localStorage and dispatch synthetic storage event for
-  // any mounted MyStocks instance to pick up immediately.
-  const persist = async (next: H[]): Promise<CloudResult<true>> => {
+  // Persist new holdings to a *specific* portfolio in the user's v2
+  // store. For guests we fall back to localStorage. Notifies any
+  // mounted MyStocks instance via the `arbibx-portfolios-changed`
+  // custom event so it re-fetches and re-renders immediately.
+  const persistToPortfolio = async (portfolioId: string, nextHoldings: H[]): Promise<CloudResult<true>> => {
     const u = getAuthUser();
-    if (u) {
-      const result = await saveCloudHoldings(u, next);
-      if (!result.ok) return result;
+    if (u && allPortfolios && portfolioId !== "__local__") {
+      const updatedList = allPortfolios.map(p =>
+        p.id === portfolioId ? { ...p, holdings: nextHoldings } : p
+      );
+      try {
+        const r = await fetch("/api/portfolio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: u.email, token: u.token,
+            portfolios: updatedList, activeId,
+          }),
+        });
+        if (!r.ok) {
+          const status = r.status;
+          return { ok: false, status, error: status === 401 ? "Session expired - sign in again" : "Network error" };
+        }
+        setAllPortfolios(updatedList);
+      } catch { return { ok: false, status: 0, error: "Network error" }; }
     }
     try {
-      localStorage.setItem("arbibx-holdings-local", JSON.stringify(next));
-      window.dispatchEvent(new StorageEvent("storage", { key: "arbibx-holdings-local" }));
+      // Mirror the *active* portfolio's holdings to the legacy local
+      // store + notify MyStocks. If the user targeted a non-active
+      // portfolio, MyStocks will refetch via the custom event.
+      const isActive = portfolioId === activeId || portfolioId === "__local__";
+      if (isActive) {
+        localStorage.setItem("arbibx-holdings-local", JSON.stringify(nextHoldings));
+      }
+      window.dispatchEvent(new CustomEvent("arbibx-portfolios-changed", { detail: { portfolioId } }));
     } catch { /**/ }
     return { ok: true, data: true };
   };
+
+  const targetedPortfolio = (): PortfolioMeta | null =>
+    allPortfolios?.find(p => p.id === targetId) ?? null;
 
   const addToPortfolio = async () => {
     if (busy) return;
     const newHoldings = buildHoldings();
     if (!newHoldings.length) return;
+    const target = targetedPortfolio();
+    if (!target) { setSaveErr("Pick a portfolio first"); return; }
     setBusy("add");
     setSaveErr(null);
     try {
-      // Use cloud as source of truth for logged-in users; fall back to
-      // localStorage for guests.
-      const u = getAuthUser();
-      let existing: H[] = [];
-      if (u) {
-        const fetched = await fetchCloudHoldings(u);
-        if (!fetched.ok) { setSaveErr(fetched.error); return; }
-        existing = fetched.data;
-      } else {
-        try { existing = JSON.parse(localStorage.getItem("arbibx-holdings-local") ?? "[]") as H[]; } catch { /**/ }
-      }
+      const existing = target.holdings ?? [];
       const existingTickers = new Set(existing.map(h => h.ticker));
       const toAdd = newHoldings.filter(h => !existingTickers.has(h.ticker));
       const merged = [...existing, ...toAdd];
-      const result = await persist(merged);
+      const result = await persistToPortfolio(target.id, merged);
       if (result.ok) {
         setAdded(true);
         setTimeout(() => setAdded(false), 2500);
@@ -570,10 +609,12 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
     if (busy) return;
     const newHoldings = buildHoldings();
     if (!newHoldings.length) return;
+    const target = targetedPortfolio();
+    if (!target) { setSaveErr("Pick a portfolio first"); return; }
     setBusy("replace");
     setSaveErr(null);
     try {
-      const result = await persist(newHoldings);
+      const result = await persistToPortfolio(target.id, newHoldings);
       if (result.ok) {
         setReplaced(true);
         setTimeout(() => setReplaced(false), 2500);
@@ -647,14 +688,30 @@ function SimModal({ stocks, onClose }: { stocks: Stock[]; onClose: () => void })
             </p>
           )}
           {allocs.length > 0 && (
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+              {allPortfolios && allPortfolios.length > 1 && (
+                <label style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ ...mono, fontSize:9, color:V.ink3, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>
+                    Apply to
+                  </span>
+                  <select value={targetId} onChange={e => setTargetId(e.target.value)}
+                    title="Pick which portfolio to add or replace"
+                    style={{ ...mono, fontSize:12, fontWeight:600, padding:"7px 10px", borderRadius:8, background:"rgba(155,114,245,0.10)", border:"1px solid rgba(155,114,245,0.36)", color:"#9B72F5", cursor:"pointer", outline:"none" }}>
+                    {allPortfolios.map(p => (
+                      <option key={p.id} value={p.id} style={{ background:"#0a0810", color:"#fff" }}>
+                        {p.name} · {p.holdings.length} pos
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button onClick={addToPortfolio} disabled={!!busy}
                 style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: added ? "rgba(0,200,150,0.15)" : "rgba(0,200,150,0.08)", border:`1px solid ${added ? "rgba(0,200,150,0.40)" : "rgba(0,200,150,0.20)"}`, color:"var(--gain,#00C896)", cursor: busy ? "wait" : "pointer", opacity: busy && busy !== "add" ? 0.5 : 1, fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
-                {busy === "add" ? "Saving…" : added ? "✓ Added!" : "+ Add to Portfolio"}
+                {busy === "add" ? "Saving…" : added ? "✓ Added!" : `+ Add to ${targetedPortfolio()?.name ?? "Portfolio"}`}
               </button>
               <button onClick={replacePortfolio} disabled={!!busy}
                 style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:9, background: replaced ? "rgba(79,142,247,0.15)" : "rgba(79,142,247,0.08)", border:`1px solid ${replaced ? "rgba(79,142,247,0.40)" : "rgba(79,142,247,0.20)"}`, color:"var(--ticker-blue,#7EB6FF)", cursor: busy ? "wait" : "pointer", opacity: busy && busy !== "replace" ? 0.5 : 1, fontSize:12, fontWeight:600, fontFamily:"'Bricolage Grotesque',system-ui,sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" }}>
-                {busy === "replace" ? "Saving…" : replaced ? "✓ Replaced!" : "⟳ Replace Portfolio"}
+                {busy === "replace" ? "Saving…" : replaced ? "✓ Replaced!" : `⟳ Replace ${targetedPortfolio()?.name ?? "Portfolio"}`}
               </button>
             </div>
           )}

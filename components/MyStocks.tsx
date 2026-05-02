@@ -9,6 +9,7 @@ import {
   Sparkles, Calendar, Wallet, Activity, Minus,
 } from "lucide-react";
 import { useCurrency } from "./useCurrency";
+import PortfolioSwitcher from "./PortfolioSwitcher";
 
 /* ---- Types -------------------------------------------------- */
 interface H  { id: string; ticker: string; shares: number; buyPrice: number; }
@@ -21,11 +22,33 @@ interface Grade {
   maxDrawdown: number; concentration: number;
 }
 
+/* ---- Multi-portfolio types --------------------------------- */
+interface Portfolio {
+  id:           string;
+  name:         string;
+  holdings:     H[];
+  startingCash: number | null;
+  startedAt:    string | null;
+}
+interface PortfoliosV2 { list: Portfolio[]; activeId: string }
+
 /* ---- Constants ---------------------------------------------- */
 const KEY  = "1xwzcvUOF9pft6PRNylO2Xc6X2QeQCGr";
 const BASE = "https://api.polygon.io";
-const SK   = "arbibx-holdings-local";
+const SK   = "arbibx-holdings-local";        // legacy single-portfolio holdings (kept for SimModal compat)
+const SK_V2 = "arbibx-portfolios-v2-local";  // new multi-portfolio store for guests + offline backup
 const AU   = "arbibx-auth-user";
+
+const newPortfolioId = (prefix = "p") =>
+  `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const makeMainPortfolio = (holdings: H[] = [], startingCash: number | null = null, startedAt: string | null = null): Portfolio => ({
+  id: newPortfolioId(),
+  name: "Main",
+  holdings,
+  startingCash,
+  startedAt,
+});
 
 /* ---- Expanded KNOWN list — covers ALL 57 universe stocks ---- */
 const KNOWN: Record<string, { n: string; p: number; d: number }> = {
@@ -335,7 +358,11 @@ export default function MyStocks({
   onUpgrade?: () => void;
 }) {
   const [user,     setUser]    = useState<AuthUser | null>(null);
-  const [holdings, setH]       = useState<H[]>([]);
+  // Multi-portfolio state — `holdings` / `startingCash` / `startedAt`
+  // below are derived from the active portfolio so existing call sites
+  // (which read those locals) keep working unchanged.
+  const [portfolios, setPortfolios] = useState<Portfolio[]>(() => [makeMainPortfolio()]);
+  const [activeId,   setActiveId]   = useState<string>("");
   const [prices,   setP]       = useState<Record<string, { p: number; d: number; n: string }>>({});
   const [loading,  setL]       = useState(false);
   const [syncing,  setSyncing] = useState(false);
@@ -347,14 +374,38 @@ export default function MyStocks({
 
   // Portfolio baseline: optional starting cash + start date so the
   // user can answer "how is my portfolio doing since I started" rather
-  // than just per-position P&L vs. each buyPrice.
-  const [startingCash, setStartingCash] = useState<number | null>(null);
-  const [startedAt,    setStartedAt]    = useState<string | null>(null);
+  // than just per-position P&L vs. each buyPrice. Lives on each
+  // portfolio, so the values below come from the active portfolio.
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [startInput,   setStartInput]   = useState("");
   const [startDate,    setStartDate]    = useState<string>("");
   const [startBusy,    setStartBusy]    = useState(false);
   const [startError,   setStartError]   = useState<string | null>(null);
+
+  /* ---- Derived from active portfolio ----------------------- */
+  const activePortfolio = portfolios.find(p => p.id === activeId) ?? portfolios[0];
+  const holdings        = activePortfolio?.holdings ?? [];
+  const startingCash    = activePortfolio?.startingCash ?? null;
+  const startedAt       = activePortfolio?.startedAt    ?? null;
+
+  // Mutate the active portfolio's holdings. Mirrors React's
+  // setState(updater | value) ergonomics so the existing setH(...)
+  // call sites stay valid.
+  const setH = useCallback((updater: H[] | ((prev: H[]) => H[])) => {
+    setPortfolios(prev => prev.map(p =>
+      p.id === activeId
+        ? { ...p, holdings: typeof updater === "function" ? (updater as (prev: H[]) => H[])(p.holdings) : updater }
+        : p
+    ));
+  }, [activeId]);
+  // Setters for the two derived baseline fields. Used by load + start
+  // modal so the existing call sites keep their old shape.
+  const setStartingCash = useCallback((next: number | null) => {
+    setPortfolios(prev => prev.map(p => p.id === activeId ? { ...p, startingCash: next } : p));
+  }, [activeId]);
+  const setStartedAt = useCallback((next: string | null) => {
+    setPortfolios(prev => prev.map(p => p.id === activeId ? { ...p, startedAt: next } : p));
+  }, [activeId]);
 
   // Currency comes from the global useCurrency hook — single
   // source of truth shared with the header selector and every
@@ -367,77 +418,103 @@ export default function MyStocks({
   const loadedRef     = useRef(false);
   const isFetchingRef = useRef(false);
 
-  /* ---- Load holdings --------------------------------------- */
+  /* ---- Load portfolios ------------------------------------- */
+  const loadFromLocal = useCallback(() => {
+    // Prefer the v2 multi-portfolio store; fall back to the legacy
+    // single-portfolio holdings array if v2 hasn't been written yet.
+    try {
+      const v2raw = localStorage.getItem(SK_V2);
+      if (v2raw) {
+        const v2 = JSON.parse(v2raw) as PortfoliosV2;
+        if (Array.isArray(v2.list) && v2.list.length > 0) {
+          setPortfolios(v2.list);
+          const active = (v2.activeId && v2.list.some(p => p.id === v2.activeId)) ? v2.activeId : v2.list[0].id;
+          setActiveId(active);
+          return;
+        }
+      }
+    } catch { /**/ }
+    try {
+      const legacy = localStorage.getItem(SK);
+      const legacyHoldings = legacy ? JSON.parse(legacy) as H[] : [];
+      const main = makeMainPortfolio(legacyHoldings);
+      setPortfolios([main]);
+      setActiveId(main.id);
+    } catch {
+      const main = makeMainPortfolio();
+      setPortfolios([main]);
+      setActiveId(main.id);
+    }
+  }, []);
+
   const loadFromCloud = useCallback(async (u: AuthUser) => {
     isFetchingRef.current = true;
     try {
       const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
       if (!r.ok) throw new Error(`${r.status}`);
-      const d = await r.json() as { holdings?: H[]; startingCash?: number | null; startedAt?: string | null; error?: string };
-      if (Array.isArray(d.holdings)) {
-        setH(d.holdings);
-        // Mirror to localStorage as offline backup
-        try { localStorage.setItem(SK, JSON.stringify(d.holdings)); } catch { /**/ }
+      const d = await r.json() as {
+        portfolios?: Portfolio[];
+        activeId?: string;
+        // legacy
+        holdings?: H[]; startingCash?: number | null; startedAt?: string | null;
+        error?: string;
+      };
+      if (Array.isArray(d.portfolios) && d.portfolios.length > 0) {
+        setPortfolios(d.portfolios);
+        const active = (d.activeId && d.portfolios.some(p => p.id === d.activeId))
+          ? d.activeId
+          : d.portfolios[0].id;
+        setActiveId(active);
+        // Mirror to localStorage as offline + multi-portfolio backup
+        try {
+          localStorage.setItem(SK_V2, JSON.stringify({ list: d.portfolios, activeId: active }));
+          const activeHoldings = d.portfolios.find(p => p.id === active)?.holdings ?? [];
+          localStorage.setItem(SK, JSON.stringify(activeHoldings));
+        } catch { /**/ }
+      } else if (Array.isArray(d.holdings)) {
+        // Pure legacy response — wrap as single-portfolio v2
+        const main = makeMainPortfolio(d.holdings, d.startingCash ?? null, d.startedAt ?? null);
+        setPortfolios([main]);
+        setActiveId(main.id);
+        try {
+          localStorage.setItem(SK_V2, JSON.stringify({ list: [main], activeId: main.id }));
+          localStorage.setItem(SK, JSON.stringify(d.holdings));
+        } catch { /**/ }
       } else {
-        // Supabase returned error — fall back to localStorage
-        const local = localStorage.getItem(SK);
-        if (local) setH(JSON.parse(local));
+        // No cloud data — fall back to local
+        loadFromLocal();
       }
-      // Hydrate baseline (may be null when not yet set or schema not migrated)
-      setStartingCash(typeof d.startingCash === "number" ? d.startingCash : null);
-      setStartedAt(typeof d.startedAt === "string" ? d.startedAt : null);
     } catch {
-      // Network/auth error — fall back to localStorage
-      try {
-        const local = localStorage.getItem(SK);
-        if (local) setH(JSON.parse(local));
-      } catch { /**/ }
+      loadFromLocal();
     } finally {
       isFetchingRef.current = false;
       loadedRef.current = true;
     }
-  }, []);
+  }, [loadFromLocal]);
 
   /* ---- Set / reset portfolio start ------------------------- */
+  // Both just mutate the active portfolio's baseline locally — the
+  // top-level save effect picks the change up and POSTs the full
+  // portfolios_v2 payload to /api/portfolio. Errors surface via the
+  // `saveStatus` indicator in the header.
   const savePortfolioStart = useCallback(async (cash: number, dateIso: string) => {
     if (!user) { setStartError("Sign in to set a portfolio start"); return false; }
     setStartBusy(true); setStartError(null);
     try {
-      const r = await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email, token: user.token,
-          startingCash: cash, startedAt: dateIso,
-        }),
-      });
-      const d = await r.json() as { success?: boolean; error?: string };
-      if (!r.ok || !d.success) { setStartError(d.error ?? "Failed to save"); return false; }
       setStartingCash(cash);
       setStartedAt(dateIso);
       return true;
-    } catch {
-      setStartError("Network error");
-      return false;
     } finally { setStartBusy(false); }
-  }, [user]);
+  }, [user, setStartingCash, setStartedAt]);
 
   const resetPortfolioStart = useCallback(async () => {
     if (!user) return;
     setStartBusy(true); setStartError(null);
     try {
-      const r = await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, token: user.token, resetStart: true }),
-      });
-      const d = await r.json() as { success?: boolean; error?: string };
-      if (!r.ok || !d.success) { setStartError(d.error ?? "Failed to reset"); return; }
       setStartingCash(null);
       setStartedAt(null);
-    } catch { setStartError("Network error"); }
-    finally { setStartBusy(false); }
-  }, [user]);
+    } finally { setStartBusy(false); }
+  }, [user, setStartingCash, setStartedAt]);
 
   /* ---- Init on mount --------------------------------------- */
   useEffect(() => {
@@ -450,10 +527,7 @@ export default function MyStocks({
           await loadFromCloud(u);
         } else {
           // Guest — load from localStorage only
-          try {
-            const local = localStorage.getItem(SK);
-            if (local) setH(JSON.parse(local));
-          } catch { /**/ }
+          loadFromLocal();
           loadedRef.current = true;
         }
       } catch {
@@ -490,16 +564,30 @@ export default function MyStocks({
 
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Also pick up localStorage changes (e.g. from SimModal Add/Replace)
+    // Also pick up changes from SimModal (Add/Replace) — it dispatches
+    // a custom `arbibx-portfolios-changed` event after writing v2.
+    const onPortfoliosChanged = async () => {
+      const stored = localStorage.getItem(AU);
+      if (stored) {
+        try { await loadFromCloud(JSON.parse(stored) as AuthUser); } catch { /**/ }
+      } else {
+        loadFromLocal();
+      }
+    };
+    window.addEventListener("arbibx-portfolios-changed", onPortfoliosChanged);
+
+    // Backwards-compat: legacy SimModal builds dispatched a storage
+    // event on the SK key with a flat holdings array. If that fires,
+    // route the holdings into the active portfolio.
     const onStorage = (e: StorageEvent) => {
       if (e.key === SK && !isFetchingRef.current) {
         try {
           const local = localStorage.getItem(SK);
-          if (local) {
-            const parsed = JSON.parse(local) as H[];
-            setH(parsed);
-          }
+          if (local) setH(JSON.parse(local) as H[]);
         } catch { /**/ }
+      }
+      if (e.key === SK_V2 && !isFetchingRef.current) {
+        loadFromLocal();
       }
       if (e.key === AU) onLogin();
     };
@@ -509,9 +597,11 @@ export default function MyStocks({
     return () => {
       window.removeEventListener("arbibx-login", onLogin);
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("arbibx-portfolios-changed", onPortfoliosChanged);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [loadFromCloud]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadFromCloud, loadFromLocal]);
 
   /* ---- Save holdings — guarded ----------------------------- */
   // saveStatus: visible UI indicator. "idle" by default, "syncing"
@@ -521,31 +611,35 @@ export default function MyStocks({
   const [saveStatus, setSaveStatus] = useState<"idle"|"syncing"|"saved"|"error"|"expired">("idle");
   const saveStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const saveToCloud = useCallback(async (u: AuthUser, h: H[]) => {
+  const saveToCloud = useCallback(async (u: AuthUser, list: Portfolio[], active: string) => {
     setSyncing(true);
     setSaveStatus("syncing");
+    const activeHoldings = list.find(p => p.id === active)?.holdings ?? [];
     try {
       const r = await fetch("/api/portfolio", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ email:u.email, token:u.token, holdings:h }),
+        body:JSON.stringify({ email:u.email, token:u.token, portfolios:list, activeId:active }),
       });
       if (r.status === 401) {
-        // Token was invalidated (typically by signing in on another
-        // device with the OLD token-rotation behavior). The new auth
-        // route doesn't rotate, but existing users may have stale
-        // tokens. Surface this clearly so the user re-signs in
-        // instead of thinking saves are working when they aren't.
         console.warn("Save failed: 401 - token invalid. User needs to re-sign-in.");
         setSaveStatus("expired");
-        // Keep localStorage so the data isn't lost when they sign back in
-        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+        try {
+          localStorage.setItem(SK_V2, JSON.stringify({ list, activeId: active }));
+          localStorage.setItem(SK,    JSON.stringify(activeHoldings));
+        } catch { /**/ }
       } else if (!r.ok) {
         console.error("Save failed:", r.status);
         setSaveStatus("error");
-        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+        try {
+          localStorage.setItem(SK_V2, JSON.stringify({ list, activeId: active }));
+          localStorage.setItem(SK,    JSON.stringify(activeHoldings));
+        } catch { /**/ }
       } else {
-        try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+        try {
+          localStorage.setItem(SK_V2, JSON.stringify({ list, activeId: active }));
+          localStorage.setItem(SK,    JSON.stringify(activeHoldings));
+        } catch { /**/ }
         setSaveStatus("saved");
         if (saveStatusTimer.current) clearTimeout(saveStatusTimer.current);
         saveStatusTimer.current = setTimeout(() => setSaveStatus("idle"), 1800);
@@ -553,8 +647,10 @@ export default function MyStocks({
     } catch (e) {
       console.error("Save error:", e);
       setSaveStatus("error");
-      // Keep local backup so retry on next change has correct data
-      try { localStorage.setItem(SK, JSON.stringify(h)); } catch { /**/ }
+      try {
+        localStorage.setItem(SK_V2, JSON.stringify({ list, activeId: active }));
+        localStorage.setItem(SK,    JSON.stringify(activeHoldings));
+      } catch { /**/ }
     }
     setSyncing(false);
   }, []);
@@ -562,19 +658,48 @@ export default function MyStocks({
   useEffect(() => {
     // GUARD: never save before initial load finishes, or while actively fetching
     if (!loadedRef.current || isFetchingRef.current) return;
+    if (!portfolios.length || !activeId) return;
 
     if (user) {
-      saveToCloud(user, holdings);
+      saveToCloud(user, portfolios, activeId);
     } else {
-      try { localStorage.setItem(SK, JSON.stringify(holdings)); } catch { /**/ }
+      try {
+        localStorage.setItem(SK_V2, JSON.stringify({ list: portfolios, activeId }));
+        localStorage.setItem(SK,    JSON.stringify(holdings));
+      } catch { /**/ }
     }
-  }, [holdings, user, saveToCloud]);
+  }, [portfolios, activeId, holdings, user, saveToCloud]);
+
+  /* ---- Portfolio CRUD -------------------------------------- */
+  const addPortfolio = useCallback((name: string) => {
+    const fresh = makeMainPortfolio();
+    fresh.name = name.trim() || "Untitled";
+    setPortfolios(prev => [...prev, fresh]);
+    setActiveId(fresh.id);
+  }, []);
+  const renamePortfolio = useCallback((id: string, name: string) => {
+    setPortfolios(prev => prev.map(p => p.id === id ? { ...p, name: name.trim() || p.name } : p));
+  }, []);
+  const deletePortfolio = useCallback((id: string) => {
+    setPortfolios(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter(p => p.id !== id);
+      if (id === activeId) setActiveId(next[0].id);
+      return next;
+    });
+  }, [activeId]);
 
   const logout = () => {
     setUser(null);
-    setH([]);
+    const main = makeMainPortfolio();
+    setPortfolios([main]);
+    setActiveId(main.id);
     loadedRef.current = true;
-    try { localStorage.removeItem(AU); localStorage.removeItem(SK); } catch { /**/ }
+    try {
+      localStorage.removeItem(AU);
+      localStorage.removeItem(SK);
+      localStorage.removeItem(SK_V2);
+    } catch { /**/ }
   };
 
   /* ---- Fetch prices + portfolio push alerts ---------------- */
@@ -880,6 +1005,20 @@ export default function MyStocks({
           </button>
         </div>
       </div>
+
+      {/* ── Portfolio switcher ─────────────────────────────── */}
+      {portfolios.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <PortfolioSwitcher
+            portfolios={portfolios.map(p => ({ id: p.id, name: p.name, positions: p.holdings.length }))}
+            activeId={activeId}
+            onSetActive={setActiveId}
+            onAdd={addPortfolio}
+            onRename={renamePortfolio}
+            onDelete={deletePortfolio}
+          />
+        </div>
+      )}
 
       {/* ── Auth prompt ────────────────────────────────────── */}
       {!user && (
