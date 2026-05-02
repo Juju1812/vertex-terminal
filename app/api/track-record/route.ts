@@ -183,9 +183,25 @@ export async function GET(req: NextRequest) {
       ? +(picks.reduce((s, p) => s + p.returnPct, 0) / picks.length).toFixed(2)
       : 0;
     const winRate = picks.length ? +((wins / picks.length) * 100).toFixed(1) : 0;
-    const sorted = [...picks].sort((a, b) => b.returnPct - a.returnPct);
-    const best  = sorted.slice(0, 5);
-    const worst = sorted.slice(-5).reverse();
+
+    // Dedupe by ticker before building best/worst lists — the same ticker
+    // can appear in many consecutive snapshots, which would otherwise stuff
+    // the Top 5 with repeats of the same name. For "best" we keep each
+    // ticker's *highest* return; for "worst" its *lowest*.
+    const dedupeByTicker = (arr: PickReturn[]): PickReturn[] => {
+      const seen = new Set<string>();
+      const out: PickReturn[] = [];
+      for (const p of arr) {
+        if (seen.has(p.ticker)) continue;
+        seen.add(p.ticker);
+        out.push(p);
+      }
+      return out;
+    };
+    const bestSorted  = [...picks].sort((a, b) => b.returnPct - a.returnPct);
+    const worstSorted = [...picks].sort((a, b) => a.returnPct - b.returnPct);
+    const best  = dedupeByTicker(bestSorted).slice(0, 5);
+    const worst = dedupeByTicker(worstSorted).slice(0, 5);
 
     // SPY benchmark over the same window: pick the oldest snapshot
     // date and compare SPY's close then to its current price
