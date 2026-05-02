@@ -7,12 +7,13 @@ let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
   if (_stripe) return _stripe;
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-  _stripe = new Stripe(key, { apiVersion: "2025-01-27.acacia" });
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not set in Vercel env vars");
+  // Pinned to the API version the installed SDK (stripe@22.x) expects.
+  _stripe = new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
   return _stripe;
 }
 
-const PRICE_ID = "price_1TRZcvBSokNCjoE8ih9s2zxo";
+const PRICE_ID = process.env.STRIPE_PRICE_ID ?? "price_1TRZcvBSokNCjoE8ih9s2zxo";
 const APP_URL  = "https://www.arbibx.com";
 
 export async function POST(req: NextRequest) {
@@ -50,7 +51,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
+    // Surface the real Stripe / config error to the client so the user
+    // can see what's actually wrong (missing env var, bad price ID,
+    // test/live key mismatch, etc.) instead of a generic message.
     console.error("Checkout error:", err);
-    return NextResponse.json({ error: "Failed to create checkout" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Failed to create checkout";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

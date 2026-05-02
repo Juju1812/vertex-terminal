@@ -1082,7 +1082,7 @@ export default function ArbibX() {
         const stored = localStorage.getItem("arbibx-auth-user");
         if (!stored) { setIsPro(false); setIsAdmin(false); return; }
         const { email, token } = JSON.parse(stored) as { email:string; token:string };
-        setIsAdmin((email ?? "").toLowerCase().trim() === "daddyjulian@arbibx.com");
+        setIsAdmin((email ?? "").toLowerCase().trim() === "julian.arbib@hotmail.com");
         const r = await fetch(`/api/subscription?email=${encodeURIComponent(email)}&token=${token}`);
         const d = await r.json() as { isPro:boolean };
         setIsPro(d.isPro);

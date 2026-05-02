@@ -8,8 +8,20 @@ function getStripe(): Stripe {
   if (_stripe) return _stripe;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-  _stripe = new Stripe(key, { apiVersion: "2025-01-27.acacia" });
+  _stripe = new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
   return _stripe;
+}
+
+// In the dahlia API version Stripe moved `current_period_end` from
+// the Subscription object onto each SubscriptionItem. Pull the latest
+// item end so we can store a sensible expiry on the user's row.
+function subscriptionEndIso(sub: Stripe.Subscription | null | undefined): string | undefined {
+  if (!sub) return undefined;
+  const ends = (sub.items?.data ?? [])
+    .map(i => (i as unknown as { current_period_end?: number }).current_period_end ?? 0)
+    .filter(n => n > 0);
+  if (!ends.length) return undefined;
+  return new Date(Math.max(...ends) * 1000).toISOString();
 }
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -63,9 +75,7 @@ export async function POST(req: NextRequest) {
         const sub = session.subscription
           ? await stripe.subscriptions.retrieve(session.subscription as string)
           : null;
-        const endDate = sub?.current_period_end
-          ? new Date(sub.current_period_end * 1000).toISOString()
-          : undefined;
+        const endDate = subscriptionEndIso(sub);
         await updateSubscription(email, "pro", session.customer as string, endDate);
         console.log(`✅ Pro activated for ${email}`);
         break;
@@ -75,12 +85,17 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         const email   = invoice.customer_email ?? "";
         if (!email) break;
-        const sub = invoice.subscription
-          ? await stripe.subscriptions.retrieve(invoice.subscription as string)
+        // In dahlia, invoices reference subscriptions through a parent
+        // structure rather than a top-level field. Fall back to the
+        // legacy field for older event payloads.
+        const subId =
+          (invoice as unknown as { subscription?: string | null }).subscription ??
+          invoice.parent?.subscription_details?.subscription ??
+          null;
+        const sub = typeof subId === "string"
+          ? await stripe.subscriptions.retrieve(subId)
           : null;
-        const endDate = sub?.current_period_end
-          ? new Date(sub.current_period_end * 1000).toISOString()
-          : undefined;
+        const endDate = subscriptionEndIso(sub);
         await updateSubscription(email, "pro", invoice.customer as string, endDate);
         console.log(`✅ Pro renewed for ${email}`);
         break;
