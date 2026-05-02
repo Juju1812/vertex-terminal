@@ -403,6 +403,20 @@ export default function MyStocks({
     try { localStorage.setItem(CURRENCY_KEY, currency); } catch { /* */ }
   }, [currency]);
 
+  // Stay in sync with the global header CurrencySelector. When it
+  // dispatches a change event, MyStocks re-reads localStorage so
+  // the portfolio rerenders in the new currency immediately.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const next = (e as CustomEvent).detail as CurrencyCode | undefined;
+      if (next && CURRENCIES.some(c => c.code === next) && next !== currency) {
+        setCurrency(next);
+      }
+    };
+    window.addEventListener("arbibx-currency-change", onChange);
+    return () => window.removeEventListener("arbibx-currency-change", onChange);
+  }, [currency]);
+
   const fxRate = fxRates[currency] ?? 1;
   const fxReady = currency === "USD" || (fxRates[currency] != null && fxRates[currency] !== 1);
 
@@ -809,61 +823,16 @@ export default function MyStocks({
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          {/* Currency selector — affects display only; underlying
-              math stays in USD so cost/buyPrice never drift.
-              Made deliberately visible (not buried in a $ icon)
-              so users can find it on first scan. */}
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 0,
-            padding: 0,
-            borderRadius: 9,
-            background: "linear-gradient(135deg, rgba(240,165,0,0.08), rgba(155,114,245,0.06))",
-            border: "1px solid rgba(240,165,0,0.32)",
-            overflow: "hidden",
-          }}>
-            <span style={{
-              ...mono, fontSize: 9,
-              color: "var(--gold,#f0a500)",
-              padding: "8px 10px",
-              background: "rgba(240,165,0,0.10)",
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              fontWeight: 700,
-              borderRight: "1px solid rgba(240,165,0,0.22)",
-              display: "inline-flex", alignItems: "center", gap: 5,
-            }}>
-              <DollarSign size={11} /> Display
+          {/* Currency now lives in the global header — single source
+              of truth via localStorage + the arbibx-currency-change
+              event. Show a small "loading" hint here only while the
+              FX rate is fetching for a non-USD pick. */}
+          {!fxReady && currency !== "USD" && (
+            <span title={`Loading ${currency} exchange rate`}
+              style={{ ...mono, fontSize: 9, color: V.gold, padding: "6px 10px", borderRadius: 8, background: V.goldDim, border: `1px solid ${V.goldWire}`, display: "inline-flex", alignItems: "center", gap: 5, textTransform: "uppercase", letterSpacing: "0.10em", fontWeight: 700 }}>
+              <DollarSign size={10} /> {currency} loading…
             </span>
-            <select value={currency}
-              onChange={e => setCurrency(e.target.value as CurrencyCode)}
-              title="Display currency — applies to all amounts"
-              style={{
-                background: "transparent",
-                border: "none",
-                color: V.ink0,
-                fontSize: 12,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                outline: "none",
-                fontWeight: 700,
-                padding: "8px 28px 8px 10px",
-                appearance: "none",
-                WebkitAppearance: "none",
-                MozAppearance: "none",
-                backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23f0a500' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 10px center",
-              }}>
-              {CURRENCIES.map(c => (
-                <option key={c.code} value={c.code} style={{ background: "#0a0810", color: "#fff" }}>
-                  {c.symbol} {c.code} — {c.name}
-                </option>
-              ))}
-            </select>
-            {!fxReady && currency !== "USD" && (
-              <span title="Loading exchange rate" style={{ color: V.gold, fontSize: 9, padding: "0 8px 0 0", fontWeight: 700 }}>…</span>
-            )}
-          </div>
+          )}
           {/* Visible save status — replaces the silent failures.
               "expired" means the token is invalid (typically because
               another device logged in under the legacy rotation

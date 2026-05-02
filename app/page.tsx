@@ -40,6 +40,7 @@ const AdminPanel         = dynamic(() => import("@/components/AdminPanel"),     
 const AskClaude          = dynamic(() => import("@/components/AskClaude"),             { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const TrackRecordTab = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/TrackRecord"), { ssr:false, loading:() => <PanelSkeleton /> });
+const CurrencySelector = dynamic(() => import("@/components/CurrencySelector"), { ssr:false, loading:() => null });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
 const NewsFeed       = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/NewsFeed"),          { ssr:false, loading:() => <PanelSkeleton /> });
@@ -1684,6 +1685,7 @@ export default function ArbibX() {
                 <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:V.gain,letterSpacing:"0.06em"}}>SIGNED IN</span>
               </div>
             )}
+            <CurrencySelector />
             <button ref={themeBtnRef} onClick={toggleTheme}
               style={{background:"none",border:`1px solid ${theme==="light"?"rgba(140,90,0,0.40)":"transparent"}`,borderRadius:8,cursor:"pointer",color:theme==="dark"?V.ink3:V.gold,padding:"6px 10px",display:"flex",alignItems:"center",minHeight:36,minWidth:36,justifyContent:"center",transition:"all 0.2s"}}
               title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}>
