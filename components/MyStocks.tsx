@@ -451,7 +451,21 @@ export default function MyStocks({
     }
   }, []);
 
-  const loadFromCloud = useCallback(async (u: AuthUser) => {
+  // Concurrency guard: when a save is in flight (or pending in the
+  // debounce window), refusing to load prevents the classic race
+  // where a refetch returns stale cloud data and overwrites the
+  // user's just-typed changes. Incremented in saveToCloud + the
+  // debounced save effect; decremented when the POST resolves.
+  const pendingSavesRef = useRef(0);
+  // Don't fall back to localStorage on a transient HTTP error if it
+  // would mean replacing real cloud state with an empty Main — only
+  // do so on the very first load when we have no in-memory state yet.
+  const cloudLoadedOnceRef = useRef(false);
+
+  const loadFromCloud = useCallback(async (u: AuthUser, opts?: { skipIfSaving?: boolean }) => {
+    // Don't race in-flight saves — would overwrite the user's
+    // just-edited holdings with stale cloud state.
+    if (opts?.skipIfSaving && pendingSavesRef.current > 0) return;
     isFetchingRef.current = true;
     try {
       const r = await fetch(`/api/portfolio?email=${encodeURIComponent(u.email)}&token=${u.token}`);
@@ -469,6 +483,7 @@ export default function MyStocks({
           ? d.activeId
           : d.portfolios[0].id;
         setActiveId(active);
+        cloudLoadedOnceRef.current = true;
         // Mirror to localStorage as offline + multi-portfolio backup
         try {
           localStorage.setItem(SK_V2, JSON.stringify({ list: d.portfolios, activeId: active }));
@@ -480,16 +495,22 @@ export default function MyStocks({
         const main = makeMainPortfolio(d.holdings, d.startingCash ?? null, d.startedAt ?? null);
         setPortfolios([main]);
         setActiveId(main.id);
+        cloudLoadedOnceRef.current = true;
         try {
           localStorage.setItem(SK_V2, JSON.stringify({ list: [main], activeId: main.id }));
           localStorage.setItem(SK, JSON.stringify(d.holdings));
         } catch { /**/ }
-      } else {
-        // No cloud data — fall back to local
+      } else if (!cloudLoadedOnceRef.current) {
+        // No cloud data on a fresh session — safe to fall back
         loadFromLocal();
       }
+      // If we've loaded cloud data before but this fetch returned
+      // nothing usable, keep the in-memory state intact rather than
+      // wiping it back to a fresh empty Main.
     } catch {
-      loadFromLocal();
+      // Network/HTTP error: only fall back to local on the first load.
+      // Otherwise keep current state to avoid clobbering it on a hiccup.
+      if (!cloudLoadedOnceRef.current) loadFromLocal();
     } finally {
       isFetchingRef.current = false;
       loadedRef.current = true;
@@ -554,43 +575,26 @@ export default function MyStocks({
 
     window.addEventListener("arbibx-login", onLogin);
 
-    // Re-fetch from Supabase when user returns to the tab/app on any device
-    // This ensures cross-device sync without needing to sign out and back in
-    const onVisibility = async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const stored = localStorage.getItem(AU);
-        if (!stored) return;
-        const u = JSON.parse(stored) as AuthUser;
-        await loadFromCloud(u);
-      } catch { /**/ }
-    };
-
-    document.addEventListener("visibilitychange", onVisibility);
-
-    // Also pick up changes from SimModal (Add/Replace) — it dispatches
-    // a custom `arbibx-portfolios-changed` event after writing v2.
+    // Pick up changes dispatched by SimModal (Add/Replace) — but only
+    // refetch when no saves are in flight. Otherwise we'd race the
+    // user's just-typed changes and overwrite them with stale state.
     const onPortfoliosChanged = async () => {
       const stored = localStorage.getItem(AU);
       if (stored) {
-        try { await loadFromCloud(JSON.parse(stored) as AuthUser); } catch { /**/ }
+        try { await loadFromCloud(JSON.parse(stored) as AuthUser, { skipIfSaving: true }); } catch { /**/ }
       } else {
-        loadFromLocal();
+        if (pendingSavesRef.current === 0) loadFromLocal();
       }
     };
     window.addEventListener("arbibx-portfolios-changed", onPortfoliosChanged);
 
-    // Backwards-compat: legacy SimModal builds dispatched a storage
-    // event on the SK key with a flat holdings array. If that fires,
-    // route the holdings into the active portfolio.
+    // Cross-tab storage sync — only honor when no saves are in flight,
+    // and only honor SK_V2 (the new multi-portfolio store). The legacy
+    // SK key is intentionally NOT synced cross-tab anymore: routing it
+    // through the active portfolio would cause unrelated tabs to clobber
+    // each other.
     const onStorage = (e: StorageEvent) => {
-      if (e.key === SK && !isFetchingRef.current) {
-        try {
-          const local = localStorage.getItem(SK);
-          if (local) setH(JSON.parse(local) as H[]);
-        } catch { /**/ }
-      }
-      if (e.key === SK_V2 && !isFetchingRef.current) {
+      if (e.key === SK_V2 && !isFetchingRef.current && pendingSavesRef.current === 0) {
         loadFromLocal();
       }
       if (e.key === AU) onLogin();
@@ -602,7 +606,6 @@ export default function MyStocks({
       window.removeEventListener("arbibx-login", onLogin);
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("arbibx-portfolios-changed", onPortfoliosChanged);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFromCloud, loadFromLocal]);
@@ -616,6 +619,7 @@ export default function MyStocks({
   const saveStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveToCloud = useCallback(async (u: AuthUser, list: Portfolio[], active: string) => {
+    pendingSavesRef.current++;
     setSyncing(true);
     setSaveStatus("syncing");
     const activeHoldings = list.find(p => p.id === active)?.holdings ?? [];
@@ -655,23 +659,52 @@ export default function MyStocks({
         localStorage.setItem(SK_V2, JSON.stringify({ list, activeId: active }));
         localStorage.setItem(SK,    JSON.stringify(activeHoldings));
       } catch { /**/ }
+    } finally {
+      pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+      setSyncing(false);
     }
-    setSyncing(false);
   }, []);
 
+  // Debounced save: rapid edits (e.g. delete five holdings in a
+  // row) coalesce into a single POST so we don't fire five racing
+  // requests against /api/portfolio. Also fires the localStorage
+  // mirror immediately so refresh recovers correctly.
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     // GUARD: never save before initial load finishes, or while actively fetching
     if (!loadedRef.current || isFetchingRef.current) return;
     if (!portfolios.length || !activeId) return;
 
-    if (user) {
+    // Mirror to localStorage immediately as offline backup — this
+    // protects the data even if the user navigates away before the
+    // debounced cloud POST fires.
+    try {
+      localStorage.setItem(SK_V2, JSON.stringify({ list: portfolios, activeId }));
+      localStorage.setItem(SK,    JSON.stringify(holdings));
+    } catch { /**/ }
+
+    if (!user) return;
+
+    // Bump the pending counter immediately so any concurrent load
+    // call sees that a save is queued and bails. Decrement when the
+    // POST resolves (in saveToCloud's finally).
+    pendingSavesRef.current++;
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    saveDebounceRef.current = setTimeout(() => {
+      // Decrement here because saveToCloud will increment again on
+      // entry — keeping the counter > 0 across the debounce window
+      // and the actual POST.
+      pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
       saveToCloud(user, portfolios, activeId);
-    } else {
-      try {
-        localStorage.setItem(SK_V2, JSON.stringify({ list: portfolios, activeId }));
-        localStorage.setItem(SK,    JSON.stringify(holdings));
-      } catch { /**/ }
-    }
+    }, 400);
+
+    return () => {
+      if (saveDebounceRef.current) {
+        clearTimeout(saveDebounceRef.current);
+        saveDebounceRef.current = null;
+        pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+      }
+    };
   }, [portfolios, activeId, holdings, user, saveToCloud]);
 
   /* ---- Portfolio CRUD -------------------------------------- */

@@ -454,19 +454,32 @@ body::after {
   padding: 6px 6px calc(env(safe-area-inset-bottom, 0px) + 4px);
 }
 .vx-bottom-nav__row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
   position: relative;
   gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Soft fade on the right edge to hint scrollability when there are
+     more tabs than fit in the viewport. */
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
+          mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
 }
+.vx-bottom-nav__row::-webkit-scrollbar { display: none; }
+
 .vx-bottom-nav__btn {
   position: relative;
+  flex: 0 0 auto;
+  scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   gap: 4px;
-  padding: 10px 2px 6px;
+  padding: 10px 4px 6px;
+  min-width: 58px;
   min-height: 58px;
   background: none;
   border: none;

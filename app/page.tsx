@@ -887,129 +887,51 @@ function DesktopSideNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
 }
 
 /* ── MobileNav ─────────────────────────────────────────────────
-   Premium mobile bottom nav: 4 primary tabs + a More button that
-   opens a sheet with the remaining tabs. Larger touch targets
-   (60px min), springy active indicator pill, safe-area padding,
-   theme-aware glass surface. */
-const MOBILE_PRIMARY: Tab[] = ["markets", "top15", "watchlist", "portfolio"];
-const MOBILE_SECONDARY: Tab[] = ["earnings", "news", "screener", "analytics"];
-
-function MoreIcon({size=22,active}:{size?:number;active:boolean}) {
-  const sw = active ? 2 : 1.5;
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={sw} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5" cy="12" r="1.5"/>
-      <circle cx="12" cy="12" r="1.5"/>
-      <circle cx="19" cy="12" r="1.5"/>
-    </svg>
-  );
-}
+   Mobile bottom nav: ALL tabs in a horizontally scrollable strip
+   (no More overflow). Each pill is a fixed min-width so the row
+   scrolls naturally on narrow phones; the active pill auto-scrolls
+   into view so users never lose track of where they are. */
 
 function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
-  const [showMore, setShowMore] = useState(false);
-  const moreActive = showMore || MOBILE_SECONDARY.includes(tab);
+  const rowRef = useRef<HTMLDivElement>(null);
 
-  // Close the more sheet when a tab is picked from inside it
-  const pick = useCallback((t: Tab) => {
-    setTab(t);
-    setShowMore(false);
-  }, [setTab]);
-
-  // Close on Escape
+  // Auto-scroll the active tab into view whenever it changes so
+  // users tapping a tab on the right edge don't lose its position.
   useEffect(() => {
-    if (!showMore) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowMore(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showMore]);
-
-  // Build the 5-button row data
-  const slots: { id: Tab | "more"; label: string }[] = [
-    ...MOBILE_PRIMARY.map(id => ({ id, label: TABS.find(t => t.id === id)!.short })),
-    { id: "more", label: "More" },
-  ];
+    const row = rowRef.current;
+    if (!row) return;
+    const btn = row.querySelector<HTMLButtonElement>(`button[data-tab="${tab}"]`);
+    if (!btn) return;
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [tab]);
 
   return (
-    <>
-      {/* Backdrop dimmer when sheet is open */}
-      <AnimatePresence>
-        {showMore && (
-          <motion.div
-            key="more-backdrop"
-            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-            transition={{duration:0.2}}
-            onClick={()=>setShowMore(false)}
-            className="vx-more-backdrop"
-            aria-hidden
-          />
-        )}
-      </AnimatePresence>
-
-      {/* The "More" sheet, slides up from the nav */}
-      <AnimatePresence>
-        {showMore && (
-          <motion.div
-            key="more-sheet"
-            initial={{y:"100%",opacity:0}}
-            animate={{y:0,opacity:1}}
-            exit={{y:"100%",opacity:0}}
-            transition={{type:"spring",stiffness:380,damping:34}}
-            className="vx-more-sheet"
-            role="dialog"
-            aria-label="More tabs"
-          >
-            <div className="vx-more-sheet__handle" aria-hidden />
-            <p className="vx-more-sheet__title">More</p>
-            <div className="vx-more-sheet__grid">
-              {MOBILE_SECONDARY.map(id => {
-                const t = TABS.find(x => x.id === id)!;
-                const active = tab === id;
-                return (
-                  <button key={id} onClick={()=>pick(id)}
-                    className={`vx-more-sheet__item ${active ? "is-active" : ""}`}>
-                    <span className="vx-more-sheet__icon"><TabIcon id={id} size={18} active={active}/></span>
-                    <span className="vx-more-sheet__label">{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <nav className="vx-bottom-nav" aria-label="Primary navigation">
-        <div className="vx-bottom-nav__row">
-          {slots.map((slot) => {
-            const isMore = slot.id === "more";
-            const active = isMore ? moreActive : tab === slot.id;
-            const onClick = isMore
-              ? () => setShowMore(s => !s)
-              : () => { setShowMore(false); setTab(slot.id as Tab); };
-            return (
-              <button key={slot.id} onClick={onClick}
-                className={`vx-bottom-nav__btn ${active ? "is-active" : ""}`}
-                data-tab={slot.id}
-                aria-current={active && !isMore ? "page" : undefined}>
-                {active && (
-                  <motion.span
-                    layoutId="vx-mobile-tab-indicator"
-                    aria-hidden
-                    className="vx-bottom-nav__indicator"
-                    transition={{type:"spring",stiffness:400,damping:32}}
-                  />
-                )}
-                <span className="vx-bottom-nav__icon">
-                  {isMore
-                    ? <MoreIcon size={24} active={active}/>
-                    : <TabIcon id={slot.id as Tab} size={24} active={active}/>}
-                </span>
-                <span className="vx-bottom-nav__label">{slot.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-    </>
+    <nav className="vx-bottom-nav" aria-label="Primary navigation">
+      <div ref={rowRef} className="vx-bottom-nav__row">
+        {TABS.map(slot => {
+          const active = tab === slot.id;
+          return (
+            <button key={slot.id} onClick={() => setTab(slot.id)}
+              className={`vx-bottom-nav__btn ${active ? "is-active" : ""}`}
+              data-tab={slot.id}
+              aria-current={active ? "page" : undefined}>
+              {active && (
+                <motion.span
+                  layoutId="vx-mobile-tab-indicator"
+                  aria-hidden
+                  className="vx-bottom-nav__indicator"
+                  transition={{type:"spring",stiffness:400,damping:32}}
+                />
+              )}
+              <span className="vx-bottom-nav__icon">
+                <TabIcon id={slot.id} size={22} active={active}/>
+              </span>
+              <span className="vx-bottom-nav__label">{slot.short}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
