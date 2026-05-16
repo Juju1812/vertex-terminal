@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { TrendingUp, TrendingDown, Trophy, Minus, Activity, Award, Target, BarChart2, Sparkles, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import TrackRecordChart from "./TrackRecordChart";
 
 /* ── TrackRecord ─────────────────────────────────────────────
    Rolling performance dashboard for the AI's BUY picks vs SPY.
@@ -21,10 +22,18 @@ interface PickReturn {
   daysHeld:      number;
 }
 
+interface SeriesPoint {
+  date:         string;
+  returnPct:    number;
+  spyReturnPct: number | null;
+  picks:        number;
+}
+
 interface TrackRecordResp {
   snapshotCount: number;
   days:          number;
   picks:         PickReturn[];
+  series?:       SeriesPoint[];
   aggregate: {
     totalPicks: number;
     wins:       number; losses: number; flat: number;
@@ -241,6 +250,9 @@ export default function TrackRecord({ onSelectTicker }: Props) {
           </p>
         </div>
       </div>
+
+      {/* Performance chart — "follow the AI from each snapshot date" */}
+      <TrackRecordChart series={data.series ?? []} days={days} />
 
       {/* Best & worst pick spotlight */}
       <div style={{

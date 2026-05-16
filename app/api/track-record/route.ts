@@ -288,12 +288,55 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Performance series for the chart ───────────────────
+    // For each snapshot date, "if you'd bought the AI's BUY picks
+    // on this date and held to today, what would your return be?"
+    // Plotted alongside SPY's return from the same date so users
+    // can compare the AI-follow strategy against just buying SPY.
+    // Dedupe by calendar day — keep the snapshot with the most BUY
+    // picks per day so multi-runs in one day don't crowd the chart.
+    type SeriesPoint = { date: string; returnPct: number; spyReturnPct: number | null; picks: number };
+    const dayBuckets = new Map<string, { snap: SnapshotRow; buyPicks: SnapshotRow["picks"] }>();
+    for (const snap of snapshots) {
+      const dateOnly = snap.created_at.split("T")[0];
+      const buyPicks = (snap.picks ?? []).filter(p => {
+        const sig = (p.signal ?? "").toUpperCase().trim();
+        return (sig === "STRONG BUY" || sig === "BUY") && p.price > 0 && (currentPrices[p.ticker] ?? 0) > 0;
+      });
+      if (!buyPicks.length) continue;
+      const existing = dayBuckets.get(dateOnly);
+      if (!existing || buyPicks.length > existing.buyPicks.length) {
+        dayBuckets.set(dateOnly, { snap, buyPicks });
+      }
+    }
+
+    const series: SeriesPoint[] = [...dayBuckets.entries()]
+      .map(([date, { buyPicks }]) => {
+        const returns = buyPicks.map(p => {
+          const cur = currentPrices[p.ticker] ?? 0;
+          return ((cur - p.price) / p.price) * 100;
+        });
+        const avgRet = returns.reduce((s, x) => s + x, 0) / returns.length;
+        const spyStart = spyCloseOnOrBefore(spyHistory, date);
+        const spyRet = (spyStart && spyCurrent)
+          ? ((spyCurrent - spyStart) / spyStart) * 100
+          : null;
+        return {
+          date,
+          returnPct:    +avgRet.toFixed(2),
+          spyReturnPct: spyRet != null ? +spyRet.toFixed(2) : null,
+          picks:        buyPicks.length,
+        };
+      })
+      .sort((a, b) => a.date < b.date ? -1 : 1);
+
     const result = {
       snapshotCount: snapshots.length,
       days,
       windowOldestIso: oldestSnap?.created_at ?? null,
       windowNewestIso: newestSnap?.created_at ?? null,
       picks,
+      series,
       aggregate: {
         totalPicks: picks.length,
         wins, losses, flat,
