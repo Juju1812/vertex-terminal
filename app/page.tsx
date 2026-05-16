@@ -16,7 +16,7 @@ import {
   Trophy, BookOpen, X, Calendar, Newspaper,
   SlidersHorizontal, BarChart2, LayoutDashboard,
   ChevronRight, ExternalLink, Eye, EyeOff, Bell,
-  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon, Shield,
+  AlertTriangle, GitCompare, Sun, Moon, Zap, Gauge, Sparkles, Settings as SettingsIcon, Shield, Flame,
 } from "lucide-react";
 import { CountdownBar } from "@/components/CountdownBar";
 import WatchlistSwitcher from "@/components/WatchlistSwitcher";
@@ -41,6 +41,8 @@ const AdminPanel         = dynamic(() => import("@/components/AdminPanel"),     
 const AskClaude          = dynamic(() => import("@/components/AskClaude"),             { ssr:false, loading:() => null });
 const Top15    = dynamic(() => import("@/components/Top15"),   { ssr:false, loading:() => <PanelSkeleton /> });
 const TrackRecordTab = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/TrackRecord"), { ssr:false, loading:() => <PanelSkeleton /> });
+const Pulse = dynamic<{ onSelectTicker?:(t:string)=>void; onAddToWatchlist?:(t:string)=>void; watchlist?:string[] }>(() => import("@/components/Pulse"), { ssr:false, loading:() => <PanelSkeleton /> });
+const HypeTracker = dynamic<{ onSelectTicker?:(t:string)=>void; onAddToWatchlist?:(t:string)=>void; watchlist?:string[] }>(() => import("@/components/HypeTracker"), { ssr:false, loading:() => <PanelSkeleton /> });
 const CurrencySelector = dynamic(() => import("@/components/CurrencySelector"), { ssr:false, loading:() => null });
 const MyStocks = dynamic(() => import("@/components/MyStocks"),{ ssr:false, loading:() => <PanelSkeleton /> });
 const EarningsCal    = dynamic<{ onSelectTicker?:(t:string)=>void }>(() => import("@/components/EarningsCalendar"),  { ssr:false, loading:() => <PanelSkeleton /> });
@@ -96,7 +98,7 @@ interface Quote {
 }
 interface Bar { date:string; close:number; }
 interface IndexData { n:string; v:string; d:string; up:boolean; }
-type Tab = "markets"|"top15"|"portfolio"|"earnings"|"news"|"screener"|"analytics"|"watchlist"|"trackrecord";
+type Tab = "markets"|"top15"|"pulse"|"hype"|"portfolio"|"earnings"|"news"|"screener"|"analytics"|"watchlist"|"trackrecord";
 
 /* Multi-watchlist storage. The shape allows multiple named lists
    (e.g. "Tech I'm watching", "Earnings plays") with one active at
@@ -148,6 +150,8 @@ const INDICES_FALLBACK: IndexData[] = [
 
 const TABS: {id:Tab;label:string;short:string}[] = [
   {id:"markets",     label:"Markets",      short:"Markets"  },
+  {id:"pulse",       label:"Pulse",        short:"Pulse"    },
+  {id:"hype",        label:"Hype",         short:"Hype"     },
   {id:"top15",       label:"Top 15",       short:"Top 15"   },
   {id:"trackrecord", label:"Track Record", short:"Record"   },
   {id:"earnings",    label:"Earnings",     short:"Earnings" },
@@ -392,6 +396,8 @@ function ChartTip({active,payload,label}:{active?:boolean;payload?:{value:number
 function TabIcon({id,size=20,active}:{id:Tab;size?:number;active:boolean}) {
   const sw=active?2:1.5;
   if (id==="markets")     return <LayoutDashboard size={size} strokeWidth={sw}/>;
+  if (id==="pulse")       return <Zap             size={size} strokeWidth={sw}/>;
+  if (id==="hype")        return <Flame           size={size} strokeWidth={sw}/>;
   if (id==="top15")       return <Trophy          size={size} strokeWidth={sw}/>;
   if (id==="trackrecord") return <TrendingUp      size={size} strokeWidth={sw}/>;
   if (id==="portfolio")   return <BookOpen        size={size} strokeWidth={sw}/>;
@@ -980,7 +986,7 @@ export default function ArbibX() {
     // Honor user-configured default tab from Settings (falls back to "markets")
     try {
       const saved = localStorage.getItem("arbibx-default-tab") as Tab | null;
-      const valid: Tab[] = ["markets","top15","portfolio","earnings","news","screener","analytics","watchlist"];
+      const valid: Tab[] = ["markets","pulse","hype","top15","trackrecord","portfolio","earnings","news","screener","analytics","watchlist"];
       if (saved && valid.includes(saved)) return saved;
     } catch { /* */ }
     return "markets";
@@ -1747,6 +1753,8 @@ export default function ArbibX() {
       <main className="vx-main" style={{position:"relative",zIndex:1}}>
         <AnimatedTab tabKey={tab}>
           {tab==="top15"       && <Top15 onSelectTicker={go} isPro={isPro} onUpgrade={()=>{setProReason("Unlock all 15 AI picks"); setShowProModal(true);}}/>}
+          {tab==="pulse"       && <Pulse onSelectTicker={go} onAddToWatchlist={toggleWatch} watchlist={watchlist}/>}
+          {tab==="hype"        && <HypeTracker onSelectTicker={go} onAddToWatchlist={toggleWatch} watchlist={watchlist}/>}
           {tab==="trackrecord" && <TrackRecordTab onSelectTicker={go}/>}
           {tab==="earnings"  && <EarningsCal onSelectTicker={go}/>}
           {tab==="news"      && <NewsFeed onSelectTicker={go}/>}
