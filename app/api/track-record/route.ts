@@ -10,8 +10,11 @@ const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 
 /* ── In-memory result cache (5-minute TTL) ───────────────────
    Track record is identical for everyone — cache it server-side
-   so we don't re-fetch all the historical prices on every visit. */
-let cache: { result: unknown; expiresAt: number } | null = null;
+   so we don't re-fetch all the historical prices on every visit.
+   Keyed by `days` so the 7d / 30d / 90d / 365d ranges cache
+   independently (a single shared slot would mean the first range
+   any user picks gets pinned for 5 minutes). */
+const cache = new Map<number, { result: unknown; expiresAt: number }>();
 const CACHE_MS = 5 * 60 * 1000;
 
 interface SnapshotRow {
@@ -103,15 +106,52 @@ async function fetchClose(ticker: string, isoDate: string): Promise<number | nul
   } catch { return null; }
 }
 
+/* Fetch a ticker's full daily-close history over a date range in
+   one aggs call. Returns YYYY-MM-DD → close. Used for SPY alpha
+   so we can compare each pick to the same-window SPY return rather
+   than a single oldest-snapshot baseline. */
+async function fetchDailyHistory(ticker: string, fromIso: string, toIso: string): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const from = fromIso.split("T")[0];
+    const to   = toIso.split("T")[0];
+    const r = await fetch(
+      `${POLYGON_BASE}/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=50000&apiKey=${POLYGON_KEY}`
+    );
+    if (!r.ok) return out;
+    const d = await r.json() as { results?: Array<{ c: number; t: number }> };
+    for (const bar of d.results ?? []) {
+      const date = new Date(bar.t).toISOString().split("T")[0];
+      out.set(date, bar.c);
+    }
+  } catch { /* */ }
+  return out;
+}
+
+/* Look up the SPY close on a specific calendar date, walking backward
+   up to 7 days to cover weekends/holidays where no bar exists. */
+function spyCloseOnOrBefore(history: Map<string, number>, dateIso: string): number | null {
+  const day = new Date(dateIso.split("T")[0] + "T00:00:00Z");
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(day.getTime() - i * 86_400_000).toISOString().split("T")[0];
+    const v = history.get(d);
+    if (typeof v === "number" && v > 0) return v;
+  }
+  return null;
+}
+
 /* ── Main GET handler ───────────────────────────────────── */
 
 export async function GET(req: NextRequest) {
   try {
-    if (cache && Date.now() < cache.expiresAt) {
-      return NextResponse.json(cache.result);
+    const days = Math.max(7, Math.min(365, parseInt(req.nextUrl.searchParams.get("days") ?? "90", 10)));
+
+    // Per-range cache: each (7|30|90|365) caches independently.
+    const cached = cache.get(days);
+    if (cached && Date.now() < cached.expiresAt) {
+      return NextResponse.json(cached.result);
     }
 
-    const days = Math.max(7, Math.min(365, parseInt(req.nextUrl.searchParams.get("days") ?? "90", 10)));
     const snapshots = await fetchSnapshots(days);
 
     if (!snapshots.length) {
@@ -203,30 +243,56 @@ export async function GET(req: NextRequest) {
     const best  = dedupeByTicker(bestSorted).slice(0, 5);
     const worst = dedupeByTicker(worstSorted).slice(0, 5);
 
-    // SPY benchmark over the same window: pick the oldest snapshot
-    // date and compare SPY's close then to its current price
+    // SPY benchmark — fetch the full daily-close history over the
+    // window once, then compute alpha PER pick (each pick's return
+    // vs SPY over the SAME holding period). Average those alphas =
+    // a fair "did the AI beat the market" number. The naive previous
+    // approach compared per-pick returns from various dates against
+    // SPY's return from only the OLDEST snapshot date — apples to
+    // oranges, and it inflated SPY's number for newer picks.
     const oldestSnap = snapshots[snapshots.length - 1];
+    const newestSnap = snapshots[0];
+    const spyHistory = oldestSnap
+      ? await fetchDailyHistory("SPY", oldestSnap.created_at, new Date().toISOString())
+      : new Map<string, number>();
+    const spyCurrent = currentPrices["SPY"]
+      ?? (await fetchCurrentPrices(["SPY"]).then(m => m.SPY ?? null))
+      ?? (spyHistory.size ? [...spyHistory.values()].pop() ?? null : null);
+
     let spyBenchmark: { startPrice: number; currentPrice: number; returnPct: number; sinceIso: string } | null = null;
-    if (oldestSnap) {
-      const [start, current] = await Promise.all([
-        fetchClose("SPY", oldestSnap.created_at),
-        currentPrices["SPY"]
-          ? Promise.resolve(currentPrices["SPY"])
-          : fetchCurrentPrices(["SPY"]).then(m => m.SPY ?? null),
-      ]);
-      if (start && current) {
+    if (oldestSnap && spyCurrent) {
+      const start = spyCloseOnOrBefore(spyHistory, oldestSnap.created_at) ?? await fetchClose("SPY", oldestSnap.created_at);
+      if (start) {
         spyBenchmark = {
           startPrice: start,
-          currentPrice: current,
-          returnPct: +(((current - start) / start) * 100).toFixed(2),
+          currentPrice: spyCurrent,
+          returnPct: +(((spyCurrent - start) / start) * 100).toFixed(2),
           sinceIso: oldestSnap.created_at,
         };
+      }
+    }
+
+    // Per-pick alpha: pick.returnPct - SPY return over the same
+    // window. Skip picks where we can't resolve SPY's start price.
+    let avgAlpha: number | null = null;
+    if (spyCurrent && spyHistory.size) {
+      const alphas: number[] = [];
+      for (const p of picks) {
+        const spyStart = spyCloseOnOrBefore(spyHistory, p.pickedAt);
+        if (!spyStart) continue;
+        const spyReturn = ((spyCurrent - spyStart) / spyStart) * 100;
+        alphas.push(p.returnPct - spyReturn);
+      }
+      if (alphas.length) {
+        avgAlpha = +(alphas.reduce((s, a) => s + a, 0) / alphas.length).toFixed(2);
       }
     }
 
     const result = {
       snapshotCount: snapshots.length,
       days,
+      windowOldestIso: oldestSnap?.created_at ?? null,
+      windowNewestIso: newestSnap?.created_at ?? null,
       picks,
       aggregate: {
         totalPicks: picks.length,
@@ -237,10 +303,14 @@ export async function GET(req: NextRequest) {
         worst,
       },
       spyBenchmark,
-      vsBenchmark: spyBenchmark ? +(avgReturn - spyBenchmark.returnPct).toFixed(2) : null,
+      // Per-pick alpha (fair comparison) when we have SPY history;
+      // fall back to the naive number for older clients that just
+      // want a quick "did we beat SPY" indicator.
+      vsBenchmark: avgAlpha
+        ?? (spyBenchmark ? +(avgReturn - spyBenchmark.returnPct).toFixed(2) : null),
     };
 
-    cache = { result, expiresAt: Date.now() + CACHE_MS };
+    cache.set(days, { result, expiresAt: Date.now() + CACHE_MS });
     return NextResponse.json(result);
   } catch (err) {
     console.error("[track-record] error:", err);
